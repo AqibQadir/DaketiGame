@@ -47,13 +47,13 @@ class AuthChoiceScreen extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 16),
-              GameButton(
+              const GameButton(
                 text: 'Connect',
                 icon: Icons.facebook,
                 width: 180,
                 backgroundAsset: AppAssets.facebookButtonBrush,
-                splatterColor: const Color(0xFF2478D4),
-                onTap: () {},
+                splatterColor: Color(0xFF2478D4),
+                onTap: null,
               ),
             ],
           ),

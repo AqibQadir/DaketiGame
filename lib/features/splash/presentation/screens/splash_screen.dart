@@ -69,23 +69,7 @@ class _SplashScreenState extends State<SplashScreen> {
                         );
                       },
                       child: const Text(
-                        'Terms & Conditions',
-                        style: TextStyle(
-                          color: Colors.white70,
-                          fontSize: 11,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 7),
-                    GestureDetector(
-                      onTap: () {
-                        Navigator.pushNamed(
-                          context,
-                          AppRoutes.privacy,
-                        );
-                      },
-                      child: const Text(
-                        'Privacy Policy',
+                        'Terms & Conditions & Privacy Policy',
                         style: TextStyle(
                           color: Colors.white70,
                           fontSize: 11,

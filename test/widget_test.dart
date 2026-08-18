@@ -6,7 +6,6 @@ void main() {
   testWidgets('Daketi app renders its splash screen', (tester) async {
     await tester.pumpWidget(const ProviderScope(child: DaketiApp()));
 
-    expect(find.text('Terms & Conditions'), findsOneWidget);
-    expect(find.text('Privacy Policy'), findsOneWidget);
+    expect(find.text('Terms & Conditions & Privacy Policy'), findsOneWidget);
   });
 }

@@ -9,14 +9,14 @@ class TermsConditionsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return LegalContentScreen(
-      title: 'Terms & Conditions',
+      title: 'Terms & Conditions & Privacy Policy',
       body:
-          'Welcome to Daketi. By continuing, you agree to play fairly, protect your account, and follow the game rules. This is temporary dummy legal content and should later be replaced with the approved final text.',
-      buttonText: 'Continue',
+          'TERMS & CONDITIONS\nWelcome to Daketi. By continuing, you agree to play fairly, protect your account, and follow the game rules. This is temporary content and should later be replaced with the approved final terms.\n\nPRIVACY POLICY\nDaketi may store profile details, game progress, purchase history, and gameplay statistics. This is placeholder content and should later be replaced with the approved final privacy policy.',
+      buttonText: 'Accept',
       onContinue: () {
         Navigator.pushReplacementNamed(
           context,
-          AppRoutes.privacy,
+          AppRoutes.welcome,
         );
       },
     );

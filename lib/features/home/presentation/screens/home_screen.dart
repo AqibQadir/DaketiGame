@@ -139,11 +139,11 @@ class HomeScreen extends ConsumerWidget {
                       },
                     ),
                     const SizedBox(height: 14),
-                    GameIconButton(
+                    const GameIconButton(
                       icon: Icons.calendar_month,
                       label: 'Daily',
                       badge: '2',
-                      onTap: () {},
+                      onTap: null,
                     ),
                   ],
                 ),
@@ -221,10 +221,10 @@ class HomeScreen extends ConsumerWidget {
                       },
                     ),
                     const SizedBox(width: 12),
-                    GameIconButton(
+                    const GameIconButton(
                       icon: Icons.workspace_premium,
                       label: 'Ranking',
-                      onTap: () {},
+                      onTap: null,
                     ),
                   ],
                 ),

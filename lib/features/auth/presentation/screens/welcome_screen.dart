@@ -84,29 +84,29 @@ class WelcomeScreen extends StatelessWidget {
                 ],
               ),
             ),
-            Positioned(
+            const Positioned(
               right: 18,
               bottom: 18,
               child: Row(
                 children: [
                   GameIconButton(
                     icon: Icons.facebook,
-                    onTap: () {},
+                    onTap: null,
                   ),
-                  const SizedBox(width: 8),
+                  SizedBox(width: 8),
                   GameIconButton(
                     icon: Icons.camera_alt,
-                    onTap: () {},
+                    onTap: null,
                   ),
-                  const SizedBox(width: 8),
+                  SizedBox(width: 8),
                   GameIconButton(
                     icon: Icons.play_arrow,
-                    onTap: () {},
+                    onTap: null,
                   ),
-                  const SizedBox(width: 8),
+                  SizedBox(width: 8),
                   GameIconButton(
                     icon: Icons.music_note,
-                    onTap: () {},
+                    onTap: null,
                   ),
                 ],
               ),

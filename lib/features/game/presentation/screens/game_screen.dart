@@ -1,19 +1,23 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../../core/constants/app_colors.dart';
 import '../../../../core/routes/app_routes.dart';
 import '../../../../core/widgets/game_background.dart';
 import '../../../../core/widgets/game_close_button.dart';
+import '../../domain/models/daketi_game.dart';
 import '../../domain/models/game_action.dart';
 import '../../domain/models/game_card.dart';
-import '../../domain/models/daketi_game.dart';
+import '../../domain/models/game_player.dart';
 import '../controllers/game_controller.dart';
+
+const _gold = Color(0xFFD2A45E);
+const _darkGold = Color(0xFF65401D);
 
 class GameScreen extends ConsumerStatefulWidget {
   const GameScreen({super.key});
-
   @override
   ConsumerState<GameScreen> createState() => _GameScreenState();
 }
@@ -22,46 +26,36 @@ class _GameScreenState extends ConsumerState<GameScreen> {
   String? selectedCardId;
   bool isSubmitting = false;
 
-  List<GameAction> actionsFor(GameSessionState session) {
-    return session.availableActions
-        .where((action) => action.cardId == selectedCardId)
-        .toList(growable: false);
-  }
-
   Future<void> selectCard(GameCard card) async {
-    final session = ref.read(gameControllerProvider);
-    if (!session.isCurrentPlayersTurn || isSubmitting) return;
+    final state = ref.read(gameControllerProvider);
+    if (!state.isCurrentPlayersTurn || isSubmitting) return;
     HapticFeedback.selectionClick();
     setState(() => selectedCardId = card.id);
     await ref.read(gameControllerProvider.notifier).loadAvailableActions();
-    if (!mounted) return;
-    final updated = ref.read(gameControllerProvider);
-    if (updated.error != null) _showMessage(updated.error!);
+    if (mounted && ref.read(gameControllerProvider).error != null) {
+      _message(ref.read(gameControllerProvider).error!);
+    }
   }
 
   Future<void> perform(GameAction action) async {
     setState(() => isSubmitting = true);
     HapticFeedback.mediumImpact();
-    SystemSound.play(SystemSoundType.click);
-    final success =
+    final ok =
         await ref.read(gameControllerProvider.notifier).performAction(action);
     if (!mounted) return;
     setState(() {
       isSubmitting = false;
       selectedCardId = null;
     });
-    if (!success) {
-      _showMessage(
-        ref.read(gameControllerProvider).error ?? 'The move was rejected.',
-      );
+    if (!ok) {
+      _message(
+          ref.read(gameControllerProvider).error ?? 'The move was rejected.');
     }
   }
 
-  void _showMessage(String message) {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(message)));
-  }
+  void _message(String text) => ScaffoldMessenger.of(context)
+    ..hideCurrentSnackBar()
+    ..showSnackBar(SnackBar(content: Text(text)));
 
   @override
   Widget build(BuildContext context) {
@@ -71,27 +65,25 @@ class _GameScreenState extends ConsumerState<GameScreen> {
       }
       if (previous?.connectionStatus != next.connectionStatus &&
           next.connectionStatus == GameConnectionStatus.disconnected) {
-        _showMessage('Connection lost. Reconnecting…');
-      }
-      if (previous?.disconnectedPlayer != next.disconnectedPlayer &&
-          next.disconnectedPlayer != null) {
-        _showMessage('${next.disconnectedPlayer} disconnected');
+        _message('Connection lost. Reconnecting…');
       }
     });
     final session = ref.watch(gameControllerProvider);
     final game = session.game;
     final player = game?.playerById(session.playerId);
-    final selectedActions = actionsFor(session);
-
     if (selectedCardId != null &&
         !(player?.hand.any((card) => card.id == selectedCardId) ?? false)) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) setState(() => selectedCardId = null);
       });
     }
-
+    final actions = session.availableActions
+        .where((action) => action.cardId == selectedCardId)
+        .toList(growable: false);
     return Scaffold(
+      backgroundColor: Colors.black,
       body: GameBackground(
+        overlayOpacity: .45,
         child: SafeArea(
           child: Center(
             child: FittedBox(
@@ -99,178 +91,19 @@ class _GameScreenState extends ConsumerState<GameScreen> {
               child: SizedBox(
                 width: 844,
                 height: 390,
-                child: Stack(
-                  children: [
-                    Positioned(
-                      left: 20,
-                      top: 16,
-                      child: GameCloseButton(
-                        size: 50,
-                        onTap: Navigator.of(context).pop,
+                child: game == null
+                    ? const Center(child: CircularProgressIndicator())
+                    : _Board(
+                        session: session,
+                        game: game,
+                        player: player,
+                        selected: selectedCardId,
+                        actions: actions,
+                        submitting: isSubmitting,
+                        onCard: selectCard,
+                        onAction: perform,
+                        onExit: Navigator.of(context).pop,
                       ),
-                    ),
-                    Positioned(
-                      top: 17,
-                      left: 82,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'ROOM ${session.gameId ?? '----'}',
-                            style: const TextStyle(
-                              color: AppColors.orange,
-                              fontWeight: FontWeight.w900,
-                            ),
-                          ),
-                          Text(
-                            session.isCurrentPlayersTurn
-                                ? 'YOUR TURN · TAP A CARD'
-                                : 'WAITING FOR OPPONENT',
-                            style: const TextStyle(fontSize: 10),
-                          ),
-                          if (game != null) _TurnTimer(game: game),
-                        ],
-                      ),
-                    ),
-                    if (game == null)
-                      const Center(child: CircularProgressIndicator())
-                    else ...[
-                      Positioned(
-                        top: 16,
-                        left: 260,
-                        right: 24,
-                        height: 58,
-                        child: Row(
-                          children: game.players
-                              .where((item) => item.id != session.playerId)
-                              .map(
-                                (opponent) => Expanded(
-                                  child: Padding(
-                                    padding: const EdgeInsets.only(left: 8),
-                                    child: _PlayerChip(
-                                      name: opponent.name,
-                                      cards: opponent.handCount,
-                                      score: opponent.score,
-                                      topCard: opponent.topCard,
-                                    ),
-                                  ),
-                                ),
-                              )
-                              .toList(growable: false),
-                        ),
-                      ),
-                      Positioned(
-                        left: 150,
-                        right: 150,
-                        top: 86,
-                        height: 185,
-                        child: _PokerTable(
-                          deckCount: game.deckCount,
-                          cards: game.table,
-                        ),
-                      ),
-                      Positioned(
-                        left: 225,
-                        right: 225,
-                        bottom: 8,
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              '${player?.name ?? session.playerName ?? 'PLAYER'} · '
-                              'SCORE ${player?.score ?? 0}',
-                              style:
-                                  const TextStyle(fontWeight: FontWeight.w900),
-                            ),
-                            const SizedBox(height: 7),
-                            Wrap(
-                              alignment: WrapAlignment.center,
-                              spacing: 8,
-                              children: (player?.hand ?? const <GameCard>[])
-                                  .map(
-                                    (card) => _CardTile(
-                                      card: card,
-                                      selected: selectedCardId == card.id,
-                                      enabled: session.isCurrentPlayersTurn &&
-                                          !isSubmitting,
-                                      onTap: () => selectCard(card),
-                                    ),
-                                  )
-                                  .toList(growable: false),
-                            ),
-                          ],
-                        ),
-                      ),
-                      if (selectedCardId != null)
-                        Positioned(
-                          left: 22,
-                          bottom: 23,
-                          width: 190,
-                          child: isSubmitting
-                              ? const Center(
-                                  child: SizedBox(
-                                    width: 24,
-                                    height: 24,
-                                    child: CircularProgressIndicator(
-                                        strokeWidth: 2),
-                                  ),
-                                )
-                              : selectedActions.isEmpty
-                                  ? const Text(
-                                      'LOADING LEGAL MOVES…',
-                                      textAlign: TextAlign.center,
-                                      style: TextStyle(fontSize: 10),
-                                    )
-                                  : Wrap(
-                                      alignment: WrapAlignment.center,
-                                      spacing: 6,
-                                      runSpacing: 5,
-                                      children: selectedActions
-                                          .map(
-                                            (action) => _ActionButton(
-                                              action: action,
-                                              onTap: () => perform(action),
-                                            ),
-                                          )
-                                          .toList(growable: false),
-                                    ),
-                        ),
-                      if (game.protectedValues.isNotEmpty)
-                        Positioned(
-                          right: 24,
-                          top: 82,
-                          child: _ProtectedValues(
-                            values: game.protectedValues,
-                          ),
-                        ),
-                      if (session.activity != null)
-                        Positioned(
-                          left: 260,
-                          right: 260,
-                          top: 76,
-                          child: AnimatedSwitcher(
-                            duration: const Duration(milliseconds: 250),
-                            child: Container(
-                              key: ValueKey(session.activity),
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 5,
-                              ),
-                              decoration: BoxDecoration(
-                                color: const Color(0xC9000000),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Text(
-                                session.activity!,
-                                textAlign: TextAlign.center,
-                                style: const TextStyle(fontSize: 9),
-                              ),
-                            ),
-                          ),
-                        ),
-                    ],
-                  ],
-                ),
               ),
             ),
           ),
@@ -280,398 +113,695 @@ class _GameScreenState extends ConsumerState<GameScreen> {
   }
 }
 
-class _TurnTimer extends StatelessWidget {
-  const _TurnTimer({required this.game});
-
+class _Board extends StatelessWidget {
+  const _Board(
+      {required this.session,
+      required this.game,
+      required this.player,
+      required this.selected,
+      required this.actions,
+      required this.submitting,
+      required this.onCard,
+      required this.onAction,
+      required this.onExit});
+  final GameSessionState session;
   final DaketiGame game;
+  final GamePlayer? player;
+  final String? selected;
+  final List<GameAction> actions;
+  final bool submitting;
+  final ValueChanged<GameCard> onCard;
+  final ValueChanged<GameAction> onAction;
+  final VoidCallback onExit;
 
   @override
   Widget build(BuildContext context) {
-    final rawStart = game.turnStartTime;
-    final startMillis = rawStart == null
-        ? DateTime.now().millisecondsSinceEpoch
-        : rawStart < 100000000000
-            ? rawStart * 1000
-            : rawStart;
-    final elapsed = DateTime.now().millisecondsSinceEpoch - startMillis;
-    final initial = (game.turnTimeLimit - elapsed ~/ 1000)
-        .clamp(0, game.turnTimeLimit)
-        .toDouble();
-    return TweenAnimationBuilder<double>(
-      key: ValueKey('${game.currentPlayerId}-${game.turnStartTime}'),
-      tween: Tween(begin: initial, end: 0),
-      duration: Duration(seconds: initial.ceil()),
-      builder: (context, value, _) {
-        final warning = value <= 8;
-        return Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.timer_outlined,
-              size: 12,
-              color: warning ? Colors.redAccent : Colors.white60,
-            ),
-            const SizedBox(width: 4),
-            Text(
-              '${value.ceil()}s',
-              style: TextStyle(
-                fontSize: 10,
-                fontWeight: FontWeight.w900,
-                color: warning ? Colors.redAccent : Colors.white70,
-              ),
-            ),
-          ],
-        );
-      },
-    );
+    final opponents =
+        game.players.where((p) => p.id != session.playerId).toList();
+    return Stack(children: [
+      const Positioned.fill(
+          child: DecoratedBox(
+              decoration: BoxDecoration(
+                  gradient: RadialGradient(
+                      radius: 1.05,
+                      colors: [Colors.transparent, Color(0xB0000000)],
+                      stops: [.42, 1])))),
+      const Positioned(
+          left: 45,
+          right: 45,
+          top: 82,
+          bottom: 24,
+          child: CustomPaint(painter: _TablePainter())),
+      Positioned(
+          left: 13, top: 12, child: GameCloseButton(size: 45, onTap: onExit)),
+      Positioned(
+          left: 13,
+          top: 65,
+          child: _Room(room: session.gameId ?? game.gameId, round: game.round)),
+      Positioned(
+          right: 13,
+          top: 12,
+          child: _Square(
+              icon: Icons.group,
+              label: '${game.players.length}/${game.maxPlayers}')),
+      const Positioned(
+          right: 13, top: 66, child: _Square(icon: Icons.chat_bubble)),
+      const Positioned(
+          right: 13, top: 118, child: _Square(icon: Icons.settings)),
+      if (opponents.isNotEmpty)
+        Positioned(
+            left: 287, top: 4, child: _Seat(player: opponents[0], place: 0)),
+      if (opponents.isNotEmpty && opponents[0].topCard != null)
+        Positioned(
+            left: 226,
+            top: 92,
+            child: _CapturePile(
+                card: opponents[0].topCard!, count: opponents[0].stackCount)),
+      if (opponents.length > 1)
+        Positioned(
+            left: 37, top: 151, child: _Seat(player: opponents[1], place: 1)),
+      if (opponents.length > 1 && opponents[1].topCard != null)
+        Positioned(
+            left: 116,
+            top: 251,
+            child: _CapturePile(
+                card: opponents[1].topCard!, count: opponents[1].stackCount)),
+      if (opponents.length > 2)
+        Positioned(
+            right: 37, top: 151, child: _Seat(player: opponents[2], place: 2)),
+      if (opponents.length > 2 && opponents[2].topCard != null)
+        Positioned(
+            right: 116,
+            top: 251,
+            child: _CapturePile(
+                card: opponents[2].topCard!, count: opponents[2].stackCount)),
+      Positioned(
+          left: 220,
+          right: 220,
+          top: 151,
+          height: 78,
+          child: _TableCards(cards: game.table, deck: game.deckCount)),
+      Positioned(
+          left: 355, top: 100, child: _Turn(session: session, game: game)),
+      if (game.protectedValues.isNotEmpty)
+        Positioned(
+            left: 349, top: 130, child: _Protected(game.protectedValues)),
+      Positioned(
+          left: 225,
+          right: 225,
+          bottom: 3,
+          height: 133,
+          child: _Hand(
+              cards: player?.hand ?? const [],
+              selected: selected,
+              enabled: session.isCurrentPlayersTurn && !submitting,
+              onTap: onCard)),
+      if (player?.topCard != null)
+        Positioned(
+            left: 178,
+            bottom: 25,
+            child: _CapturePile(
+                card: player!.topCard!, count: player!.stackCount)),
+      Positioned(
+          left: 225,
+          bottom: 11,
+          child: _Badge(
+              name: player?.name ?? session.playerName ?? 'YOU',
+              score: player?.score ?? 0)),
+      const Positioned(left: 13, bottom: 12, child: _Chat()),
+      Positioned(
+          right: 13,
+          bottom: 12,
+          child: selected == null
+              ? const _Show()
+              : _Actions(
+                  actions: actions, loading: submitting, onTap: onAction)),
+      if (session.activity != null)
+        Positioned(
+            left: 320,
+            right: 320,
+            top: 128,
+            child: _Activity(session.activity!)),
+    ]);
   }
 }
 
-class _ProtectedValues extends StatelessWidget {
-  const _ProtectedValues({required this.values});
-
-  final List<String> values;
+class _TablePainter extends CustomPainter {
+  const _TablePainter();
+  @override
+  void paint(Canvas canvas, Size size) {
+    final rect = Offset.zero & size;
+    final outer = RRect.fromRectAndRadius(
+        rect, Radius.elliptical(size.width / 2, size.height / 2));
+    canvas.drawRRect(
+        outer,
+        Paint()
+          ..shader = const LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                Color(0xFF52351E),
+                Color(0xFF140E0A),
+                Color(0xFF59391E)
+              ]).createShader(rect));
+    canvas.drawRRect(
+        outer,
+        Paint()
+          ..color = _gold
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2.5);
+    final innerRect = rect.deflate(9);
+    final inner = RRect.fromRectAndRadius(innerRect,
+        Radius.elliptical(innerRect.width / 2, innerRect.height / 2));
+    canvas.drawRRect(inner, Paint()..color = const Color(0xFF191D18));
+    canvas.drawRRect(
+        inner,
+        Paint()
+          ..color = const Color(0xFF8D632E)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2);
+    for (var i = 0; i < 30; i++) {
+      final angle = i * math.pi * 2 / 30;
+      final p = Offset(size.width / 2 + math.cos(angle) * (size.width / 2 - 21),
+          size.height / 2 + math.sin(angle) * (size.height / 2 - 17));
+      canvas.drawCircle(
+          p,
+          3.2,
+          Paint()
+            ..color = const Color(0xFF913D2B)
+            ..style = PaintingStyle.stroke);
+      canvas.drawCircle(p, 1, Paint()..color = _gold);
+    }
+  }
 
   @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+class _Panel extends StatelessWidget {
+  const _Panel({required this.child, this.padding = const EdgeInsets.all(6)});
+  final Widget child;
+  final EdgeInsets padding;
+  @override
+  Widget build(BuildContext context) => Container(
+      padding: const EdgeInsets.all(2),
       decoration: BoxDecoration(
-        color: const Color(0xD9181411),
-        border: Border.all(color: AppColors.tileBorder),
-        borderRadius: BorderRadius.circular(9),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(Icons.lock, size: 12, color: AppColors.orange),
-          const SizedBox(width: 5),
-          Text(
-            'PROTECTED  ${values.join(' · ')}',
-            style: const TextStyle(fontSize: 8, fontWeight: FontWeight.w900),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ActionButton extends StatelessWidget {
-  const _ActionButton({required this.action, required this.onTap});
-
-  final GameAction action;
-  final VoidCallback onTap;
-
-  String get label => switch (action.type) {
-        GameActionType.captureTable => 'CAPTURE',
-        GameActionType.stealOpponent => 'STEAL',
-        GameActionType.extendStack => 'EXTEND STACK',
-        GameActionType.discard => 'DISCARD · END TURN',
-        GameActionType.unknown => 'UNKNOWN',
-      };
-
-  @override
-  Widget build(BuildContext context) {
-    return FilledButton(
-      onPressed: onTap,
-      style: FilledButton.styleFrom(
-        backgroundColor: AppColors.orange,
-        foregroundColor: Colors.white,
-        visualDensity: VisualDensity.compact,
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-      ),
-      child: Text(
-        label,
-        style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w900),
-      ),
-    );
-  }
-}
-
-class _PlayerChip extends StatelessWidget {
-  const _PlayerChip({
-    required this.name,
-    required this.cards,
-    required this.score,
-    required this.topCard,
-  });
-
-  final String name;
-  final int cards;
-  final int score;
-  final GameCard? topCard;
-
-  @override
-  Widget build(BuildContext context) {
-    final stack = topCard == null
-        ? 'NO STACK'
-        : 'TOP ${topCard!.value}${topCard!.suitSymbol}';
-    return Container(
-      height: 54,
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xED37291F), Color(0xE8171210)],
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-        ),
-        border: Border.all(color: AppColors.tileBorder),
-        borderRadius: BorderRadius.circular(10),
-        boxShadow: const [
-          BoxShadow(color: Colors.black54, blurRadius: 6, offset: Offset(0, 3)),
-        ],
-      ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Text(
-            name.toUpperCase(),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w900),
-          ),
-          const SizedBox(height: 3),
-          Text(
-            '$cards CARDS  ·  $score PTS  ·  $stack',
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(color: Colors.white70, fontSize: 8),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _PokerTable extends StatelessWidget {
-  const _PokerTable({required this.deckCount, required this.cards});
-
-  final int deckCount;
-  final List<GameCard> cards;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(7),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(95),
-        gradient: const LinearGradient(
-          colors: [Color(0xFF9B5A27), Color(0xFF3B1D0D), Color(0xFFB16B31)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        border: Border.all(color: const Color(0xFFD99A59), width: 1.3),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0xD9000000),
-            blurRadius: 18,
-            spreadRadius: 2,
-            offset: Offset(0, 9),
-          ),
-        ],
-      ),
-      child: Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(88),
-          gradient: const RadialGradient(
-            colors: [Color(0xFF315C43), Color(0xFF193626), Color(0xFF0B1B12)],
-            radius: .95,
-          ),
-          border: Border.all(color: const Color(0xFFDFB276), width: 1),
+          color: const Color(0xFF15130E),
+          borderRadius: BorderRadius.circular(5),
+          border: Border.all(color: _gold, width: 1.2),
           boxShadow: const [
             BoxShadow(
-              color: Color(0xB3000000),
-              blurRadius: 12,
-              spreadRadius: 4,
-              blurStyle: BlurStyle.inner,
-            ),
-          ],
-        ),
-        child: Stack(
-          children: [
-            Positioned(
-              top: 15,
-              left: 0,
-              right: 0,
-              child: Center(
-                child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 15, vertical: 5),
-                  decoration: BoxDecoration(
-                    color: const Color(0xB8000000),
-                    borderRadius: BorderRadius.circular(15),
-                    border: Border.all(color: const Color(0x8877B58A)),
-                  ),
-                  child: Text(
-                    'TABLE  ·  DECK $deckCount',
-                    style: const TextStyle(
-                      color: AppColors.orange,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-            Positioned(
-              left: 30,
-              right: 30,
-              top: 57,
-              bottom: 20,
-              child: Center(
-                child: Wrap(
-                  alignment: WrapAlignment.center,
-                  spacing: 9,
-                  runSpacing: 7,
-                  children: cards
-                      .map((card) => _CardTile(card: card))
-                      .toList(growable: false),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
+                color: Colors.black87, blurRadius: 7, offset: Offset(0, 3))
+          ]),
+      child: Container(
+          padding: padding,
+          decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                  colors: [Color(0xFF253426), Color(0xFF151A15)]),
+              borderRadius: BorderRadius.circular(3),
+              border: Border.all(color: _darkGold)),
+          child: child));
+}
+
+class _Square extends StatelessWidget {
+  const _Square({required this.icon, this.label});
+  final IconData icon;
+  final String? label;
+  @override
+  Widget build(BuildContext context) => SizedBox(
+      width: label == null ? 48 : 76,
+      height: 45,
+      child: _Panel(
+          padding: const EdgeInsets.symmetric(horizontal: 6),
+          child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+            Icon(icon, color: const Color(0xFFE5C48D), size: 23),
+            if (label != null) ...[
+              const SizedBox(width: 5),
+              Text(label!,
+                  style: const TextStyle(
+                      fontWeight: FontWeight.w900, fontSize: 14))
+            ]
+          ])));
+}
+
+class _Room extends StatelessWidget {
+  const _Room({required this.room, required this.round});
+  final String room;
+  final int round;
+  @override
+  Widget build(BuildContext context) => SizedBox(
+      width: 70,
+      child: _Panel(
+          child: Column(children: [
+        const Text('TABLE ID',
+            style: TextStyle(fontSize: 8, color: Color(0xFFE7C98E))),
+        Text(room.toUpperCase(),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 9)),
+        const Divider(height: 8, color: _darkGold),
+        Text('ROUND $round',
+            style: const TextStyle(fontSize: 8, color: Color(0xFFE7C98E)))
+      ])));
+}
+
+class _Seat extends StatelessWidget {
+  const _Seat({required this.player, required this.place});
+  final GamePlayer player;
+  final int place;
+  @override
+  Widget build(BuildContext context) {
+    final side = place != 0;
+    return SizedBox(
+        width: side ? 150 : 270,
+        height: side ? 108 : 72,
+        child: Stack(children: [
+          Positioned(
+              left: side && place == 1 ? 0 : null,
+              right: side && place == 2 ? 0 : null,
+              top: side ? 2 : 0,
+              child: _Medallion(player)),
+          Positioned(
+              left: place == 1
+                  ? 60
+                  : place == 2
+                      ? 0
+                      : 57,
+              top: side ? 42 : 16,
+              child: _Fan(player.handCount.clamp(0, 5))),
+        ]));
   }
 }
 
-class _CardTile extends StatelessWidget {
-  const _CardTile({
-    required this.card,
-    this.selected = false,
-    this.enabled = false,
-    this.onTap,
-  });
+class _Medallion extends StatelessWidget {
+  const _Medallion(this.player);
+  final GamePlayer player;
+  @override
+  Widget build(BuildContext context) => SizedBox(
+      width: 96,
+      height: 96,
+      child: Stack(alignment: Alignment.topCenter, children: [
+        Container(
+            width: 58,
+            height: 58,
+            decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: const RadialGradient(
+                    colors: [Color(0xFF6B5530), Color(0xFF171610)]),
+                border: Border.all(color: _gold, width: 2),
+                boxShadow: const [
+                  BoxShadow(color: Colors.black87, blurRadius: 7)
+                ]),
+            child: Icon(player.isAi ? Icons.person : Icons.face,
+                color: const Color(0xFFD8B47D), size: 38)),
+        Positioned(
+            top: 48,
+            child: SizedBox(
+                width: 94,
+                child: _Badge(name: player.name, score: player.score))),
+      ]));
+}
+
+class _Badge extends StatelessWidget {
+  const _Badge({required this.name, required this.score});
+  final String name;
+  final int score;
+  @override
+  Widget build(BuildContext context) => SizedBox(
+      width: 94,
+      child: _Panel(
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 3),
+          child: Column(children: [
+            Text(name.toUpperCase(),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style:
+                    const TextStyle(fontSize: 9, fontWeight: FontWeight.w900)),
+            Text('$score  ●',
+                style: const TextStyle(fontSize: 8, color: Color(0xFFE5C48D)))
+          ])));
+}
+
+class _Fan extends StatelessWidget {
+  const _Fan(this.count);
+  final int count;
+  @override
+  Widget build(BuildContext context) => SizedBox(
+      width: 100,
+      height: 62,
+      child: Stack(
+          clipBehavior: Clip.none,
+          children: List.generate(count, (i) {
+            final d = i - (count - 1) / 2;
+            return Positioned(
+                left: 32 + d * 12,
+                top: d.abs() * 2,
+                child: Transform.rotate(
+                    angle: d * .12,
+                    alignment: Alignment.bottomCenter,
+                    child: const _Card(
+                        GameCard(id: 'hidden', value: '', suit: ''), 35, 51)));
+          })));
+}
+
+class _TableCards extends StatelessWidget {
+  const _TableCards({required this.cards, required this.deck});
+  final List<GameCard> cards;
+  final int deck;
+  @override
+  Widget build(BuildContext context) =>
+      Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+        Flexible(
+            child: Wrap(
+                spacing: 7,
+                alignment: WrapAlignment.center,
+                children: cards.take(5).map((c) => _Card(c, 43, 61)).toList())),
+        if (deck > 0) ...[
+          const SizedBox(width: 14),
+          Stack(children: [
+            const Padding(
+                padding: EdgeInsets.only(left: 4, top: 4),
+                child:
+                    _Card(GameCard(id: 'hidden', value: '', suit: ''), 43, 61)),
+            const _Card(GameCard(id: 'hidden', value: '', suit: ''), 43, 61),
+            Positioned(
+                right: 3,
+                bottom: 2,
+                child: Text('$deck', style: const TextStyle(fontSize: 7)))
+          ])
+        ]
+      ]);
+}
+
+class _CapturePile extends StatelessWidget {
+  const _CapturePile({required this.card, required this.count});
 
   final GameCard card;
-  final bool selected;
-  final bool enabled;
-  final VoidCallback? onTap;
+  final int count;
 
   @override
-  Widget build(BuildContext context) {
-    final cardColor = card.isRed ? const Color(0xFFE52B3E) : Colors.black;
-    final displayValue = card.value == 'T' ? '10' : card.value;
+  Widget build(BuildContext context) => Semantics(
+      label:
+          'Captured stack, $count cards, top card ${card.value} of ${card.suit}',
+      child: SizedBox(
+          width: 52,
+          height: 75,
+          child: Stack(clipBehavior: Clip.none, children: [
+            if (count > 2)
+              Positioned(
+                  left: 5,
+                  top: 5,
+                  child: Opacity(opacity: .75, child: _Card(card, 43, 61))),
+            if (count > 1)
+              Positioned(
+                  left: 2,
+                  top: 2,
+                  child: Opacity(opacity: .88, child: _Card(card, 43, 61))),
+            Positioned(left: 0, top: 0, child: _Card(card, 43, 61)),
+            Positioned(
+                right: 0,
+                bottom: 0,
+                child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                    decoration: BoxDecoration(
+                        color: const Color(0xED17140F),
+                        borderRadius: BorderRadius.circular(7),
+                        border: Border.all(color: _gold)),
+                    child: Text('$count',
+                        style: const TextStyle(
+                            color: Color(0xFFFFD99A),
+                            fontSize: 7,
+                            fontWeight: FontWeight.w900))))
+          ])));
+}
 
-    return AnimatedScale(
-      scale: selected ? 1.13 : 1,
-      duration: const Duration(milliseconds: 140),
-      child: GestureDetector(
-        onTap: enabled ? onTap : null,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 140),
-          width: 46,
-          height: 62,
-          clipBehavior: Clip.antiAlias,
-          decoration: BoxDecoration(
-            gradient: card.isHidden
-                ? const LinearGradient(
-                    colors: [Color(0xFF4A2D1E), Color(0xFF20140F)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  )
-                : const LinearGradient(
-                    colors: [Color(0xFFFFFFFF), Color(0xFFF1EFEA)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-            borderRadius: BorderRadius.circular(6),
-            border: Border.all(
-              color: selected ? Colors.cyanAccent : const Color(0xFF272727),
-              width: selected ? 2.5 : 1,
-            ),
-            boxShadow: [
-              const BoxShadow(
-                color: Color(0xA6000000),
-                blurRadius: 4,
-                offset: Offset(0, 3),
-              ),
-              if (selected)
-                const BoxShadow(color: Colors.cyanAccent, blurRadius: 10),
-            ],
-          ),
-          child: card.isHidden
-              ? const _CardBack()
-              : Stack(
-                  children: [
-                    Positioned(
-                      left: 4,
-                      top: 3,
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            displayValue,
-                            style: TextStyle(
-                              color: cardColor,
-                              fontFamily: 'Georgia',
-                              fontSize: displayValue == '10' ? 12 : 15,
-                              height: .85,
-                              fontWeight: FontWeight.w900,
-                            ),
-                          ),
-                          Text(
-                            card.suitSymbol,
-                            style: TextStyle(
-                              color: cardColor,
-                              fontFamily: 'Georgia',
-                              fontSize: 11,
-                              height: .9,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Center(
-                      child: Padding(
-                        padding: const EdgeInsets.only(top: 9),
-                        child: Text(
-                          card.suitSymbol,
-                          style: TextStyle(
-                            color: cardColor,
-                            fontFamily: 'Georgia',
-                            fontSize: 28,
-                            height: 1,
-                            shadows: const [
-                              Shadow(
-                                color: Colors.black12,
-                                offset: Offset(0, 1),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-        ),
-      ),
-    );
+class _Hand extends StatelessWidget {
+  const _Hand(
+      {required this.cards,
+      required this.selected,
+      required this.enabled,
+      required this.onTap});
+  final List<GameCard> cards;
+  final String? selected;
+  final bool enabled;
+  final ValueChanged<GameCard> onTap;
+  @override
+  Widget build(BuildContext context) {
+    final center = (cards.length - 1) / 2;
+    return Stack(
+        alignment: Alignment.bottomCenter,
+        clipBehavior: Clip.none,
+        children: List.generate(cards.length, (i) {
+          final d = i - center;
+          final active = cards[i].id == selected;
+          return Positioned(
+              left: 108 + d * 38,
+              bottom: 1 + (center - d.abs()) * 2 + (active ? 13 : 0),
+              child: Transform.rotate(
+                  angle: d * .055,
+                  alignment: Alignment.bottomCenter,
+                  child: GestureDetector(
+                      onTap: enabled ? () => onTap(cards[i]) : null,
+                      child: _Card(cards[i], 61, 91, selected: active))));
+        }));
   }
 }
 
-class _CardBack extends StatelessWidget {
-  const _CardBack();
-
+class _Card extends StatelessWidget {
+  const _Card(this.card, this.width, this.height, {this.selected = false});
+  final GameCard card;
+  final double width;
+  final double height;
+  final bool selected;
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(4),
-      child: DecoratedBox(
+    final value = card.value == 'T' ? '10' : card.value;
+    final ink = card.isRed ? const Color(0xFF9E251E) : const Color(0xFF171711);
+    return AnimatedContainer(
+        duration: const Duration(milliseconds: 160),
+        width: width,
+        height: height,
         decoration: BoxDecoration(
-          color: const Color(0xFFB64E17),
-          borderRadius: BorderRadius.circular(3),
-          border: Border.all(color: const Color(0xFFFFB35B)),
-        ),
-        child: const Center(
-          child: Icon(
-            Icons.diamond_outlined,
-            color: Color(0xFFFFD28A),
-            size: 22,
-          ),
-        ),
-      ),
-    );
+            color: card.isHidden
+                ? const Color(0xFF22261C)
+                : const Color(0xFFE8D7B8),
+            borderRadius: BorderRadius.circular(4),
+            border: Border.all(
+                color: selected
+                    ? const Color(0xFFFFD26B)
+                    : const Color(0xFF5C421F),
+                width: selected ? 2 : 1),
+            boxShadow: [
+              const BoxShadow(
+                  color: Colors.black87, blurRadius: 5, offset: Offset(2, 3)),
+              if (selected)
+                const BoxShadow(color: Color(0xFFFFB33F), blurRadius: 10)
+            ]),
+        child: card.isHidden
+            ? Padding(
+                padding: const EdgeInsets.all(3),
+                child: DecoratedBox(
+                    decoration: BoxDecoration(
+                        color: const Color(0xFF29402C),
+                        borderRadius: BorderRadius.circular(2),
+                        border: Border.all(color: const Color(0xFFB56436))),
+                    child: CustomPaint(painter: _BackPainter())))
+            : Stack(children: [
+                Positioned(
+                    left: 5,
+                    top: 4,
+                    child: Text('$value\n${card.suitSymbol}',
+                        style: TextStyle(
+                            color: ink,
+                            fontFamily: 'Georgia',
+                            fontWeight: FontWeight.bold,
+                            fontSize: width * .27,
+                            height: .82))),
+                Center(
+                    child: Text(card.suitSymbol,
+                        style: TextStyle(
+                            color: ink,
+                            fontFamily: 'Georgia',
+                            fontSize: width * .52)))
+              ]));
   }
+}
+
+class _BackPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final line = Paint()
+      ..color = const Color(0xFFB74831)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1;
+    for (var i = 0; i < 4; i++) {
+      canvas.save();
+      canvas.translate(center.dx, center.dy);
+      canvas.rotate(i * math.pi / 4);
+      canvas.drawOval(
+          Rect.fromCenter(
+              center: Offset.zero,
+              width: size.width * .7,
+              height: size.height * .25),
+          line);
+      canvas.restore();
+    }
+    canvas.drawCircle(center, math.min(size.width, size.height) * .12,
+        Paint()..color = _gold);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+class _Chat extends StatelessWidget {
+  const _Chat();
+  @override
+  Widget build(BuildContext context) => const SizedBox(
+      width: 154,
+      height: 36,
+      child: _Panel(
+          padding: EdgeInsets.symmetric(horizontal: 9),
+          child: Row(children: [
+            Icon(Icons.chat_bubble, size: 16, color: Color(0xFFE5C48D)),
+            SizedBox(width: 8),
+            Expanded(
+                child: Text('Type a message…',
+                    style: TextStyle(fontSize: 8, color: Colors.white60))),
+            Icon(Icons.send, size: 15, color: Color(0xFF6ACA73))
+          ])));
+}
+
+class _Show extends StatelessWidget {
+  const _Show();
+  @override
+  Widget build(BuildContext context) => const SizedBox(
+      width: 124,
+      height: 40,
+      child: _Panel(
+          padding: EdgeInsets.zero,
+          child: Center(
+              child: Text('SHOW',
+                  style: TextStyle(
+                      color: Color(0xFFE8C993),
+                      fontSize: 17,
+                      fontWeight: FontWeight.w900)))));
+}
+
+class _Actions extends StatelessWidget {
+  const _Actions(
+      {required this.actions, required this.loading, required this.onTap});
+  final List<GameAction> actions;
+  final bool loading;
+  final ValueChanged<GameAction> onTap;
+  String label(GameAction a) => switch (a.type) {
+        GameActionType.captureTable => 'CAPTURE',
+        GameActionType.stealOpponent => 'STEAL',
+        GameActionType.extendStack => 'EXTEND',
+        GameActionType.discard => 'DISCARD',
+        GameActionType.unknown => 'MOVE'
+      };
+  @override
+  Widget build(BuildContext context) {
+    if (loading) {
+      return const SizedBox(
+          width: 124,
+          height: 40,
+          child: Center(child: CircularProgressIndicator(strokeWidth: 2)));
+    }
+    if (actions.isEmpty) {
+      return const SizedBox(
+          width: 124,
+          height: 40,
+          child: Center(
+              child: Text('LOADING MOVES…', style: TextStyle(fontSize: 8))));
+    }
+    return Wrap(
+        spacing: 4,
+        children: actions
+            .map((a) => FilledButton(
+                onPressed: () => onTap(a),
+                style: FilledButton.styleFrom(
+                    backgroundColor: const Color(0xFF6F3A1F),
+                    foregroundColor: const Color(0xFFFFD99A),
+                    visualDensity: VisualDensity.compact,
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
+                    side: const BorderSide(color: _gold)),
+                child: Text(label(a),
+                    style: const TextStyle(
+                        fontSize: 8, fontWeight: FontWeight.w900))))
+            .toList());
+  }
+}
+
+class _Turn extends StatelessWidget {
+  const _Turn({required this.session, required this.game});
+  final GameSessionState session;
+  final DaketiGame game;
+  @override
+  Widget build(BuildContext context) {
+    final raw = game.turnStartTime;
+    final millis = raw == null
+        ? DateTime.now().millisecondsSinceEpoch
+        : raw < 100000000000
+            ? raw * 1000
+            : raw;
+    final initial = (game.turnTimeLimit -
+            (DateTime.now().millisecondsSinceEpoch - millis) ~/ 1000)
+        .clamp(0, game.turnTimeLimit)
+        .toDouble();
+    return Column(children: [
+      Text(session.isCurrentPlayersTurn ? 'YOUR TURN' : 'OPPONENT TURN',
+          style: const TextStyle(
+              fontSize: 8,
+              fontWeight: FontWeight.w900,
+              color: Color(0xFFE5C48D))),
+      TweenAnimationBuilder<double>(
+          key: ValueKey('${game.currentPlayerId}-${game.turnStartTime}'),
+          tween: Tween(begin: initial, end: 0),
+          duration: Duration(seconds: initial.ceil()),
+          builder: (_, value, __) => Row(children: [
+                Icon(Icons.timer_outlined,
+                    size: 10,
+                    color: value <= 8 ? Colors.redAccent : Colors.white70),
+                Text(' ${value.ceil()}s',
+                    style: TextStyle(
+                        fontSize: 8,
+                        color: value <= 8 ? Colors.redAccent : Colors.white70))
+              ]))
+    ]);
+  }
+}
+
+class _Protected extends StatelessWidget {
+  const _Protected(this.values);
+  final List<String> values;
+  @override
+  Widget build(BuildContext context) => Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+      decoration: BoxDecoration(
+          color: const Color(0xE0181812),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: _darkGold)),
+      child: Text('🔒 ${values.join(' · ')}',
+          style: const TextStyle(fontSize: 7, color: Color(0xFFE5C48D))));
+}
+
+class _Activity extends StatelessWidget {
+  const _Activity(this.text);
+  final String text;
+  @override
+  Widget build(BuildContext context) => Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+          color: const Color(0xDD000000),
+          borderRadius: BorderRadius.circular(10)),
+      child: Text(text,
+          textAlign: TextAlign.center,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(fontSize: 7)));
 }

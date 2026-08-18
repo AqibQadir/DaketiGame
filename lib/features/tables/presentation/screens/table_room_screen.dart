@@ -35,8 +35,7 @@ class TableRoomScreen extends StatelessWidget {
                 badge: stakes[index].$5,
                 locked: index == stakes.length - 1,
                 purple: purple,
-                imageAsset:
-                    'assets/images/tables/rooms/${room.name}_${stakes[index].$1.toLowerCase()}.png',
+                imageAsset: room.imageAsset,
                 onTap: () {},
               ),
             ),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/widgets/game_background.dart';
+import '../../../../core/widgets/game_close_button.dart';
 import '../../../../core/widgets/glass_panel.dart';
 
 enum _DukanTab { coins, xp, tables }
@@ -65,27 +66,23 @@ class _DukanScreenState extends State<DukanScreen> {
                   Positioned(
                     left: 27,
                     top: 26,
-                    child: InkWell(
-                      onTap: Navigator.of(context).pop,
-                      child: const Row(
-                        children: [
-                          Icon(
-                            Icons.arrow_back_ios_new,
-                            color: Colors.white54,
-                            size: 29,
+                    child: Row(
+                      children: [
+                        GameCloseButton(
+                          size: 38,
+                          onTap: Navigator.of(context).pop,
+                        ),
+                        const SizedBox(width: 2),
+                        const Text(
+                          'DUKAN',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontFamily: 'Dirty Brush',
+                            fontSize: 23,
+                            height: 1,
                           ),
-                          SizedBox(width: 8),
-                          Text(
-                            'DUKAN',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontFamily: 'Dirty Brush',
-                              fontSize: 23,
-                              height: 1,
-                            ),
-                          ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
                   ),
                   Positioned(

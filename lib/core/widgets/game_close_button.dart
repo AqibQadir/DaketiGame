@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../constants/app_assets.dart';
-
 class GameCloseButton extends StatelessWidget {
   const GameCloseButton({super.key, required this.onTap, this.size = 68});
 
@@ -11,24 +9,17 @@ class GameCloseButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: const Color(0x36101413),
-      shape: const CircleBorder(
-        side: BorderSide(color: Colors.white30),
-      ),
+      color: Colors.transparent,
       child: InkWell(
-        customBorder: const CircleBorder(),
+        borderRadius: BorderRadius.circular(size * .18),
         onTap: onTap,
         child: SizedBox(
           width: size,
           height: size,
-          child: Center(
-            child: Image.asset(
-              AppAssets.closeCross,
-              width: size * .62,
-              height: size * .62,
-              fit: BoxFit.contain,
-              filterQuality: FilterQuality.high,
-            ),
+          child: Icon(
+            Icons.arrow_back_ios_new_rounded,
+            color: const Color(0xFF929292),
+            size: size * .72,
           ),
         ),
       ),

@@ -122,7 +122,7 @@ class TableCard extends StatelessWidget {
                     child: GameButton(
                       text: 'Enter Match',
                       width: 112,
-                      onTap: locked ? () {} : onTap,
+                      onTap: locked ? null : onTap,
                     ),
                   ),
                 ],

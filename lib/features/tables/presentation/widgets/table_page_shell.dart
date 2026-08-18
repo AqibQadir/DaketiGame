@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/routes/app_routes.dart';
 import '../../../../core/widgets/game_background.dart';
+import '../../../../core/widgets/game_close_button.dart';
 import '../../../../core/widgets/game_icon_button.dart';
 import 'table_top_bar.dart';
 
@@ -33,27 +34,21 @@ class TablePageShell extends StatelessWidget {
                   Positioned(
                     left: 26,
                     top: 24,
-                    child: InkWell(
-                      onTap: Navigator.of(context).pop,
-                      child: Row(
-                        children: [
-                          const Icon(
-                            Icons.arrow_back_ios_new,
-                            size: 29,
-                            color: Colors.white54,
-                          ),
-                          const SizedBox(width: 7),
-                          Text(
-                            title,
-                            style: const TextStyle(
-                              fontFamily: 'Dirty Brush',
-                              fontSize: 22,
-                              height: 1,
-                            ),
-                          ),
-                        ],
+                    child: Row(children: [
+                      GameCloseButton(
+                        size: 38,
+                        onTap: Navigator.of(context).pop,
                       ),
-                    ),
+                      const SizedBox(width: 2),
+                      Text(
+                        title,
+                        style: const TextStyle(
+                          fontFamily: 'Dirty Brush',
+                          fontSize: 22,
+                          height: 1,
+                        ),
+                      ),
+                    ]),
                   ),
                   const Positioned(right: 31, top: 23, child: TableTopBar()),
                   Positioned(left: 39, right: 49, top: 77, child: child),

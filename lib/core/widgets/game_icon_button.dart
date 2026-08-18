@@ -12,12 +12,13 @@ class GameIconButton extends StatelessWidget {
   });
 
   final IconData icon;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
   final String? label;
   final String? badge;
 
   @override
   Widget build(BuildContext context) {
+    final enabled = onTap != null;
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -31,15 +32,16 @@ class GameIconButton extends StatelessWidget {
                 width: 42,
                 height: 42,
                 decoration: BoxDecoration(
-                  color: AppColors.tile,
+                  color: enabled ? AppColors.tile : Colors.grey.shade800,
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(
-                    color: AppColors.tileBorder,
+                    color:
+                        enabled ? AppColors.tileBorder : Colors.grey.shade600,
                   ),
                 ),
                 child: Icon(
                   icon,
-                  color: AppColors.cream,
+                  color: enabled ? AppColors.cream : Colors.grey.shade500,
                   size: 23,
                 ),
               ),
@@ -69,9 +71,9 @@ class GameIconButton extends StatelessWidget {
           const SizedBox(height: 4),
           Text(
             label!.toUpperCase(),
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 8,
-              color: AppColors.cream,
+              color: enabled ? AppColors.cream : Colors.grey.shade500,
             ),
           ),
         ],

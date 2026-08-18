@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/routes/app_routes.dart';
 import '../../../../core/widgets/game_background.dart';
+import '../../../../core/widgets/game_close_button.dart';
 
 enum _QuestTier { rookie, champion, legend }
 
@@ -65,27 +66,23 @@ class _SideQuestsScreenState extends State<SideQuestsScreen> {
                   Positioned(
                     left: 27,
                     top: 25,
-                    child: InkWell(
-                      onTap: Navigator.of(context).pop,
-                      child: const Row(
-                        children: [
-                          Icon(
-                            Icons.arrow_back_ios_new,
-                            size: 29,
-                            color: Colors.white54,
+                    child: Row(
+                      children: [
+                        GameCloseButton(
+                          size: 38,
+                          onTap: Navigator.of(context).pop,
+                        ),
+                        const SizedBox(width: 2),
+                        const Text(
+                          'SIDE QUEST',
+                          style: TextStyle(
+                            fontFamily: 'Dirty Brush',
+                            fontSize: 22,
+                            color: Colors.white,
+                            height: 1,
                           ),
-                          SizedBox(width: 8),
-                          Text(
-                            'SIDE QUEST',
-                            style: TextStyle(
-                              fontFamily: 'Dirty Brush',
-                              fontSize: 22,
-                              color: Colors.white,
-                              height: 1,
-                            ),
-                          ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
                   ),
                   Positioned(
