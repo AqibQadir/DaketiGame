@@ -13,8 +13,15 @@ import '../../domain/models/game_card.dart';
 import '../../domain/models/game_player.dart';
 import '../controllers/game_controller.dart';
 
-const _gold = Color(0xFFD2A45E);
-const _darkGold = Color(0xFF65401D);
+// Gameplay palette sampled from the approved table reference.
+const _gold = Color(0xFFC58B43);
+const _darkGold = Color(0xFF533718);
+const _cream = Color(0xFFE4C58D);
+const _panelBlack = Color(0xFF11130F);
+const _panelGreen = Color(0xFF1B291E);
+const _felt = Color(0xFF172019);
+const _feltEdge = Color(0xFF3E2A16);
+const _rust = Color(0xFF9B452D);
 
 class GameScreen extends ConsumerStatefulWidget {
   const GameScreen({super.key});
@@ -260,9 +267,9 @@ class _TablePainter extends CustomPainter {
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
               colors: [
-                Color(0xFF52351E),
-                Color(0xFF140E0A),
-                Color(0xFF59391E)
+                Color(0xFF3E2A18),
+                Color(0xFF100E0A),
+                Color(0xFF49331C)
               ]).createShader(rect));
     canvas.drawRRect(
         outer,
@@ -273,11 +280,11 @@ class _TablePainter extends CustomPainter {
     final innerRect = rect.deflate(9);
     final inner = RRect.fromRectAndRadius(innerRect,
         Radius.elliptical(innerRect.width / 2, innerRect.height / 2));
-    canvas.drawRRect(inner, Paint()..color = const Color(0xFF191D18));
+    canvas.drawRRect(inner, Paint()..color = _felt);
     canvas.drawRRect(
         inner,
         Paint()
-          ..color = const Color(0xFF8D632E)
+          ..color = _feltEdge
           ..style = PaintingStyle.stroke
           ..strokeWidth = 2);
     for (var i = 0; i < 30; i++) {
@@ -288,7 +295,7 @@ class _TablePainter extends CustomPainter {
           p,
           3.2,
           Paint()
-            ..color = const Color(0xFF913D2B)
+            ..color = _rust
             ..style = PaintingStyle.stroke);
       canvas.drawCircle(p, 1, Paint()..color = _gold);
     }
@@ -306,7 +313,7 @@ class _Panel extends StatelessWidget {
   Widget build(BuildContext context) => Container(
       padding: const EdgeInsets.all(2),
       decoration: BoxDecoration(
-          color: const Color(0xFF15130E),
+          color: _panelBlack,
           borderRadius: BorderRadius.circular(5),
           border: Border.all(color: _gold, width: 1.2),
           boxShadow: const [
@@ -317,7 +324,7 @@ class _Panel extends StatelessWidget {
           padding: padding,
           decoration: BoxDecoration(
               gradient: const LinearGradient(
-                  colors: [Color(0xFF253426), Color(0xFF151A15)]),
+                  colors: [_panelGreen, Color(0xFF121812)]),
               borderRadius: BorderRadius.circular(3),
               border: Border.all(color: _darkGold)),
           child: child));
@@ -334,7 +341,7 @@ class _Square extends StatelessWidget {
       child: _Panel(
           padding: const EdgeInsets.symmetric(horizontal: 6),
           child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-            Icon(icon, color: const Color(0xFFE5C48D), size: 23),
+            Icon(icon, color: _cream, size: 23),
             if (label != null) ...[
               const SizedBox(width: 5),
               Text(label!,
@@ -353,15 +360,13 @@ class _Room extends StatelessWidget {
       width: 70,
       child: _Panel(
           child: Column(children: [
-        const Text('TABLE ID',
-            style: TextStyle(fontSize: 8, color: Color(0xFFE7C98E))),
+        const Text('TABLE ID', style: TextStyle(fontSize: 8, color: _cream)),
         Text(room.toUpperCase(),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: const TextStyle(fontSize: 9)),
         const Divider(height: 8, color: _darkGold),
-        Text('ROUND $round',
-            style: const TextStyle(fontSize: 8, color: Color(0xFFE7C98E)))
+        Text('ROUND $round', style: const TextStyle(fontSize: 8, color: _cream))
       ])));
 }
 
@@ -407,13 +412,13 @@ class _Medallion extends StatelessWidget {
             decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 gradient: const RadialGradient(
-                    colors: [Color(0xFF6B5530), Color(0xFF171610)]),
+                    colors: [Color(0xFF4D4329), _panelBlack]),
                 border: Border.all(color: _gold, width: 2),
                 boxShadow: const [
                   BoxShadow(color: Colors.black87, blurRadius: 7)
                 ]),
             child: Icon(player.isAi ? Icons.person : Icons.face,
-                color: const Color(0xFFD8B47D), size: 38)),
+                color: _cream, size: 38)),
         Positioned(
             top: 48,
             child: SizedBox(
@@ -438,7 +443,7 @@ class _Badge extends StatelessWidget {
                 style:
                     const TextStyle(fontSize: 9, fontWeight: FontWeight.w900)),
             Text('$score  ●',
-                style: const TextStyle(fontSize: 8, color: Color(0xFFE5C48D)))
+                style: const TextStyle(fontSize: 8, color: _cream))
           ])));
 }
 
@@ -525,12 +530,12 @@ class _CapturePile extends StatelessWidget {
                     padding:
                         const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
                     decoration: BoxDecoration(
-                        color: const Color(0xED17140F),
+                        color: const Color(0xED11130F),
                         borderRadius: BorderRadius.circular(7),
                         border: Border.all(color: _gold)),
                     child: Text('$count',
                         style: const TextStyle(
-                            color: Color(0xFFFFD99A),
+                            color: _cream,
                             fontSize: 7,
                             fontWeight: FontWeight.w900))))
           ])));
@@ -577,35 +582,35 @@ class _Card extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final value = card.value == 'T' ? '10' : card.value;
-    final ink = card.isRed ? const Color(0xFF9E251E) : const Color(0xFF171711);
+    final ink = card.isRed ? const Color(0xFFA82E25) : const Color(0xFF171711);
     return AnimatedContainer(
         duration: const Duration(milliseconds: 160),
         width: width,
         height: height,
         decoration: BoxDecoration(
             color: card.isHidden
-                ? const Color(0xFF22261C)
+                ? const Color(0xFF20281F)
                 : const Color(0xFFE8D7B8),
             borderRadius: BorderRadius.circular(4),
             border: Border.all(
                 color: selected
-                    ? const Color(0xFFFFD26B)
-                    : const Color(0xFF5C421F),
+                    ? const Color(0xFFFFC75D)
+                    : const Color(0xFF59401D),
                 width: selected ? 2 : 1),
             boxShadow: [
               const BoxShadow(
                   color: Colors.black87, blurRadius: 5, offset: Offset(2, 3)),
               if (selected)
-                const BoxShadow(color: Color(0xFFFFB33F), blurRadius: 10)
+                const BoxShadow(color: Color(0xFFD99638), blurRadius: 10)
             ]),
         child: card.isHidden
             ? Padding(
                 padding: const EdgeInsets.all(3),
                 child: DecoratedBox(
                     decoration: BoxDecoration(
-                        color: const Color(0xFF29402C),
+                        color: const Color(0xFF203426),
                         borderRadius: BorderRadius.circular(2),
-                        border: Border.all(color: const Color(0xFFB56436))),
+                        border: Border.all(color: _rust)),
                     child: CustomPaint(painter: _BackPainter())))
             : Stack(children: [
                 Positioned(
@@ -633,7 +638,7 @@ class _BackPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final center = Offset(size.width / 2, size.height / 2);
     final line = Paint()
-      ..color = const Color(0xFFB74831)
+      ..color = _rust
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1;
     for (var i = 0; i < 4; i++) {
@@ -665,7 +670,7 @@ class _Chat extends StatelessWidget {
       child: _Panel(
           padding: EdgeInsets.symmetric(horizontal: 9),
           child: Row(children: [
-            Icon(Icons.chat_bubble, size: 16, color: Color(0xFFE5C48D)),
+            Icon(Icons.chat_bubble, size: 16, color: _cream),
             SizedBox(width: 8),
             Expanded(
                 child: Text('Type a message…',
@@ -685,7 +690,7 @@ class _Show extends StatelessWidget {
           child: Center(
               child: Text('SHOW',
                   style: TextStyle(
-                      color: Color(0xFFE8C993),
+                      color: _cream,
                       fontSize: 17,
                       fontWeight: FontWeight.w900)))));
 }
@@ -724,8 +729,8 @@ class _Actions extends StatelessWidget {
             .map((a) => FilledButton(
                 onPressed: () => onTap(a),
                 style: FilledButton.styleFrom(
-                    backgroundColor: const Color(0xFF6F3A1F),
-                    foregroundColor: const Color(0xFFFFD99A),
+                    backgroundColor: _feltEdge,
+                    foregroundColor: _cream,
                     visualDensity: VisualDensity.compact,
                     padding:
                         const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
@@ -756,9 +761,7 @@ class _Turn extends StatelessWidget {
     return Column(children: [
       Text(session.isCurrentPlayersTurn ? 'YOUR TURN' : 'OPPONENT TURN',
           style: const TextStyle(
-              fontSize: 8,
-              fontWeight: FontWeight.w900,
-              color: Color(0xFFE5C48D))),
+              fontSize: 8, fontWeight: FontWeight.w900, color: _cream)),
       TweenAnimationBuilder<double>(
           key: ValueKey('${game.currentPlayerId}-${game.turnStartTime}'),
           tween: Tween(begin: initial, end: 0),
@@ -783,11 +786,11 @@ class _Protected extends StatelessWidget {
   Widget build(BuildContext context) => Container(
       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
       decoration: BoxDecoration(
-          color: const Color(0xE0181812),
+          color: const Color(0xE011130F),
           borderRadius: BorderRadius.circular(10),
           border: Border.all(color: _darkGold)),
       child: Text('🔒 ${values.join(' · ')}',
-          style: const TextStyle(fontSize: 7, color: Color(0xFFE5C48D))));
+          style: const TextStyle(fontSize: 7, color: _cream)));
 }
 
 class _Activity extends StatelessWidget {

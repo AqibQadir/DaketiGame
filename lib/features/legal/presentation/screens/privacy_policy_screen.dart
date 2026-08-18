@@ -9,16 +9,30 @@ class PrivacyPolicyScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return LegalContentScreen(
-      title: 'Terms & Conditions & Privacy Policy',
-      body:
-          'TERMS & CONDITIONS\nWelcome to Daketi. By continuing, you agree to play fairly, protect your account, and follow the game rules. This is temporary content and should later be replaced with the approved final terms.\n\nPRIVACY POLICY\nDaketi may store profile details, game progress, purchase history, and gameplay statistics. This is placeholder content and should later be replaced with the approved final privacy policy.',
+      title: 'Privacy Policy',
+      subtitle:
+          'A clear overview of the information used to operate your Daketi experience.',
+      sections: const [
+        LegalSection(
+          'Information We Use',
+          'Daketi may process profile details, account identifiers, game progress, match statistics, device information, and purchase history needed to provide the service.',
+        ),
+        LegalSection(
+          'How It Helps',
+          'Information is used to run multiplayer matches, save progress, deliver purchases, protect fair play, provide support, and improve performance and reliability.',
+        ),
+        LegalSection(
+          'Sharing & Security',
+          'Information should only be shared with service providers when required to operate Daketi, comply with law, or protect players. Reasonable safeguards should be used to prevent unauthorized access.',
+        ),
+        LegalSection(
+          'Your Choices',
+          'Depending on your location, you may request access, correction, or deletion of eligible personal information through the official Daketi support channel.',
+        ),
+      ],
       buttonText: 'Accept',
-      onContinue: () {
-        Navigator.pushReplacementNamed(
-          context,
-          AppRoutes.welcome,
-        );
-      },
+      onContinue: () =>
+          Navigator.pushReplacementNamed(context, AppRoutes.welcome),
     );
   }
 }
