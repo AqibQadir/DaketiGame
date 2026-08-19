@@ -121,7 +121,7 @@ class HomeScreen extends ConsumerWidget {
                   onTap: () {
                     Navigator.pushNamed(
                       context,
-                      AppRoutes.settings,
+                      AppRoutes.menu,
                     );
                   },
                 ),
@@ -221,10 +221,13 @@ class HomeScreen extends ConsumerWidget {
                       },
                     ),
                     const SizedBox(width: 12),
-                    const GameIconButton(
+                    GameIconButton(
                       icon: Icons.workspace_premium,
                       label: 'Ranking',
-                      onTap: null,
+                      onTap: () => Navigator.pushNamed(
+                        context,
+                        AppRoutes.leaderboard,
+                      ),
                     ),
                   ],
                 ),

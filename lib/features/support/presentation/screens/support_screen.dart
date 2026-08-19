@@ -1,56 +1,39 @@
 import 'package:flutter/material.dart';
 
-import '../../../../core/widgets/game_background.dart';
+import '../../../../core/routes/app_routes.dart';
 import '../../../../core/widgets/game_button.dart';
-import '../../../../core/widgets/game_close_button.dart';
-import '../../../../core/widgets/glass_panel.dart';
+import '../widgets/support_page_shell.dart';
 
 class SupportScreen extends StatelessWidget {
   const SupportScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      body: GameBackground(
-        child: Stack(
+  Widget build(BuildContext context) => SupportPageShell(
+        title: 'Support',
+        width: 440,
+        height: 260,
+        showMenu: true,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Positioned(
-              left: 18,
-              top: 18,
-              child: GameCloseButton(
-                onTap: Navigator.of(context).pop,
-              ),
+            GameButton(
+              text: 'Contact us',
+              width: 190,
+              onTap: () => Navigator.pushNamed(context, AppRoutes.contactUs),
             ),
-            Center(
-              child: GlassPanel(
-                width: 360,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    GameButton(
-                      text: 'Contact us',
-                      width: 190,
-                      onTap: () {},
-                    ),
-                    const SizedBox(height: 12),
-                    GameButton(
-                      text: 'Report',
-                      width: 190,
-                      onTap: () {},
-                    ),
-                    const SizedBox(height: 12),
-                    GameButton(
-                      text: 'FAQ',
-                      width: 190,
-                      onTap: () {},
-                    ),
-                  ],
-                ),
-              ),
+            const SizedBox(height: 18),
+            GameButton(
+              text: 'Report an issue',
+              width: 190,
+              onTap: () => Navigator.pushNamed(context, AppRoutes.reportIssue),
+            ),
+            const SizedBox(height: 18),
+            GameButton(
+              text: 'FAQs',
+              width: 190,
+              onTap: () => Navigator.pushNamed(context, AppRoutes.faqs),
             ),
           ],
         ),
-      ),
-    );
-  }
+      );
 }

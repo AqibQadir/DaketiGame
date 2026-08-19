@@ -23,7 +23,7 @@ class WelcomeScreen extends StatelessWidget {
                 onTap: () {
                   Navigator.pushNamed(
                     context,
-                    AppRoutes.settings,
+                    AppRoutes.menu,
                   );
                 },
               ),
@@ -48,9 +48,9 @@ class WelcomeScreen extends StatelessWidget {
                     text: 'Play as guest',
                     width: 180,
                     onTap: () {
-                      Navigator.pushReplacementNamed(
+                      Navigator.pushNamed(
                         context,
-                        AppRoutes.home,
+                        AppRoutes.guestName,
                       );
                     },
                   ),

@@ -55,7 +55,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 onTap: () {
                   Navigator.pushNamed(
                     context,
-                    AppRoutes.settings,
+                    AppRoutes.menu,
                   );
                 },
               ),

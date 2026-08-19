@@ -82,7 +82,8 @@ class BaithakScreen extends StatelessWidget {
                           title: 'MY CLAN',
                           subtitle: 'MAKE YOUR OWN CLAN',
                           buttonText: 'CREATE ROOM',
-                          onTap: () {},
+                          onTap: () =>
+                              Navigator.pushNamed(context, AppRoutes.myClan),
                         ),
                         const SizedBox(width: 18),
                         _ModeCard(
@@ -92,7 +93,7 @@ class BaithakScreen extends StatelessWidget {
                           onTap: () {
                             Navigator.pushNamed(
                               context,
-                              AppRoutes.multiplayer,
+                              AppRoutes.globalPlayers,
                             );
                           },
                         ),
@@ -101,14 +102,20 @@ class BaithakScreen extends StatelessWidget {
                           title: 'CHAT LOBBY',
                           subtitle: 'CHAT WITH PEOPLE ACROSS\nTHE GLOBE',
                           buttonText: 'ENTER LOBBY',
-                          onTap: () {},
+                          onTap: () => Navigator.pushNamed(
+                            context,
+                            AppRoutes.chatLobby,
+                          ),
                         ),
                         const SizedBox(width: 18),
                         _ModeCard(
                           title: 'CHAT WITH AI',
                           subtitle: 'PRACTICE WITH AI',
                           buttonText: 'PLAY',
-                          onTap: () {},
+                          onTap: () => Navigator.pushNamed(
+                            context,
+                            AppRoutes.personalChat,
+                          ),
                         ),
                       ],
                     ),
