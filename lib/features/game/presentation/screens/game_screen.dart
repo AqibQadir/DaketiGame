@@ -1,12 +1,10 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/routes/app_routes.dart';
-import '../../../../core/widgets/game_background.dart';
-import '../../../../core/widgets/game_close_button.dart';
+import '../../../../core/constants/app_assets.dart';
+import '../../../../core/widgets/game_button.dart';
 import '../../domain/models/daketi_game.dart';
 import '../../domain/models/game_action.dart';
 import '../../domain/models/game_card.dart';
@@ -19,9 +17,7 @@ const _darkGold = Color(0xFF533718);
 const _cream = Color(0xFFE4C58D);
 const _panelBlack = Color(0xFF11130F);
 const _panelGreen = Color(0xFF1B291E);
-const _felt = Color(0xFF172019);
 const _feltEdge = Color(0xFF3E2A16);
-const _rust = Color(0xFF9B452D);
 
 class GameScreen extends ConsumerStatefulWidget {
   const GameScreen({super.key});
@@ -64,6 +60,55 @@ class _GameScreenState extends ConsumerState<GameScreen> {
     ..hideCurrentSnackBar()
     ..showSnackBar(SnackBar(content: Text(text)));
 
+  Future<void> leaveMatch() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: const Color(0xF2181411),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(18),
+          side: const BorderSide(color: _gold),
+        ),
+        title: const Text(
+          'LEAVE MATCH?',
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontFamily: 'Dirty Brush',
+            color: _cream,
+            fontSize: 23,
+          ),
+        ),
+        content: const Text(
+          'Are you sure you want to leave the match?',
+          textAlign: TextAlign.center,
+          style: TextStyle(color: Colors.white70, fontSize: 12),
+        ),
+        actionsAlignment: MainAxisAlignment.center,
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('CANCEL'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: const Color(0xFF9B211A),
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('LEAVE MATCH'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    Navigator.pushNamedAndRemoveUntil(
+      context,
+      AppRoutes.home,
+      (_) => false,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     ref.listen(gameControllerProvider, (previous, next) {
@@ -89,32 +134,40 @@ class _GameScreenState extends ConsumerState<GameScreen> {
         .toList(growable: false);
     return Scaffold(
       backgroundColor: Colors.black,
-      body: GameBackground(
-        overlayOpacity: .45,
-        child: SafeArea(
-          child: Center(
-            child: FittedBox(
-              fit: BoxFit.contain,
-              child: SizedBox(
-                width: 844,
-                height: 390,
-                child: game == null
-                    ? const Center(child: CircularProgressIndicator())
-                    : _Board(
-                        session: session,
-                        game: game,
-                        player: player,
-                        selected: selectedCardId,
-                        actions: actions,
-                        submitting: isSubmitting,
-                        onCard: selectCard,
-                        onAction: perform,
-                        onExit: Navigator.of(context).pop,
-                      ),
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          Image.asset(
+            AppAssets.tableBackground,
+            fit: BoxFit.cover,
+            filterQuality: FilterQuality.high,
+          ),
+          const ColoredBox(color: Color(0x18000000)),
+          SafeArea(
+            child: Center(
+              child: FittedBox(
+                fit: BoxFit.contain,
+                child: SizedBox(
+                  width: 844,
+                  height: 390,
+                  child: game == null
+                      ? const Center(child: CircularProgressIndicator())
+                      : _Board(
+                          session: session,
+                          game: game,
+                          player: player,
+                          selected: selectedCardId,
+                          actions: actions,
+                          submitting: isSubmitting,
+                          onCard: selectCard,
+                          onAction: perform,
+                          onExit: leaveMatch,
+                        ),
+                ),
               ),
             ),
           ),
-        ),
+        ],
       ),
     );
   }
@@ -153,26 +206,19 @@ class _Board extends StatelessWidget {
                       radius: 1.05,
                       colors: [Colors.transparent, Color(0xB0000000)],
                       stops: [.42, 1])))),
-      const Positioned(
-          left: 45,
-          right: 45,
-          top: 82,
-          bottom: 24,
-          child: CustomPaint(painter: _TablePainter())),
-      Positioned(
-          left: 13, top: 12, child: GameCloseButton(size: 45, onTap: onExit)),
       Positioned(
           left: 13,
-          top: 65,
-          child: _Room(room: session.gameId ?? game.gameId, round: game.round)),
-      Positioned(
-          right: 13,
           top: 12,
           child: _Square(
               icon: Icons.group,
               label: '${game.players.length}/${game.maxPlayers}')),
+      Positioned(
+          left: 13,
+          top: 65,
+          child: _Room(room: session.gameId ?? game.gameId, round: game.round)),
+      const Positioned(right: 13, top: 12, child: _Square(icon: Icons.menu)),
       const Positioned(
-          right: 13, top: 66, child: _Square(icon: Icons.chat_bubble)),
+          right: 13, top: 66, child: _Square(icon: Icons.headset_mic)),
       const Positioned(
           right: 13, top: 118, child: _Square(icon: Icons.settings)),
       if (opponents.isNotEmpty)
@@ -235,14 +281,17 @@ class _Board extends StatelessWidget {
           child: _Badge(
               name: player?.name ?? session.playerName ?? 'YOU',
               score: player?.score ?? 0)),
-      const Positioned(left: 13, bottom: 12, child: _Chat()),
       Positioned(
-          right: 13,
-          bottom: 12,
-          child: selected == null
-              ? const _Show()
-              : _Actions(
-                  actions: actions, loading: submitting, onTap: onAction)),
+          left: 13,
+          bottom: 55,
+          child: GameButton(text: 'Leave match', width: 145, onTap: onExit)),
+      const Positioned(left: 13, bottom: 12, child: _Chat()),
+      if (selected != null)
+        Positioned(
+            right: 13,
+            bottom: 12,
+            child: _Actions(
+                actions: actions, loading: submitting, onTap: onAction)),
       if (session.activity != null)
         Positioned(
             left: 320,
@@ -251,58 +300,6 @@ class _Board extends StatelessWidget {
             child: _Activity(session.activity!)),
     ]);
   }
-}
-
-class _TablePainter extends CustomPainter {
-  const _TablePainter();
-  @override
-  void paint(Canvas canvas, Size size) {
-    final rect = Offset.zero & size;
-    final outer = RRect.fromRectAndRadius(
-        rect, Radius.elliptical(size.width / 2, size.height / 2));
-    canvas.drawRRect(
-        outer,
-        Paint()
-          ..shader = const LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [
-                Color(0xFF3E2A18),
-                Color(0xFF100E0A),
-                Color(0xFF49331C)
-              ]).createShader(rect));
-    canvas.drawRRect(
-        outer,
-        Paint()
-          ..color = _gold
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 2.5);
-    final innerRect = rect.deflate(9);
-    final inner = RRect.fromRectAndRadius(innerRect,
-        Radius.elliptical(innerRect.width / 2, innerRect.height / 2));
-    canvas.drawRRect(inner, Paint()..color = _felt);
-    canvas.drawRRect(
-        inner,
-        Paint()
-          ..color = _feltEdge
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 2);
-    for (var i = 0; i < 30; i++) {
-      final angle = i * math.pi * 2 / 30;
-      final p = Offset(size.width / 2 + math.cos(angle) * (size.width / 2 - 21),
-          size.height / 2 + math.sin(angle) * (size.height / 2 - 17));
-      canvas.drawCircle(
-          p,
-          3.2,
-          Paint()
-            ..color = _rust
-            ..style = PaintingStyle.stroke);
-      canvas.drawCircle(p, 1, Paint()..color = _gold);
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
 class _Panel extends StatelessWidget {
@@ -379,10 +376,14 @@ class _Seat extends StatelessWidget {
     final side = place != 0;
     return SizedBox(
         width: side ? 150 : 270,
-        height: side ? 108 : 72,
+        height: side ? 108 : 98,
         child: Stack(children: [
           Positioned(
-              left: side && place == 1 ? 0 : null,
+              left: place == 0
+                  ? 82
+                  : side && place == 1
+                      ? 0
+                      : null,
               right: side && place == 2 ? 0 : null,
               top: side ? 2 : 0,
               child: _Medallion(player)),
@@ -391,8 +392,8 @@ class _Seat extends StatelessWidget {
                   ? 60
                   : place == 2
                       ? 0
-                      : 57,
-              top: side ? 42 : 16,
+                      : 160,
+              top: side ? 42 : 5,
               child: _Fan(player.handCount.clamp(0, 5))),
         ]));
   }
@@ -417,8 +418,12 @@ class _Medallion extends StatelessWidget {
                 boxShadow: const [
                   BoxShadow(color: Colors.black87, blurRadius: 7)
                 ]),
-            child: Icon(player.isAi ? Icons.person : Icons.face,
-                color: _cream, size: 38)),
+            child: ClipOval(
+                child: Image.asset(
+              AppAssets.playerAvatar,
+              fit: BoxFit.cover,
+              filterQuality: FilterQuality.high,
+            ))),
         Positioned(
             top: 48,
             child: SizedBox(
@@ -581,16 +586,14 @@ class _Card extends StatelessWidget {
   final bool selected;
   @override
   Widget build(BuildContext context) {
-    final value = card.value == 'T' ? '10' : card.value;
-    final ink = card.isRed ? const Color(0xFFA82E25) : const Color(0xFF171711);
+    final displayWidth = card.isHidden ? width : width * 1.10;
+    final displayHeight = card.isHidden ? height : height * 1.10;
     return AnimatedContainer(
         duration: const Duration(milliseconds: 160),
-        width: width,
-        height: height,
+        width: displayWidth,
+        height: displayHeight,
         decoration: BoxDecoration(
-            color: card.isHidden
-                ? const Color(0xFF20281F)
-                : const Color(0xFFE8D7B8),
+            color: Colors.transparent,
             borderRadius: BorderRadius.circular(4),
             border: Border.all(
                 color: selected
@@ -604,61 +607,47 @@ class _Card extends StatelessWidget {
                 const BoxShadow(color: Color(0xFFD99638), blurRadius: 10)
             ]),
         child: card.isHidden
-            ? Padding(
-                padding: const EdgeInsets.all(3),
-                child: DecoratedBox(
-                    decoration: BoxDecoration(
-                        color: const Color(0xFF203426),
-                        borderRadius: BorderRadius.circular(2),
-                        border: Border.all(color: _rust)),
-                    child: CustomPaint(painter: _BackPainter())))
-            : Stack(children: [
-                Positioned(
-                    left: 5,
-                    top: 4,
-                    child: Text('$value\n${card.suitSymbol}',
-                        style: TextStyle(
-                            color: ink,
-                            fontFamily: 'Georgia',
-                            fontWeight: FontWeight.bold,
-                            fontSize: width * .27,
-                            height: .82))),
-                Center(
-                    child: Text(card.suitSymbol,
-                        style: TextStyle(
-                            color: ink,
-                            fontFamily: 'Georgia',
-                            fontSize: width * .52)))
-              ]));
+            ? ClipRRect(
+                borderRadius: BorderRadius.circular(3),
+                child: Image.asset(
+                  AppAssets.cardBack,
+                  width: displayWidth,
+                  height: displayHeight,
+                  fit: BoxFit.fill,
+                  filterQuality: FilterQuality.high,
+                ),
+              )
+            : ClipRRect(
+                borderRadius: BorderRadius.circular(3),
+                child: Image.asset(
+                  _cardAsset(card),
+                  width: displayWidth,
+                  height: displayHeight,
+                  fit: BoxFit.fill,
+                  filterQuality: FilterQuality.high,
+                ),
+              ));
   }
 }
 
-class _BackPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final center = Offset(size.width / 2, size.height / 2);
-    final line = Paint()
-      ..color = _rust
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1;
-    for (var i = 0; i < 4; i++) {
-      canvas.save();
-      canvas.translate(center.dx, center.dy);
-      canvas.rotate(i * math.pi / 4);
-      canvas.drawOval(
-          Rect.fromCenter(
-              center: Offset.zero,
-              width: size.width * .7,
-              height: size.height * .25),
-          line);
-      canvas.restore();
-    }
-    canvas.drawCircle(center, math.min(size.width, size.height) * .12,
-        Paint()..color = _gold);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+String _cardAsset(GameCard card) {
+  final suit = switch (card.suit) {
+    'C' => 'Clubs',
+    'D' => 'Diamonds',
+    'H' => 'Hearts',
+    'S' => 'Spades',
+    _ => 'Spades',
+  };
+  final value = switch (card.value) {
+    'A' => 'Ace',
+    'K' when card.suit == 'S' => 'KIng',
+    'K' => 'King',
+    'Q' => 'Queen',
+    'J' => 'Jack',
+    'T' => '10',
+    _ => card.value,
+  };
+  return 'assets/images/cards/style01/$suit/$value.png';
 }
 
 class _Chat extends StatelessWidget {
@@ -677,22 +666,6 @@ class _Chat extends StatelessWidget {
                     style: TextStyle(fontSize: 8, color: Colors.white60))),
             Icon(Icons.send, size: 15, color: Color(0xFF6ACA73))
           ])));
-}
-
-class _Show extends StatelessWidget {
-  const _Show();
-  @override
-  Widget build(BuildContext context) => const SizedBox(
-      width: 124,
-      height: 40,
-      child: _Panel(
-          padding: EdgeInsets.zero,
-          child: Center(
-              child: Text('SHOW',
-                  style: TextStyle(
-                      color: _cream,
-                      fontSize: 17,
-                      fontWeight: FontWeight.w900)))));
 }
 
 class _Actions extends StatelessWidget {

@@ -1,6 +1,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <application
-        android:label="daketi_phase1_modular"
+        android:label="Daketi"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

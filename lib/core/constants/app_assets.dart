@@ -8,6 +8,11 @@ class AppAssets {
   static const String chaiHotelBackground =
       'assets/images/chai_hotel_background.png';
 
+  /// Client-supplied gameplay table with its rainy street environment.
+  static const String tableBackground = 'assets/images/table_bg.png';
+  static const String cardBack = 'assets/images/card_back.png';
+  static const String playerAvatar = 'assets/images/player_avatar.png';
+
   /// Supplied orange paint-stroke artwork used behind every game button.
   static const String buttonBrush = 'assets/images/button_brush.png';
   static const String facebookButtonBrush =

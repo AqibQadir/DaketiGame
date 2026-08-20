@@ -1,6 +1,6 @@
 {
-    "name": "daketi_phase1_modular",
-    "short_name": "daketi_phase1_modular",
+    "name": "Daketi",
+    "short_name": "Daketi",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",

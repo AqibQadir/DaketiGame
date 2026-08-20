@@ -25,6 +25,10 @@ flutter:
 
   assets:
     - assets/images/
+    - assets/images/cards/style01/Clubs/
+    - assets/images/cards/style01/Diamonds/
+    - assets/images/cards/style01/Hearts/
+    - assets/images/cards/style01/Spades/
     - assets/icons/
 
   fonts:
