@@ -11,6 +11,30 @@ import '../../domain/models/game_action.dart';
 
 enum GameConnectionStatus { disconnected, connecting, connected }
 
+class RoomChatMessage {
+  const RoomChatMessage({
+    required this.senderId,
+    required this.senderName,
+    required this.message,
+    required this.sentAt,
+  });
+
+  final String? senderId;
+  final String senderName;
+  final String message;
+  final DateTime sentAt;
+
+  factory RoomChatMessage.fromJson(Map<String, dynamic> json) =>
+      RoomChatMessage(
+        senderId: (json['playerId'] ?? json['senderId'])?.toString(),
+        senderName:
+            (json['playerName'] ?? json['senderName'] ?? 'Player').toString(),
+        message: (json['message'] ?? '').toString(),
+        sentAt: DateTime.tryParse((json['sentAt'] ?? '').toString()) ??
+            DateTime.now(),
+      );
+}
+
 class GameSessionState {
   const GameSessionState({
     this.connectionStatus = GameConnectionStatus.disconnected,
@@ -26,6 +50,7 @@ class GameSessionState {
     this.activity,
     this.disconnectedPlayer,
     this.lastAiCount = 1,
+    this.chatMessages = const [],
   });
 
   final GameConnectionStatus connectionStatus;
@@ -41,6 +66,7 @@ class GameSessionState {
   final String? activity;
   final String? disconnectedPlayer;
   final int lastAiCount;
+  final List<RoomChatMessage> chatMessages;
 
   bool get isCurrentPlayersTurn =>
       game?.currentPlayerId != null && game?.currentPlayerId == playerId;
@@ -59,6 +85,7 @@ class GameSessionState {
     Object? activity = _unchanged,
     Object? disconnectedPlayer = _unchanged,
     int? lastAiCount,
+    List<RoomChatMessage>? chatMessages,
   }) {
     return GameSessionState(
       connectionStatus: connectionStatus ?? this.connectionStatus,
@@ -77,6 +104,7 @@ class GameSessionState {
           ? this.disconnectedPlayer
           : disconnectedPlayer as String?,
       lastAiCount: lastAiCount ?? this.lastAiCount,
+      chatMessages: chatMessages ?? this.chatMessages,
     );
   }
 }
@@ -211,6 +239,25 @@ class GameController extends StateNotifier<GameSessionState> {
     await _runAction(() => _socketService.playerReady(gameId));
   }
 
+  Future<bool> sendChatMessage(String message) async {
+    final gameId = state.gameId;
+    final value = message.trim();
+    if (gameId == null || value.isEmpty) return false;
+    if (value.length > 200) {
+      state =
+          state.copyWith(error: 'Messages can contain up to 200 characters.');
+      return false;
+    }
+    try {
+      await _socketService.sendChatMessage(gameId: gameId, message: value);
+      state = state.copyWith(error: null);
+      return true;
+    } catch (error) {
+      _setError(error, loading: false);
+      return false;
+    }
+  }
+
   Future<bool> replaySolo() {
     return createSoloGame(
       playerName: state.playerName ?? 'Player',
@@ -255,6 +302,41 @@ class GameController extends StateNotifier<GameSessionState> {
         'targetPlayerId': action.targetPlayerId,
     };
     return _runAction(() => _socketService.performAction(event, payload));
+  }
+
+  Future<bool> handleTurnTimeout() async {
+    if (!state.isCurrentPlayersTurn || state.gameId == null) return true;
+
+    // The API has no timeout event. Use only server-approved actions and keep
+    // the room authoritative: prefer a discard because it ends the turn.
+    for (var step = 0; step < 12 && state.isCurrentPlayersTurn; step++) {
+      final gameId = state.gameId;
+      if (gameId == null) return false;
+      try {
+        final response = await _socketService.getActions(gameId);
+        final actions = (response['actions'] as List<dynamic>? ?? const [])
+            .whereType<Map<String, dynamic>>()
+            .map(GameAction.fromJson)
+            .toList(growable: false);
+        if (actions.isEmpty) {
+          state = state.copyWith(
+            error: 'Time expired, but the server returned no legal move.',
+          );
+          return false;
+        }
+        final action = actions.firstWhere(
+          (item) => item.type == GameActionType.discard,
+          orElse: () => actions.first,
+        );
+        final ended = action.type == GameActionType.discard;
+        if (!await performAction(action)) return false;
+        if (ended) return true;
+      } catch (error) {
+        _setError(error, loading: false);
+        return false;
+      }
+    }
+    return !state.isCurrentPlayersTurn;
   }
 
   Future<void> _ensureConnected() async {
@@ -307,6 +389,26 @@ class GameController extends StateNotifier<GameSessionState> {
             .map((score) => score.map(
                   (key, value) => MapEntry(key.toString(), value),
                 ))
+            .toList(growable: false),
+      );
+      return;
+    }
+    if (event.name == 'chat_message') {
+      final message = RoomChatMessage.fromJson(event.data);
+      if (message.message.isNotEmpty) {
+        state = state.copyWith(chatMessages: [...state.chatMessages, message]);
+      }
+      return;
+    }
+    if (event.name == 'chat_history') {
+      final rawMessages = event.data['messages'] as List<dynamic>? ?? const [];
+      state = state.copyWith(
+        chatMessages: rawMessages
+            .whereType<Map>()
+            .map((item) => RoomChatMessage.fromJson(
+                  item.map((key, value) => MapEntry(key.toString(), value)),
+                ))
+            .where((item) => item.message.isNotEmpty)
             .toList(growable: false),
       );
       return;

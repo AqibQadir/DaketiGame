@@ -18,7 +18,7 @@ class GameResultsScreen extends ConsumerWidget {
         : session.winner == session.playerId
             ? 'YOU WIN'
             : 'GAME OVER';
-    final scores = session.scores.isNotEmpty
+    final rawScores = session.scores.isNotEmpty
         ? session.scores
         : (session.game?.players
                 .map((player) => {
@@ -28,6 +28,18 @@ class GameResultsScreen extends ConsumerWidget {
                     })
                 .toList() ??
             const <Map<String, dynamic>>[]);
+    final scores = List<Map<String, dynamic>>.of(rawScores)
+      ..sort((a, b) {
+        final aIsWinner = a['id']?.toString() == session.winner;
+        final bIsWinner = b['id']?.toString() == session.winner;
+        if (aIsWinner != bIsWinner) return aIsWinner ? -1 : 1;
+        final aScore = (a['score'] as num?)?.toInt() ?? 0;
+        final bScore = (b['score'] as num?)?.toInt() ?? 0;
+        final scoreOrder = bScore.compareTo(aScore);
+        if (scoreOrder != 0) return scoreOrder;
+        return (a['name']?.toString() ?? '')
+            .compareTo(b['name']?.toString() ?? '');
+      });
     return Scaffold(
       body: GameBackground(
         child: Center(
@@ -44,15 +56,45 @@ class GameResultsScreen extends ConsumerWidget {
                   ),
                 ),
                 const SizedBox(height: 16),
-                ...scores.map(
-                  (score) => ListTile(
-                    dense: true,
-                    title: Text(score['name']?.toString() ?? 'Player'),
-                    trailing: Text(
-                      '${score['score'] ?? 0} PTS',
-                      style: const TextStyle(fontWeight: FontWeight.w900),
-                    ),
-                  ),
+                ...scores.indexed.map(
+                  (rankedScore) {
+                    final rank = rankedScore.$1 + 1;
+                    final score = rankedScore.$2;
+                    final isWinner = score['id']?.toString() == session.winner;
+                    return ListTile(
+                      dense: true,
+                      leading: CircleAvatar(
+                        radius: 16,
+                        backgroundColor: isWinner
+                            ? const Color(0xFFFF8A00)
+                            : const Color(0xFF30271F),
+                        child: Text(
+                          '$rank',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                      ),
+                      title: Text(score['name']?.toString() ?? 'Player'),
+                      subtitle: isWinner
+                          ? const Text(
+                              'WINNER',
+                              style: TextStyle(
+                                color: Color(0xFFFFB34D),
+                                fontWeight: FontWeight.w900,
+                              ),
+                            )
+                          : null,
+                      trailing: Text(
+                        '${score['score'] ?? 0} PTS',
+                        style: TextStyle(
+                          color: isWinner ? const Color(0xFFFFB34D) : null,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    );
+                  },
                 ),
                 const SizedBox(height: 12),
                 Row(

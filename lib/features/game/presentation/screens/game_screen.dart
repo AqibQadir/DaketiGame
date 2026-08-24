@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -18,6 +20,7 @@ const _cream = Color(0xFFE4C58D);
 const _panelBlack = Color(0xFF11130F);
 const _panelGreen = Color(0xFF1B291E);
 const _feltEdge = Color(0xFF3E2A16);
+const _turnDurationSeconds = 20;
 
 class GameScreen extends ConsumerStatefulWidget {
   const GameScreen({super.key});
@@ -27,7 +30,31 @@ class GameScreen extends ConsumerStatefulWidget {
 
 class _GameScreenState extends ConsumerState<GameScreen> {
   String? selectedCardId;
+  String? chatMessage;
+  Timer? chatTimer;
   bool isSubmitting = false;
+  bool isHandlingTimeout = false;
+
+  @override
+  void dispose() {
+    chatTimer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> sendChatMessage(String message) async {
+    final value = message.trim();
+    if (value.isEmpty) return;
+    final sent =
+        await ref.read(gameControllerProvider.notifier).sendChatMessage(value);
+    if (!sent && mounted) {
+      _message(ref.read(gameControllerProvider).error ?? 'Message not sent.');
+    }
+  }
+
+  Future<void> openChatHistory() => showDialog<void>(
+        context: context,
+        builder: (_) => _ChatHistoryDialog(onSend: sendChatMessage),
+      );
 
   Future<void> selectCard(GameCard card) async {
     final state = ref.read(gameControllerProvider);
@@ -53,6 +80,21 @@ class _GameScreenState extends ConsumerState<GameScreen> {
     if (!ok) {
       _message(
           ref.read(gameControllerProvider).error ?? 'The move was rejected.');
+    }
+  }
+
+  Future<void> handleTurnTimeout() async {
+    if (isHandlingTimeout || isSubmitting) return;
+    setState(() => isHandlingTimeout = true);
+    final ok =
+        await ref.read(gameControllerProvider.notifier).handleTurnTimeout();
+    if (!mounted) return;
+    setState(() => isHandlingTimeout = false);
+    if (!ok) {
+      _message(
+        ref.read(gameControllerProvider).error ??
+            'Could not advance the expired turn.',
+      );
     }
   }
 
@@ -121,6 +163,16 @@ class _GameScreenState extends ConsumerState<GameScreen> {
       }
     });
     final session = ref.watch(gameControllerProvider);
+    ref.listen(gameControllerProvider.select((value) => value.chatMessages),
+        (previous, next) {
+      if (next.isEmpty || next.length == previous?.length) return;
+      final latest = next.last;
+      chatTimer?.cancel();
+      setState(() => chatMessage = '${latest.senderName}: ${latest.message}');
+      chatTimer = Timer(const Duration(seconds: 5), () {
+        if (mounted) setState(() => chatMessage = null);
+      });
+    });
     final game = session.game;
     final player = game?.playerById(session.playerId);
     if (selectedCardId != null &&
@@ -159,8 +211,12 @@ class _GameScreenState extends ConsumerState<GameScreen> {
                           selected: selectedCardId,
                           actions: actions,
                           submitting: isSubmitting,
+                          chatMessage: chatMessage,
                           onCard: selectCard,
                           onAction: perform,
+                          onChat: sendChatMessage,
+                          onOpenChat: openChatHistory,
+                          onTurnTimeout: handleTurnTimeout,
                           onExit: leaveMatch,
                         ),
                 ),
@@ -181,8 +237,12 @@ class _Board extends StatelessWidget {
       required this.selected,
       required this.actions,
       required this.submitting,
+      required this.chatMessage,
       required this.onCard,
       required this.onAction,
+      required this.onChat,
+      required this.onOpenChat,
+      required this.onTurnTimeout,
       required this.onExit});
   final GameSessionState session;
   final DaketiGame game;
@@ -190,8 +250,12 @@ class _Board extends StatelessWidget {
   final String? selected;
   final List<GameAction> actions;
   final bool submitting;
+  final String? chatMessage;
   final ValueChanged<GameCard> onCard;
   final ValueChanged<GameAction> onAction;
+  final ValueChanged<String> onChat;
+  final VoidCallback onOpenChat;
+  final VoidCallback onTurnTimeout;
   final VoidCallback onExit;
 
   @override
@@ -223,7 +287,14 @@ class _Board extends StatelessWidget {
           right: 13, top: 118, child: _Square(icon: Icons.settings)),
       if (opponents.isNotEmpty)
         Positioned(
-            left: 287, top: 4, child: _Seat(player: opponents[0], place: 0)),
+            left: 287,
+            top: 4,
+            child: _Seat(
+              player: opponents[0],
+              place: 0,
+              isActive: game.currentPlayerId == opponents[0].id,
+              game: game,
+            )),
       if (opponents.isNotEmpty && opponents[0].topCard != null)
         Positioned(
             left: 226,
@@ -232,7 +303,14 @@ class _Board extends StatelessWidget {
                 card: opponents[0].topCard!, count: opponents[0].stackCount)),
       if (opponents.length > 1)
         Positioned(
-            left: 37, top: 151, child: _Seat(player: opponents[1], place: 1)),
+            left: 37,
+            top: 151,
+            child: _Seat(
+              player: opponents[1],
+              place: 1,
+              isActive: game.currentPlayerId == opponents[1].id,
+              game: game,
+            )),
       if (opponents.length > 1 && opponents[1].topCard != null)
         Positioned(
             left: 116,
@@ -241,7 +319,14 @@ class _Board extends StatelessWidget {
                 card: opponents[1].topCard!, count: opponents[1].stackCount)),
       if (opponents.length > 2)
         Positioned(
-            right: 37, top: 151, child: _Seat(player: opponents[2], place: 2)),
+            right: 37,
+            top: 151,
+            child: _Seat(
+              player: opponents[2],
+              place: 2,
+              isActive: game.currentPlayerId == opponents[2].id,
+              game: game,
+            )),
       if (opponents.length > 2 && opponents[2].topCard != null)
         Positioned(
             right: 116,
@@ -255,13 +340,15 @@ class _Board extends StatelessWidget {
           height: 78,
           child: _TableCards(cards: game.table, deck: game.deckCount)),
       Positioned(
-          left: 355, top: 100, child: _Turn(session: session, game: game)),
+          left: 355,
+          top: 100,
+          child: _TurnLabel(isLocalTurn: session.isCurrentPlayersTurn)),
       if (game.protectedValues.isNotEmpty)
         Positioned(
             left: 349, top: 130, child: _Protected(game.protectedValues)),
       Positioned(
-          left: 225,
-          right: 225,
+          left: 310,
+          right: 140,
           bottom: 3,
           height: 133,
           child: _Hand(
@@ -277,15 +364,29 @@ class _Board extends StatelessWidget {
                 card: player!.topCard!, count: player!.stackCount)),
       Positioned(
           left: 225,
-          bottom: 11,
-          child: _Badge(
-              name: player?.name ?? session.playerName ?? 'YOU',
-              score: player?.score ?? 0)),
+          bottom: 2,
+          child: _Medallion(
+            player: player,
+            fallbackName: session.playerName ?? 'YOU',
+            isActive: session.isCurrentPlayersTurn,
+            isLocal: true,
+            game: game,
+            onTimeout: onTurnTimeout,
+          )),
+      if (chatMessage != null)
+        Positioned(
+          left: 205,
+          bottom: 54,
+          child: _ChatBubble(chatMessage!),
+        ),
       Positioned(
-          left: 13,
+          left: 4,
           bottom: 55,
-          child: GameButton(text: 'Leave match', width: 145, onTap: onExit)),
-      const Positioned(left: 13, bottom: 12, child: _Chat()),
+          child: GameButton(text: 'Leave match', width: 135, onTap: onExit)),
+      Positioned(
+          left: 4,
+          bottom: 12,
+          child: _Chat(onSend: onChat, onOpenHistory: onOpenChat)),
       if (selected != null)
         Positioned(
             right: 13,
@@ -294,10 +395,7 @@ class _Board extends StatelessWidget {
                 actions: actions, loading: submitting, onTap: onAction)),
       if (session.activity != null)
         Positioned(
-            left: 320,
-            right: 320,
-            top: 128,
-            child: _Activity(session.activity!)),
+            left: 98, top: 18, width: 180, child: _Activity(session.activity!)),
     ]);
   }
 }
@@ -368,9 +466,16 @@ class _Room extends StatelessWidget {
 }
 
 class _Seat extends StatelessWidget {
-  const _Seat({required this.player, required this.place});
+  const _Seat({
+    required this.player,
+    required this.place,
+    required this.isActive,
+    required this.game,
+  });
   final GamePlayer player;
   final int place;
+  final bool isActive;
+  final DaketiGame game;
   @override
   Widget build(BuildContext context) {
     final side = place != 0;
@@ -386,7 +491,12 @@ class _Seat extends StatelessWidget {
                       : null,
               right: side && place == 2 ? 0 : null,
               top: side ? 2 : 0,
-              child: _Medallion(player)),
+              child: _Medallion(
+                player: player,
+                isActive: isActive,
+                isLocal: false,
+                game: game,
+              )),
           Positioned(
               left: place == 1
                   ? 60
@@ -399,37 +509,191 @@ class _Seat extends StatelessWidget {
   }
 }
 
-class _Medallion extends StatelessWidget {
-  const _Medallion(this.player);
-  final GamePlayer player;
+class _Medallion extends StatefulWidget {
+  const _Medallion({
+    required this.player,
+    required this.isActive,
+    required this.isLocal,
+    required this.game,
+    this.fallbackName = 'Player',
+    this.onTimeout,
+  });
+
+  final GamePlayer? player;
+  final bool isActive;
+  final bool isLocal;
+  final DaketiGame game;
+  final String fallbackName;
+  final VoidCallback? onTimeout;
+
   @override
-  Widget build(BuildContext context) => SizedBox(
-      width: 96,
-      height: 96,
-      child: Stack(alignment: Alignment.topCenter, children: [
-        Container(
-            width: 58,
-            height: 58,
-            decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: const RadialGradient(
-                    colors: [Color(0xFF4D4329), _panelBlack]),
-                border: Border.all(color: _gold, width: 2),
-                boxShadow: const [
-                  BoxShadow(color: Colors.black87, blurRadius: 7)
-                ]),
-            child: ClipOval(
-                child: Image.asset(
-              AppAssets.playerAvatar,
-              fit: BoxFit.cover,
-              filterQuality: FilterQuality.high,
-            ))),
-        Positioned(
-            top: 48,
-            child: SizedBox(
-                width: 94,
-                child: _Badge(name: player.name, score: player.score))),
-      ]));
+  State<_Medallion> createState() => _MedallionState();
+}
+
+class _MedallionState extends State<_Medallion> {
+  Timer? timer;
+  late int fallbackStart;
+  late int remaining;
+  int? lastAlert;
+  bool timeoutSent = false;
+
+  @override
+  void initState() {
+    super.initState();
+    fallbackStart = DateTime.now().millisecondsSinceEpoch;
+    remaining = calculateRemaining();
+    timer = Timer.periodic(
+      const Duration(milliseconds: 200),
+      (_) => updateCountdown(),
+    );
+  }
+
+  int calculateRemaining() {
+    final raw = widget.game.turnStartTime;
+    final started = raw == null
+        ? fallbackStart
+        : raw < 100000000000
+            ? raw * 1000
+            : raw;
+    return (_turnDurationSeconds -
+            (DateTime.now().millisecondsSinceEpoch - started) ~/ 1000)
+        .clamp(0, _turnDurationSeconds);
+  }
+
+  void updateCountdown() {
+    final next = calculateRemaining();
+    if (next == remaining) return;
+    if (mounted) setState(() => remaining = next);
+    if (widget.isActive && widget.isLocal && next == 0 && !timeoutSent) {
+      timeoutSent = true;
+      widget.onTimeout?.call();
+      return;
+    }
+    if (!widget.isActive ||
+        !widget.isLocal ||
+        next <= 0 ||
+        next > 5 ||
+        lastAlert == next) {
+      return;
+    }
+    lastAlert = next;
+    if (next == 1) {
+      SystemSound.play(SystemSoundType.alert);
+      HapticFeedback.heavyImpact();
+    } else {
+      SystemSound.play(SystemSoundType.click);
+      HapticFeedback.lightImpact();
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant _Medallion oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.game.currentPlayerId != widget.game.currentPlayerId ||
+        oldWidget.game.turnStartTime != widget.game.turnStartTime) {
+      fallbackStart = DateTime.now().millisecondsSinceEpoch;
+      lastAlert = null;
+      timeoutSent = false;
+      remaining = calculateRemaining();
+    }
+  }
+
+  @override
+  void dispose() {
+    timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final player = widget.player;
+    const limit = _turnDurationSeconds;
+    final progress = (remaining / limit).clamp(0.0, 1.0);
+    final urgent = remaining <= 5;
+    final ringColor =
+        urgent ? const Color(0xFFE53E36) : const Color(0xFF35C96F);
+    return SizedBox(
+        width: 96,
+        height: 96,
+        child: Stack(alignment: Alignment.topCenter, children: [
+          SizedBox(
+            width: 62,
+            height: 62,
+            child: Stack(alignment: Alignment.center, children: [
+              if (widget.isActive)
+                SizedBox.expand(
+                  child: CircularProgressIndicator(
+                    value: progress,
+                    strokeWidth: 4,
+                    strokeCap: StrokeCap.round,
+                    backgroundColor: const Color(0x733B2B19),
+                    color: ringColor,
+                  ),
+                ),
+              Container(
+                width: 54,
+                height: 54,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: const RadialGradient(
+                    colors: [Color(0xFF695B35), _panelBlack],
+                  ),
+                  border: Border.all(color: _gold, width: 1.4),
+                  boxShadow: [
+                    BoxShadow(
+                      color: widget.isActive
+                          ? ringColor.withValues(alpha: .5)
+                          : Colors.black87,
+                      blurRadius: widget.isActive ? 10 : 7,
+                    ),
+                  ],
+                ),
+                child: ClipOval(
+                  child: Image.asset(
+                    AppAssets.playerAvatar,
+                    fit: BoxFit.cover,
+                    filterQuality: FilterQuality.high,
+                  ),
+                ),
+              ),
+            ]),
+          ),
+          if (widget.isActive)
+            Positioned(
+              left: 5,
+              top: 1,
+              child: Container(
+                width: 24,
+                height: 24,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: _panelGreen,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: ringColor, width: 2),
+                  boxShadow: const [
+                    BoxShadow(color: Colors.black87, blurRadius: 5),
+                  ],
+                ),
+                child: Text(
+                  '$remaining',
+                  style: TextStyle(
+                    color: ringColor,
+                    fontSize: 9,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+            ),
+          Positioned(
+              top: 48,
+              child: SizedBox(
+                  width: 94,
+                  child: _Badge(
+                    name: player?.name ?? widget.fallbackName,
+                    score: player?.score ?? 0,
+                  ))),
+        ]));
+  }
 }
 
 class _Badge extends StatelessWidget {
@@ -447,8 +711,20 @@ class _Badge extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
                 style:
                     const TextStyle(fontSize: 9, fontWeight: FontWeight.w900)),
-            Text('$score  ●',
-                style: const TextStyle(fontSize: 8, color: _cream))
+            Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+              Text('$score',
+                  style: const TextStyle(fontSize: 8, color: _cream)),
+              const SizedBox(width: 4),
+              Container(
+                width: 8,
+                height: 8,
+                decoration: const BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Color(0xFFE8A236),
+                  boxShadow: [BoxShadow(color: _gold, blurRadius: 2)],
+                ),
+              ),
+            ])
           ])));
 }
 
@@ -556,24 +832,43 @@ class _Hand extends StatelessWidget {
   final String? selected;
   final bool enabled;
   final ValueChanged<GameCard> onTap;
+
+  int rank(GameCard card) => switch (card.value.toUpperCase()) {
+        'A' => 14,
+        'K' => 13,
+        'Q' => 12,
+        'J' => 11,
+        'T' => 10,
+        _ => int.tryParse(card.value) ?? 0,
+      };
+
   @override
   Widget build(BuildContext context) {
-    final center = (cards.length - 1) / 2;
+    final orderedCards = List<GameCard>.of(cards)
+      ..sort((a, b) {
+        final valueOrder = rank(a).compareTo(rank(b));
+        if (valueOrder != 0) return valueOrder;
+        return a.suit.compareTo(b.suit);
+      });
+    final center = (orderedCards.length - 1) / 2;
     return Stack(
         alignment: Alignment.bottomCenter,
         clipBehavior: Clip.none,
-        children: List.generate(cards.length, (i) {
+        children: List.generate(orderedCards.length, (i) {
           final d = i - center;
-          final active = cards[i].id == selected;
+          final card = orderedCards[i];
+          final active = card.id == selected;
           return Positioned(
-              left: 108 + d * 38,
+              left: 108 + d * 36,
               bottom: 1 + (center - d.abs()) * 2 + (active ? 13 : 0),
               child: Transform.rotate(
-                  angle: d * .055,
-                  alignment: Alignment.bottomCenter,
-                  child: GestureDetector(
-                      onTap: enabled ? () => onTap(cards[i]) : null,
-                      child: _Card(cards[i], 61, 91, selected: active))));
+                angle: d * .065,
+                alignment: Alignment.bottomCenter,
+                child: GestureDetector(
+                  onTap: enabled ? () => onTap(card) : null,
+                  child: _Card(card, 61, 91, selected: active),
+                ),
+              ));
         }));
   }
 }
@@ -650,22 +945,260 @@ String _cardAsset(GameCard card) {
   return 'assets/images/cards/style01/$suit/$value.png';
 }
 
-class _Chat extends StatelessWidget {
-  const _Chat();
+class _Chat extends StatefulWidget {
+  const _Chat({required this.onSend, required this.onOpenHistory});
+  final ValueChanged<String> onSend;
+  final VoidCallback onOpenHistory;
+
   @override
-  Widget build(BuildContext context) => const SizedBox(
-      width: 154,
+  State<_Chat> createState() => _ChatState();
+}
+
+class _ChatState extends State<_Chat> {
+  final controller = TextEditingController();
+  final focusNode = FocusNode();
+
+  @override
+  void dispose() {
+    controller.dispose();
+    focusNode.dispose();
+    super.dispose();
+  }
+
+  void send() {
+    final value = controller.text.trim();
+    if (value.isEmpty) return;
+    widget.onSend(value);
+    controller.clear();
+    focusNode.unfocus();
+  }
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+      width: 145,
       height: 36,
       child: _Panel(
-          padding: EdgeInsets.symmetric(horizontal: 9),
+          padding: const EdgeInsets.only(left: 9, right: 5),
           child: Row(children: [
-            Icon(Icons.chat_bubble, size: 16, color: _cream),
-            SizedBox(width: 8),
+            InkWell(
+              onTap: widget.onOpenHistory,
+              borderRadius: BorderRadius.circular(12),
+              child: const Padding(
+                padding: EdgeInsets.all(2),
+                child: Icon(Icons.chat_bubble, size: 16, color: _cream),
+              ),
+            ),
+            const SizedBox(width: 6),
             Expanded(
-                child: Text('Type a message…',
-                    style: TextStyle(fontSize: 8, color: Colors.white60))),
-            Icon(Icons.send, size: 15, color: Color(0xFF6ACA73))
+              child: TextField(
+                controller: controller,
+                focusNode: focusNode,
+                textInputAction: TextInputAction.send,
+                onSubmitted: (_) => send(),
+                maxLength: 80,
+                style: const TextStyle(fontSize: 8, color: Colors.white),
+                decoration: const InputDecoration(
+                  hintText: 'Type a message…',
+                  hintStyle: TextStyle(fontSize: 8, color: Colors.white60),
+                  counterText: '',
+                  isDense: true,
+                  border: InputBorder.none,
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
+            ),
+            InkWell(
+              onTap: send,
+              borderRadius: BorderRadius.circular(14),
+              child: const Padding(
+                padding: EdgeInsets.all(4),
+                child: Icon(Icons.send, size: 16, color: Color(0xFF6ACA73)),
+              ),
+            )
           ])));
+}
+
+class _ChatBubble extends StatelessWidget {
+  const _ChatBubble(this.message);
+  final String message;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        constraints: const BoxConstraints(minWidth: 90, maxWidth: 180),
+        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
+        decoration: BoxDecoration(
+          color: const Color(0xF21B1814),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: _gold),
+          boxShadow: const [BoxShadow(color: Colors.black87, blurRadius: 8)],
+        ),
+        child: Text(
+          message,
+          textAlign: TextAlign.center,
+          maxLines: 3,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(color: Colors.white, fontSize: 9, height: 1.3),
+        ),
+      );
+}
+
+class _ChatHistoryDialog extends ConsumerStatefulWidget {
+  const _ChatHistoryDialog({required this.onSend});
+
+  final ValueChanged<String> onSend;
+
+  @override
+  ConsumerState<_ChatHistoryDialog> createState() => _ChatHistoryDialogState();
+}
+
+class _ChatHistoryDialogState extends ConsumerState<_ChatHistoryDialog> {
+  final controller = TextEditingController();
+  final scrollController = ScrollController();
+
+  @override
+  void dispose() {
+    controller.dispose();
+    scrollController.dispose();
+    super.dispose();
+  }
+
+  void send() {
+    final value = controller.text.trim();
+    if (value.isEmpty) return;
+    widget.onSend(value);
+    controller.clear();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (scrollController.hasClients) {
+        scrollController.animateTo(
+          scrollController.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeOut,
+        );
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final messages = ref.watch(
+      gameControllerProvider.select((state) => state.chatMessages),
+    );
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      child: Container(
+        width: 520,
+        height: 320,
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          color: const Color(0xF5161310),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: _gold),
+          boxShadow: const [
+            BoxShadow(color: Colors.black87, blurRadius: 24),
+          ],
+        ),
+        child: Column(children: [
+          Row(children: [
+            const Icon(Icons.forum, color: _cream, size: 22),
+            const SizedBox(width: 8),
+            const Expanded(
+              child: Text(
+                'MATCH CHAT',
+                style: TextStyle(
+                  fontFamily: 'Dirty Brush',
+                  fontSize: 22,
+                  color: _cream,
+                ),
+              ),
+            ),
+            IconButton(
+              onPressed: Navigator.of(context).pop,
+              icon: const Icon(Icons.close, color: Colors.white70),
+            ),
+          ]),
+          const Divider(color: _darkGold),
+          Expanded(
+            child: messages.isEmpty
+                ? const Center(
+                    child: Text(
+                      'No messages yet. Start the conversation.',
+                      style: TextStyle(color: Colors.white38, fontSize: 11),
+                    ),
+                  )
+                : ListView.builder(
+                    controller: scrollController,
+                    itemCount: messages.length,
+                    itemBuilder: (_, index) {
+                      final entry = messages[index];
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 9),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              entry.senderName.toUpperCase(),
+                              style: const TextStyle(
+                                color: _gold,
+                                fontSize: 9,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 7,
+                              ),
+                              decoration: BoxDecoration(
+                                color: const Color(0xB52B251F),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Text(
+                                entry.message,
+                                style: const TextStyle(fontSize: 11),
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+          ),
+          const SizedBox(height: 10),
+          Container(
+            height: 42,
+            padding: const EdgeInsets.only(left: 12, right: 4),
+            decoration: BoxDecoration(
+              color: const Color(0xE00C0B09),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: _darkGold),
+            ),
+            child: Row(children: [
+              Expanded(
+                child: TextField(
+                  controller: controller,
+                  autofocus: true,
+                  maxLength: 80,
+                  textInputAction: TextInputAction.send,
+                  onSubmitted: (_) => send(),
+                  style: const TextStyle(fontSize: 11),
+                  decoration: const InputDecoration(
+                    hintText: 'Type a message…',
+                    counterText: '',
+                    border: InputBorder.none,
+                  ),
+                ),
+              ),
+              IconButton(
+                onPressed: send,
+                icon: const Icon(Icons.send, color: Color(0xFF6ACA73)),
+              ),
+            ]),
+          ),
+        ]),
+      ),
+    );
+  }
 }
 
 class _Actions extends StatelessWidget {
@@ -715,41 +1248,27 @@ class _Actions extends StatelessWidget {
   }
 }
 
-class _Turn extends StatelessWidget {
-  const _Turn({required this.session, required this.game});
-  final GameSessionState session;
-  final DaketiGame game;
+class _TurnLabel extends StatelessWidget {
+  const _TurnLabel({required this.isLocalTurn});
+  final bool isLocalTurn;
+
   @override
-  Widget build(BuildContext context) {
-    final raw = game.turnStartTime;
-    final millis = raw == null
-        ? DateTime.now().millisecondsSinceEpoch
-        : raw < 100000000000
-            ? raw * 1000
-            : raw;
-    final initial = (game.turnTimeLimit -
-            (DateTime.now().millisecondsSinceEpoch - millis) ~/ 1000)
-        .clamp(0, game.turnTimeLimit)
-        .toDouble();
-    return Column(children: [
-      Text(session.isCurrentPlayersTurn ? 'YOUR TURN' : 'OPPONENT TURN',
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        decoration: BoxDecoration(
+          color: const Color(0xD9000000),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: _darkGold),
+        ),
+        child: Text(
+          isLocalTurn ? 'YOUR TURN' : 'OPPONENT TURN',
           style: const TextStyle(
-              fontSize: 8, fontWeight: FontWeight.w900, color: _cream)),
-      TweenAnimationBuilder<double>(
-          key: ValueKey('${game.currentPlayerId}-${game.turnStartTime}'),
-          tween: Tween(begin: initial, end: 0),
-          duration: Duration(seconds: initial.ceil()),
-          builder: (_, value, __) => Row(children: [
-                Icon(Icons.timer_outlined,
-                    size: 10,
-                    color: value <= 8 ? Colors.redAccent : Colors.white70),
-                Text(' ${value.ceil()}s',
-                    style: TextStyle(
-                        fontSize: 8,
-                        color: value <= 8 ? Colors.redAccent : Colors.white70))
-              ]))
-    ]);
-  }
+            fontSize: 8,
+            fontWeight: FontWeight.w900,
+            color: _cream,
+          ),
+        ),
+      );
 }
 
 class _Protected extends StatelessWidget {
@@ -771,13 +1290,18 @@ class _Activity extends StatelessWidget {
   final String text;
   @override
   Widget build(BuildContext context) => Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
       decoration: BoxDecoration(
-          color: const Color(0xDD000000),
-          borderRadius: BorderRadius.circular(10)),
+          color: const Color(0xE6291B0C),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: _gold, width: 1),
+          boxShadow: const [BoxShadow(color: Colors.black87, blurRadius: 7)]),
       child: Text(text,
           textAlign: TextAlign.center,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
-          style: const TextStyle(fontSize: 7)));
+          style: const TextStyle(
+              color: Color(0xFFFFC75D),
+              fontSize: 8,
+              fontWeight: FontWeight.w800)));
 }

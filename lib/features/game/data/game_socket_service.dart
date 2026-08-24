@@ -61,6 +61,8 @@ class GameSocketService {
       'ai_action',
       'game_over',
       'player_disconnected',
+      'chat_message',
+      'chat_history',
     ]) {
       socket.on(name, (data) => _events.add(GameSocketEvent(name, _map(data))));
     }
@@ -98,6 +100,16 @@ class GameSocketService {
     Map<String, dynamic> payload,
   ) {
     return _emitWithAck(event, payload);
+  }
+
+  Future<Map<String, dynamic>> sendChatMessage({
+    required String gameId,
+    required String message,
+  }) {
+    return _emitWithAck('send_chat_message', {
+      'gameId': gameId,
+      'message': message,
+    });
   }
 
   Future<Map<String, dynamic>> _emitWithAck(
