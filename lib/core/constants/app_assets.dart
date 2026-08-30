@@ -12,9 +12,16 @@ class AppAssets {
   static const String tableBackground = 'assets/images/table_bg.png';
   static const String cardBack = 'assets/images/card_back.png';
   static const String playerAvatar = 'assets/images/player_avatar.png';
+  static const String playerHamza = 'assets/images/players/hamza.png';
+  static const String playerAyesha = 'assets/images/players/ayesha.png';
+  static const String playerBilal = 'assets/images/players/bilal.png';
+  static const String playerMahnoor = 'assets/images/players/mahnoor.png';
+  static const String playerSaad = 'assets/images/players/saad.png';
 
   /// Supplied orange paint-stroke artwork used behind every game button.
   static const String buttonBrush = 'assets/images/button_brush.png';
+  static const String actionButtonBrush =
+      'assets/images/action_button_brush.png';
   static const String facebookButtonBrush =
       'assets/images/button_brush_facebook.png';
   static const String closeCross = 'assets/images/close_cross.png';

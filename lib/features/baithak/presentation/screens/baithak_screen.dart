@@ -82,8 +82,10 @@ class BaithakScreen extends StatelessWidget {
                           title: 'MY CLAN',
                           subtitle: 'MAKE YOUR OWN CLAN',
                           buttonText: 'CREATE ROOM',
-                          onTap: () =>
-                              Navigator.pushNamed(context, AppRoutes.myClan),
+                          onTap: () => Navigator.pushNamed(
+                            context,
+                            AppRoutes.multiplayer,
+                          ),
                         ),
                         const SizedBox(width: 18),
                         _ModeCard(

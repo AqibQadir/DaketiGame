@@ -82,13 +82,19 @@ class _MultiplayerScreenState extends ConsumerState<MultiplayerScreen> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     const Text(
-                      'MULTIPLAYER',
+                      'PRIVATE TEAM ROOM',
                       style: TextStyle(
                         fontFamily: 'Dirty Brush',
                         fontSize: 28,
                       ),
                     ),
                     const SizedBox(height: 15),
+                    const Text(
+                      'Create a private table and share its 4-digit code, or join a teammate’s room.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: Colors.white60, fontSize: 11),
+                    ),
+                    const SizedBox(height: 12),
                     TextField(
                       controller: nameController,
                       maxLength: 24,
@@ -104,11 +110,11 @@ class _MultiplayerScreenState extends ConsumerState<MultiplayerScreen> {
                                 const InputDecoration(labelText: 'Room size'),
                             items: const [
                               DropdownMenuItem(
-                                  value: 2, child: Text('2 players')),
+                                  value: 2, child: Text('2 team members')),
                               DropdownMenuItem(
-                                  value: 3, child: Text('3 players')),
+                                  value: 3, child: Text('3 team members')),
                               DropdownMenuItem(
-                                  value: 4, child: Text('4 players')),
+                                  value: 4, child: Text('4 team members')),
                             ],
                             onChanged: (value) {
                               setState(() => maxPlayers = value ?? 4);
@@ -125,7 +131,7 @@ class _MultiplayerScreenState extends ConsumerState<MultiplayerScreen> {
                     ),
                     const Padding(
                       padding: EdgeInsets.symmetric(vertical: 12),
-                      child: Text('OR JOIN AN EXISTING ROOM'),
+                      child: Text('OR JOIN YOUR TEAM WITH A CODE'),
                     ),
                     Row(
                       children: [

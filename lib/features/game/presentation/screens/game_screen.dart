@@ -6,12 +6,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/routes/app_routes.dart';
 import '../../../../core/constants/app_assets.dart';
-import '../../../../core/widgets/game_button.dart';
+import '../../../../core/widgets/game_close_button.dart';
 import '../../domain/models/daketi_game.dart';
 import '../../domain/models/game_action.dart';
 import '../../domain/models/game_card.dart';
 import '../../domain/models/game_player.dart';
 import '../controllers/game_controller.dart';
+import '../widgets/fanned_card_hand.dart';
 
 // Gameplay palette sampled from the approved table reference.
 const _gold = Color(0xFFC58B43);
@@ -19,8 +20,30 @@ const _darkGold = Color(0xFF533718);
 const _cream = Color(0xFFE4C58D);
 const _panelBlack = Color(0xFF11130F);
 const _panelGreen = Color(0xFF1B291E);
-const _feltEdge = Color(0xFF3E2A16);
 const _turnDurationSeconds = 20;
+
+class _PlayerIdentity {
+  const _PlayerIdentity(this.name, this.avatarAsset);
+
+  final String name;
+  final String avatarAsset;
+}
+
+const _pakistaniBotRoster = <_PlayerIdentity>[
+  _PlayerIdentity('Hamza Malik', AppAssets.playerHamza),
+  _PlayerIdentity('Ayesha Khan', AppAssets.playerAyesha),
+  _PlayerIdentity('Bilal Ahmed', AppAssets.playerBilal),
+  _PlayerIdentity('Mahnoor Fatima', AppAssets.playerMahnoor),
+  _PlayerIdentity('Saad Qureshi', AppAssets.playerSaad),
+];
+
+int _stableIdentitySeed(String value) {
+  var hash = 17;
+  for (final codeUnit in value.codeUnits) {
+    hash = (hash * 37 + codeUnit) & 0x7fffffff;
+  }
+  return hash;
+}
 
 class GameScreen extends ConsumerStatefulWidget {
   const GameScreen({super.key});
@@ -69,7 +92,6 @@ class _GameScreenState extends ConsumerState<GameScreen> {
 
   Future<void> perform(GameAction action) async {
     setState(() => isSubmitting = true);
-    HapticFeedback.mediumImpact();
     final ok =
         await ref.read(gameControllerProvider.notifier).performAction(action);
     if (!mounted) return;
@@ -80,12 +102,17 @@ class _GameScreenState extends ConsumerState<GameScreen> {
     if (!ok) {
       _message(
           ref.read(gameControllerProvider).error ?? 'The move was rejected.');
+    } else {
+      SystemSound.play(SystemSoundType.click);
+      HapticFeedback.mediumImpact();
     }
   }
 
   Future<void> handleTurnTimeout() async {
     if (isHandlingTimeout || isSubmitting) return;
     setState(() => isHandlingTimeout = true);
+    SystemSound.play(SystemSoundType.alert);
+    HapticFeedback.heavyImpact();
     final ok =
         await ref.read(gameControllerProvider.notifier).handleTurnTimeout();
     if (!mounted) return;
@@ -161,6 +188,11 @@ class _GameScreenState extends ConsumerState<GameScreen> {
           next.connectionStatus == GameConnectionStatus.disconnected) {
         _message('Connection lost. Reconnecting…');
       }
+      final wasMyTurn = previous?.isCurrentPlayersTurn ?? false;
+      if (!wasMyTurn && next.isCurrentPlayersTurn) {
+        SystemSound.play(SystemSoundType.alert);
+        HapticFeedback.mediumImpact();
+      }
     });
     final session = ref.watch(gameControllerProvider);
     ref.listen(gameControllerProvider.select((value) => value.chatMessages),
@@ -195,31 +227,29 @@ class _GameScreenState extends ConsumerState<GameScreen> {
             filterQuality: FilterQuality.high,
           ),
           const ColoredBox(color: Color(0x18000000)),
-          SafeArea(
-            child: Center(
-              child: FittedBox(
-                fit: BoxFit.contain,
-                child: SizedBox(
-                  width: 844,
-                  height: 390,
-                  child: game == null
-                      ? const Center(child: CircularProgressIndicator())
-                      : _Board(
-                          session: session,
-                          game: game,
-                          player: player,
-                          selected: selectedCardId,
-                          actions: actions,
-                          submitting: isSubmitting,
-                          chatMessage: chatMessage,
-                          onCard: selectCard,
-                          onAction: perform,
-                          onChat: sendChatMessage,
-                          onOpenChat: openChatHistory,
-                          onTurnTimeout: handleTurnTimeout,
-                          onExit: leaveMatch,
-                        ),
-                ),
+          Center(
+            child: FittedBox(
+              fit: BoxFit.cover,
+              child: SizedBox(
+                width: 844,
+                height: 390,
+                child: game == null
+                    ? const Center(child: CircularProgressIndicator())
+                    : _Board(
+                        session: session,
+                        game: game,
+                        player: player,
+                        selected: selectedCardId,
+                        actions: actions,
+                        submitting: isSubmitting,
+                        chatMessage: chatMessage,
+                        onCard: selectCard,
+                        onAction: perform,
+                        onChat: sendChatMessage,
+                        onOpenChat: openChatHistory,
+                        onTurnTimeout: handleTurnTimeout,
+                        onExit: leaveMatch,
+                      ),
               ),
             ),
           ),
@@ -262,6 +292,33 @@ class _Board extends StatelessWidget {
   Widget build(BuildContext context) {
     final opponents =
         game.players.where((p) => p.id != session.playerId).toList();
+    // Seat order follows the approved table zones. The first opponent always
+    // occupies top-center, the second uses the left seat, and only a fourth
+    // player introduces the right seat. This keeps legal actions unobstructed.
+    final GamePlayer? topOpponent = opponents.isNotEmpty ? opponents[0] : null;
+    final GamePlayer? leftOpponent =
+        opponents.length >= 2 ? opponents[1] : null;
+    final GamePlayer? rightOpponent =
+        opponents.length >= 3 ? opponents[2] : null;
+    final isTwoPlayerMatch = opponents.length == 1;
+    final isThreePlayerMatch = opponents.length == 2;
+    final identitySeed = _stableIdentitySeed(session.gameId ?? game.gameId);
+    final identityStep = 1 + (identitySeed ~/ 5) % 4;
+    _PlayerIdentity? identityFor(GamePlayer? opponent, int seatIndex) {
+      if (opponent == null || !opponent.isAi) return null;
+      final rosterIndex = (identitySeed + seatIndex * identityStep) %
+          _pakistaniBotRoster.length;
+      return _pakistaniBotRoster[rosterIndex];
+    }
+
+    final topIdentity = identityFor(topOpponent, 0);
+    final leftIdentity = identityFor(leftOpponent, 1);
+    final rightIdentity = identityFor(rightOpponent, 2);
+    final reducedPlayerScale = isTwoPlayerMatch
+        ? 1.18
+        : isThreePlayerMatch
+            ? 1.10
+            : 1.0;
     return Stack(children: [
       const Positioned.fill(
           child: DecoratedBox(
@@ -271,7 +328,9 @@ class _Board extends StatelessWidget {
                       colors: [Colors.transparent, Color(0xB0000000)],
                       stops: [.42, 1])))),
       Positioned(
-          left: 13,
+          left: 8, top: 5, child: GameCloseButton(size: 58, onTap: onExit)),
+      Positioned(
+          left: 70,
           top: 12,
           child: _Square(
               icon: Icons.group,
@@ -285,85 +344,125 @@ class _Board extends StatelessWidget {
           right: 13, top: 66, child: _Square(icon: Icons.headset_mic)),
       const Positioned(
           right: 13, top: 118, child: _Square(icon: Icons.settings)),
-      if (opponents.isNotEmpty)
+      if (topOpponent != null)
         Positioned(
-            left: 287,
-            top: 4,
-            child: _Seat(
-              player: opponents[0],
-              place: 0,
-              isActive: game.currentPlayerId == opponents[0].id,
-              game: game,
+            left: isTwoPlayerMatch ? 277 : 287,
+            top: isTwoPlayerMatch ? 18 : 4,
+            child: Transform.scale(
+              scale: reducedPlayerScale,
+              alignment: Alignment.topCenter,
+              child: _Seat(
+                player: topOpponent,
+                identity: topIdentity,
+                place: 0,
+                isActive: game.currentPlayerId == topOpponent.id,
+                game: game,
+                timerRevision: session.turnTimerRevision,
+              ),
             )),
-      if (opponents.isNotEmpty && opponents[0].topCard != null)
+      if (topOpponent?.topCard != null)
         Positioned(
-            left: 226,
-            top: 92,
+            left: isTwoPlayerMatch ? 300 : 310,
+            top: isTwoPlayerMatch ? 36 : 22,
             child: _CapturePile(
-                card: opponents[0].topCard!, count: opponents[0].stackCount)),
-      if (opponents.length > 1)
+                card: topOpponent!.topCard!, count: topOpponent.stackCount)),
+      if (leftOpponent != null)
         Positioned(
-            left: 37,
-            top: 151,
-            child: _Seat(
-              player: opponents[1],
-              place: 1,
-              isActive: game.currentPlayerId == opponents[1].id,
-              game: game,
+            // With two opponents, reserve the upper-left for room details and
+            // place this whole seat in the clear lane above match chat.
+            left: isThreePlayerMatch ? 42 : 37,
+            top: isThreePlayerMatch ? 214 : 151,
+            child: Transform.scale(
+              scale: reducedPlayerScale,
+              alignment: Alignment.topLeft,
+              child: _Seat(
+                player: leftOpponent,
+                identity: leftIdentity,
+                place: 1,
+                isActive: game.currentPlayerId == leftOpponent.id,
+                game: game,
+                timerRevision: session.turnTimerRevision,
+              ),
             )),
-      if (opponents.length > 1 && opponents[1].topCard != null)
+      if (leftOpponent?.topCard != null)
         Positioned(
-            left: 116,
-            top: 251,
+            left: isThreePlayerMatch ? 178 : 59,
+            top: 246,
             child: _CapturePile(
-                card: opponents[1].topCard!, count: opponents[1].stackCount)),
-      if (opponents.length > 2)
+                card: leftOpponent!.topCard!, count: leftOpponent.stackCount)),
+      if (rightOpponent != null)
         Positioned(
-            right: 37,
-            top: 151,
-            child: _Seat(
-              player: opponents[2],
-              place: 2,
-              isActive: game.currentPlayerId == opponents[2].id,
-              game: game,
+            // In a four-player match, move Player 3 toward the outer rail so
+            // their hidden hand has clear breathing room from the draw deck.
+            right: isThreePlayerMatch ? 82 : 22,
+            top: isThreePlayerMatch ? 58 : 151,
+            child: Transform.scale(
+              scale: reducedPlayerScale,
+              alignment: Alignment.topRight,
+              child: _Seat(
+                player: rightOpponent,
+                identity: rightIdentity,
+                place: 2,
+                isActive: game.currentPlayerId == rightOpponent.id,
+                game: game,
+                timerRevision: session.turnTimerRevision,
+              ),
             )),
-      if (opponents.length > 2 && opponents[2].topCard != null)
+      if (rightOpponent?.topCard != null)
         Positioned(
-            right: 116,
-            top: 251,
+            right: 59,
+            top: 246,
             child: _CapturePile(
-                card: opponents[2].topCard!, count: opponents[2].stackCount)),
+                card: rightOpponent!.topCard!,
+                count: rightOpponent.stackCount)),
       Positioned(
           left: 220,
           right: 220,
-          top: 151,
-          height: 78,
-          child: _TableCards(cards: game.table, deck: game.deckCount)),
+          top: 137,
+          height: 116,
+          child: Transform.scale(
+            scale: isTwoPlayerMatch
+                ? 1.12
+                : isThreePlayerMatch
+                    ? 1.06
+                    : 1,
+            child: _TableCards(cards: game.table, deck: game.deckCount),
+          )),
       Positioned(
-          left: 355,
-          top: 100,
+          left: 492,
+          top: 105,
           child: _TurnLabel(isLocalTurn: session.isCurrentPlayersTurn)),
       if (game.protectedValues.isNotEmpty)
         Positioned(
             left: 349, top: 130, child: _Protected(game.protectedValues)),
       Positioned(
-          left: 310,
-          right: 140,
-          bottom: 3,
+          // Keep the radial hand in its own lane to the right of the local
+          // medallion. The shared fan pivot must never sit behind the avatar.
+          left: 350,
+          right: 95,
+          bottom: 12,
           height: 133,
-          child: _Hand(
-              cards: player?.hand ?? const [],
-              selected: selected,
-              enabled: session.isCurrentPlayersTurn && !submitting,
-              onTap: onCard)),
+          child: Transform.scale(
+            scale: isTwoPlayerMatch
+                ? 1.10
+                : isThreePlayerMatch
+                    ? 1.05
+                    : 1,
+            alignment: Alignment.bottomCenter,
+            child: _Hand(
+                cards: player?.hand ?? const [],
+                selected: selected,
+                enabled: session.isCurrentPlayersTurn && !submitting,
+                onTap: onCard),
+          )),
       if (player?.topCard != null)
         Positioned(
-            left: 178,
-            bottom: 25,
+            left: isTwoPlayerMatch ? 300 : 310,
+            bottom: 5,
             child: _CapturePile(
                 card: player!.topCard!, count: player!.stackCount)),
       Positioned(
-          left: 225,
+          left: isTwoPlayerMatch ? 359 : 369,
           bottom: 2,
           child: _Medallion(
             player: player,
@@ -371,6 +470,7 @@ class _Board extends StatelessWidget {
             isActive: session.isCurrentPlayersTurn,
             isLocal: true,
             game: game,
+            timerRevision: session.turnTimerRevision,
             onTimeout: onTurnTimeout,
           )),
       if (chatMessage != null)
@@ -379,10 +479,6 @@ class _Board extends StatelessWidget {
           bottom: 54,
           child: _ChatBubble(chatMessage!),
         ),
-      Positioned(
-          left: 4,
-          bottom: 55,
-          child: GameButton(text: 'Leave match', width: 135, onTap: onExit)),
       Positioned(
           left: 4,
           bottom: 12,
@@ -395,7 +491,10 @@ class _Board extends StatelessWidget {
                 actions: actions, loading: submitting, onTap: onAction)),
       if (session.activity != null)
         Positioned(
-            left: 98, top: 18, width: 180, child: _Activity(session.activity!)),
+            left: 152,
+            top: 18,
+            width: 190,
+            child: _Activity(session.activity!)),
     ]);
   }
 }
@@ -468,21 +567,25 @@ class _Room extends StatelessWidget {
 class _Seat extends StatelessWidget {
   const _Seat({
     required this.player,
+    required this.identity,
     required this.place,
     required this.isActive,
     required this.game,
+    required this.timerRevision,
   });
   final GamePlayer player;
+  final _PlayerIdentity? identity;
   final int place;
   final bool isActive;
   final DaketiGame game;
+  final int timerRevision;
   @override
   Widget build(BuildContext context) {
     final side = place != 0;
     return SizedBox(
         width: side ? 150 : 270,
         height: side ? 108 : 98,
-        child: Stack(children: [
+        child: Stack(clipBehavior: Clip.none, children: [
           Positioned(
               left: place == 0
                   ? 82
@@ -493,15 +596,18 @@ class _Seat extends StatelessWidget {
               top: side ? 2 : 0,
               child: _Medallion(
                 player: player,
+                displayName: identity?.name,
+                avatarAsset: identity?.avatarAsset,
                 isActive: isActive,
                 isLocal: false,
                 game: game,
+                timerRevision: timerRevision,
               )),
           Positioned(
               left: place == 1
-                  ? 60
+                  ? 95
                   : place == 2
-                      ? 0
+                      ? -45
                       : 160,
               top: side ? 42 : 5,
               child: _Fan(player.handCount.clamp(0, 5))),
@@ -515,7 +621,10 @@ class _Medallion extends StatefulWidget {
     required this.isActive,
     required this.isLocal,
     required this.game,
+    required this.timerRevision,
     this.fallbackName = 'Player',
+    this.displayName,
+    this.avatarAsset,
     this.onTimeout,
   });
 
@@ -523,7 +632,10 @@ class _Medallion extends StatefulWidget {
   final bool isActive;
   final bool isLocal;
   final DaketiGame game;
+  final int timerRevision;
   final String fallbackName;
+  final String? displayName;
+  final String? avatarAsset;
   final VoidCallback? onTimeout;
 
   @override
@@ -536,6 +648,7 @@ class _MedallionState extends State<_Medallion> {
   late int remaining;
   int? lastAlert;
   bool timeoutSent = false;
+  bool useFallbackStart = false;
 
   @override
   void initState() {
@@ -550,7 +663,7 @@ class _MedallionState extends State<_Medallion> {
 
   int calculateRemaining() {
     final raw = widget.game.turnStartTime;
-    final started = raw == null
+    final started = raw == null || useFallbackStart
         ? fallbackStart
         : raw < 100000000000
             ? raw * 1000
@@ -589,9 +702,13 @@ class _MedallionState extends State<_Medallion> {
   @override
   void didUpdateWidget(covariant _Medallion oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.game.currentPlayerId != widget.game.currentPlayerId ||
-        oldWidget.game.turnStartTime != widget.game.turnStartTime) {
+    final turnChanged =
+        oldWidget.game.currentPlayerId != widget.game.currentPlayerId ||
+            oldWidget.game.turnStartTime != widget.game.turnStartTime;
+    final moveAccepted = oldWidget.timerRevision != widget.timerRevision;
+    if (turnChanged || moveAccepted) {
       fallbackStart = DateTime.now().millisecondsSinceEpoch;
+      useFallbackStart = moveAccepted && !turnChanged;
       lastAlert = null;
       timeoutSent = false;
       remaining = calculateRemaining();
@@ -609,9 +726,11 @@ class _MedallionState extends State<_Medallion> {
     final player = widget.player;
     const limit = _turnDurationSeconds;
     final progress = (remaining / limit).clamp(0.0, 1.0);
-    final urgent = remaining <= 5;
-    final ringColor =
-        urgent ? const Color(0xFFE53E36) : const Color(0xFF35C96F);
+    final ringColor = remaining <= 5
+        ? const Color(0xFFE53E36)
+        : remaining <= 10
+            ? const Color(0xFFF2C94C)
+            : const Color(0xFF35C96F);
     return SizedBox(
         width: 96,
         height: 96,
@@ -650,7 +769,7 @@ class _MedallionState extends State<_Medallion> {
                 ),
                 child: ClipOval(
                   child: Image.asset(
-                    AppAssets.playerAvatar,
+                    widget.avatarAsset ?? AppAssets.playerAvatar,
                     fit: BoxFit.cover,
                     filterQuality: FilterQuality.high,
                   ),
@@ -658,38 +777,14 @@ class _MedallionState extends State<_Medallion> {
               ),
             ]),
           ),
-          if (widget.isActive)
-            Positioned(
-              left: 5,
-              top: 1,
-              child: Container(
-                width: 24,
-                height: 24,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: _panelGreen,
-                  shape: BoxShape.circle,
-                  border: Border.all(color: ringColor, width: 2),
-                  boxShadow: const [
-                    BoxShadow(color: Colors.black87, blurRadius: 5),
-                  ],
-                ),
-                child: Text(
-                  '$remaining',
-                  style: TextStyle(
-                    color: ringColor,
-                    fontSize: 9,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-              ),
-            ),
           Positioned(
               top: 48,
               child: SizedBox(
                   width: 94,
                   child: _Badge(
-                    name: player?.name ?? widget.fallbackName,
+                    name: widget.displayName ??
+                        player?.name ??
+                        widget.fallbackName,
                     score: player?.score ?? 0,
                   ))),
         ]));
@@ -732,22 +827,36 @@ class _Fan extends StatelessWidget {
   const _Fan(this.count);
   final int count;
   @override
-  Widget build(BuildContext context) => SizedBox(
-      width: 100,
-      height: 62,
-      child: Stack(
-          clipBehavior: Clip.none,
-          children: List.generate(count, (i) {
-            final d = i - (count - 1) / 2;
-            return Positioned(
-                left: 32 + d * 12,
-                top: d.abs() * 2,
-                child: Transform.rotate(
-                    angle: d * .12,
+  Widget build(BuildContext context) {
+    // Opponent cards are deliberately a little larger than before while
+    // retaining enough overlap to keep their name and score unobstructed.
+    const cardWidth = 38.0;
+    const cardHeight = 55.0;
+    const overlapStep = 12.0;
+    final rowWidth = count == 0 ? 0.0 : cardWidth + (count - 1) * overlapStep;
+    final start = (100 - rowWidth) / 2;
+    final center = (count - 1) / 2;
+    return SizedBox(
+        width: 100,
+        height: 62,
+        child: Stack(
+            clipBehavior: Clip.none,
+            children: List.generate(count, (i) {
+              final distance = i - center;
+              return Positioned(
+                  left: start + i * overlapStep,
+                  bottom: 0,
+                  child: Transform.rotate(
+                    angle: distance * .14,
                     alignment: Alignment.bottomCenter,
                     child: const _Card(
-                        GameCard(id: 'hidden', value: '', suit: ''), 35, 51)));
-          })));
+                      GameCard(id: 'hidden', value: '', suit: ''),
+                      cardWidth,
+                      cardHeight,
+                    ),
+                  ));
+            })));
+  }
 }
 
 class _TableCards extends StatelessWidget {
@@ -755,28 +864,96 @@ class _TableCards extends StatelessWidget {
   final List<GameCard> cards;
   final int deck;
   @override
-  Widget build(BuildContext context) =>
-      Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-        Flexible(
-            child: Wrap(
-                spacing: 7,
-                alignment: WrapAlignment.center,
-                children: cards.take(5).map((c) => _Card(c, 43, 61)).toList())),
-        if (deck > 0) ...[
-          const SizedBox(width: 14),
-          Stack(children: [
-            const Padding(
-                padding: EdgeInsets.only(left: 4, top: 4),
-                child:
-                    _Card(GameCard(id: 'hidden', value: '', suit: ''), 43, 61)),
-            const _Card(GameCard(id: 'hidden', value: '', suit: ''), 43, 61),
+  Widget build(BuildContext context) => Stack(
+        fit: StackFit.expand,
+        children: [
+          Positioned(
+            left: 0,
+            right: 72,
+            top: 2,
+            bottom: 2,
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 340),
+              switchInCurve: Curves.easeOutBack,
+              switchOutCurve: Curves.easeIn,
+              transitionBuilder: (child, animation) => FadeTransition(
+                opacity: animation,
+                child: ScaleTransition(scale: animation, child: child),
+              ),
+              child: LayoutBuilder(
+                key: ValueKey(cards.map((card) => card.id).join('|')),
+                builder: (context, constraints) {
+                  const cardsPerRow = 5;
+                  const cardWidth = 47.0;
+                  const cardHeight = 67.0;
+                  const horizontalStep = 54.0;
+                  final rowCount = (cards.length / cardsPerRow).ceil();
+                  final verticalStep = rowCount <= 1
+                      ? 0.0
+                      : ((constraints.maxHeight - cardHeight) / (rowCount - 1))
+                          .clamp(14.0, 28.0);
+                  final firstRowCount = cards.length.clamp(0, cardsPerRow);
+                  final firstRowWidth = firstRowCount == 0
+                      ? 0.0
+                      : cardWidth + (firstRowCount - 1) * horizontalStep;
+                  final baseLeft = (constraints.maxWidth - firstRowWidth) / 2;
+                  final paintOrder = List<int>.generate(cards.length, (i) => i)
+                    ..sort((a, b) {
+                      final rowA = a ~/ cardsPerRow;
+                      final rowB = b ~/ cardsPerRow;
+                      final rowComparison = rowA.compareTo(rowB);
+                      return rowComparison != 0
+                          ? rowComparison
+                          : a.compareTo(b);
+                    });
+
+                  return Stack(
+                    clipBehavior: Clip.none,
+                    children: paintOrder.map((index) {
+                      final row = index ~/ cardsPerRow;
+                      final column = index % cardsPerRow;
+                      // Each additional row sits above the row before it.
+                      // Its first card begins halfway between the first two
+                      // cards, matching the requested overlapping pile.
+                      final stagger = row.isOdd ? horizontalStep / 2 : 0.0;
+                      return Positioned(
+                        left: baseLeft + column * horizontalStep + stagger,
+                        top: row * verticalStep,
+                        child: _Card(cards[index], cardWidth, cardHeight),
+                      );
+                    }).toList(growable: false),
+                  );
+                },
+              ),
+            ),
+          ),
+          if (deck > 0)
             Positioned(
-                right: 3,
-                bottom: 2,
-                child: Text('$deck', style: const TextStyle(fontSize: 7)))
-          ])
-        ]
-      ]);
+              right: 8,
+              top: 7,
+              child: Stack(children: [
+                const Padding(
+                  padding: EdgeInsets.only(left: 4, top: 4),
+                  child: _Card(
+                    GameCard(id: 'hidden', value: '', suit: ''),
+                    47,
+                    67,
+                  ),
+                ),
+                const _Card(
+                  GameCard(id: 'hidden', value: '', suit: ''),
+                  47,
+                  67,
+                ),
+                Positioned(
+                  right: 3,
+                  bottom: 2,
+                  child: Text('$deck', style: const TextStyle(fontSize: 7)),
+                ),
+              ]),
+            ),
+        ],
+      );
 }
 
 class _CapturePile extends StatelessWidget {
@@ -789,21 +966,31 @@ class _CapturePile extends StatelessWidget {
   Widget build(BuildContext context) => Semantics(
       label:
           'Captured stack, $count cards, top card ${card.value} of ${card.suit}',
-      child: SizedBox(
-          width: 52,
-          height: 75,
+      child: TweenAnimationBuilder<double>(
+        key: ValueKey('${card.id}-$count'),
+        tween: Tween(begin: .78, end: 1),
+        duration: const Duration(milliseconds: 360),
+        curve: Curves.easeOutBack,
+        builder: (context, scale, child) => Transform.scale(
+          scale: scale,
+          alignment: Alignment.center,
+          child: child,
+        ),
+        child: SizedBox(
+          width: 57,
+          height: 82,
           child: Stack(clipBehavior: Clip.none, children: [
             if (count > 2)
               Positioned(
                   left: 5,
                   top: 5,
-                  child: Opacity(opacity: .75, child: _Card(card, 43, 61))),
+                  child: Opacity(opacity: .75, child: _Card(card, 47, 67))),
             if (count > 1)
               Positioned(
                   left: 2,
                   top: 2,
-                  child: Opacity(opacity: .88, child: _Card(card, 43, 61))),
-            Positioned(left: 0, top: 0, child: _Card(card, 43, 61)),
+                  child: Opacity(opacity: .88, child: _Card(card, 47, 67))),
+            Positioned(left: 0, top: 0, child: _Card(card, 47, 67)),
             Positioned(
                 right: 0,
                 bottom: 0,
@@ -819,7 +1006,9 @@ class _CapturePile extends StatelessWidget {
                             color: _cream,
                             fontSize: 7,
                             fontWeight: FontWeight.w900))))
-          ])));
+          ]),
+        ),
+      ));
 }
 
 class _Hand extends StatelessWidget {
@@ -850,26 +1039,14 @@ class _Hand extends StatelessWidget {
         if (valueOrder != 0) return valueOrder;
         return a.suit.compareTo(b.suit);
       });
-    final center = (orderedCards.length - 1) / 2;
-    return Stack(
-        alignment: Alignment.bottomCenter,
-        clipBehavior: Clip.none,
-        children: List.generate(orderedCards.length, (i) {
-          final d = i - center;
-          final card = orderedCards[i];
-          final active = card.id == selected;
-          return Positioned(
-              left: 108 + d * 36,
-              bottom: 1 + (center - d.abs()) * 2 + (active ? 13 : 0),
-              child: Transform.rotate(
-                angle: d * .065,
-                alignment: Alignment.bottomCenter,
-                child: GestureDetector(
-                  onTap: enabled ? () => onTap(card) : null,
-                  child: _Card(card, 61, 91, selected: active),
-                ),
-              ));
-        }));
+    return FannedCardHand(
+      cards: orderedCards,
+      selectedCardId: selected,
+      enabled: enabled,
+      onCardTap: onTap,
+      cardBuilder: (context, card, active) =>
+          _Card(card, 61, 91, selected: active),
+    );
   }
 }
 
@@ -881,8 +1058,10 @@ class _Card extends StatelessWidget {
   final bool selected;
   @override
   Widget build(BuildContext context) {
-    final displayWidth = card.isHidden ? width : width * 1.10;
-    final displayHeight = card.isHidden ? height : height * 1.10;
+    // Every card occupies the same measured box. This keeps face-up cards,
+    // card backs, rows, fans and capture piles aligned without overflow.
+    final displayWidth = width;
+    final displayHeight = height;
     return AnimatedContainer(
         duration: const Duration(milliseconds: 160),
         width: displayWidth,
@@ -1208,10 +1387,10 @@ class _Actions extends StatelessWidget {
   final bool loading;
   final ValueChanged<GameAction> onTap;
   String label(GameAction a) => switch (a.type) {
-        GameActionType.captureTable => 'CAPTURE',
-        GameActionType.stealOpponent => 'STEAL',
-        GameActionType.extendStack => 'EXTEND',
-        GameActionType.discard => 'DISCARD',
+        GameActionType.captureTable => 'TAKE MATCHING CARDS',
+        GameActionType.stealOpponent => "STEAL OPPONENT'S CARD",
+        GameActionType.extendStack => 'ADD CARD TO OWN DECK',
+        GameActionType.discard => 'PLAY CARD, END TURN',
         GameActionType.unknown => 'MOVE'
       };
   @override
@@ -1229,23 +1408,80 @@ class _Actions extends StatelessWidget {
           child: Center(
               child: Text('LOADING MOVES…', style: TextStyle(fontSize: 8))));
     }
-    return Wrap(
-        spacing: 4,
+    return SizedBox(
+      width: 190,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: actions
-            .map((a) => FilledButton(
-                onPressed: () => onTap(a),
-                style: FilledButton.styleFrom(
-                    backgroundColor: _feltEdge,
-                    foregroundColor: _cream,
-                    visualDensity: VisualDensity.compact,
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
-                    side: const BorderSide(color: _gold)),
-                child: Text(label(a),
-                    style: const TextStyle(
-                        fontSize: 8, fontWeight: FontWeight.w900))))
-            .toList());
+            .map((action) => Padding(
+                  padding: const EdgeInsets.only(top: 5),
+                  child: _BrushActionButton(
+                    label: label(action),
+                    onTap: () => onTap(action),
+                  ),
+                ))
+            .toList(),
+      ),
+    );
   }
+}
+
+class _BrushActionButton extends StatelessWidget {
+  const _BrushActionButton({required this.label, required this.onTap});
+
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+        button: true,
+        label: label,
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(18),
+            child: AspectRatio(
+              aspectRatio: 150 / 34,
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  Image.asset(
+                    AppAssets.actionButtonBrush,
+                    fit: BoxFit.fill,
+                    filterQuality: FilterQuality.high,
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 13),
+                    child: Center(
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text(
+                          label,
+                          maxLines: 1,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontFamily: 'Dirty Brush',
+                            fontSize: 15,
+                            height: 1,
+                            shadows: [
+                              Shadow(
+                                color: Color(0x66000000),
+                                offset: Offset(0, 1),
+                                blurRadius: 2,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
 }
 
 class _TurnLabel extends StatelessWidget {

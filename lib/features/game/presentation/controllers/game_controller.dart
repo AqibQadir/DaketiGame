@@ -51,6 +51,7 @@ class GameSessionState {
     this.disconnectedPlayer,
     this.lastAiCount = 1,
     this.chatMessages = const [],
+    this.turnTimerRevision = 0,
   });
 
   final GameConnectionStatus connectionStatus;
@@ -67,6 +68,7 @@ class GameSessionState {
   final String? disconnectedPlayer;
   final int lastAiCount;
   final List<RoomChatMessage> chatMessages;
+  final int turnTimerRevision;
 
   bool get isCurrentPlayersTurn =>
       game?.currentPlayerId != null && game?.currentPlayerId == playerId;
@@ -86,6 +88,7 @@ class GameSessionState {
     Object? disconnectedPlayer = _unchanged,
     int? lastAiCount,
     List<RoomChatMessage>? chatMessages,
+    int? turnTimerRevision,
   }) {
     return GameSessionState(
       connectionStatus: connectionStatus ?? this.connectionStatus,
@@ -105,6 +108,7 @@ class GameSessionState {
           : disconnectedPlayer as String?,
       lastAiCount: lastAiCount ?? this.lastAiCount,
       chatMessages: chatMessages ?? this.chatMessages,
+      turnTimerRevision: turnTimerRevision ?? this.turnTimerRevision,
     );
   }
 }
@@ -184,8 +188,15 @@ class GameController extends StateNotifier<GameSessionState> {
     required String playerName,
     int maxPlayers = 4,
   }) async {
-    state =
-        state.copyWith(isLoading: true, error: null, playerName: playerName);
+    state = state.copyWith(
+      isLoading: true,
+      error: null,
+      playerName: playerName,
+      winner: null,
+      scores: const [],
+      chatMessages: const [],
+      activity: null,
+    );
     try {
       await _ensureConnected();
       final created = await _restClient.createMultiplayerRoom(
@@ -214,6 +225,10 @@ class GameController extends StateNotifier<GameSessionState> {
       error: null,
       gameId: gameId,
       playerName: playerName,
+      winner: null,
+      scores: const [],
+      chatMessages: const [],
+      activity: null,
     );
     try {
       await _ensureConnected();
@@ -307,6 +322,9 @@ class GameController extends StateNotifier<GameSessionState> {
   Future<bool> handleTurnTimeout() async {
     if (!state.isCurrentPlayersTurn || state.gameId == null) return true;
 
+    state = state.copyWith(activity: 'TIME OVER');
+    await Future<void>.delayed(const Duration(milliseconds: 650));
+
     // The API has no timeout event. Use only server-approved actions and keep
     // the room authoritative: prefer a discard because it ends the turn.
     for (var step = 0; step < 12 && state.isCurrentPlayersTurn; step++) {
@@ -328,6 +346,10 @@ class GameController extends StateNotifier<GameSessionState> {
           (item) => item.type == GameActionType.discard,
           orElse: () => actions.first,
         );
+        state = state.copyWith(
+          activity: 'TIME OVER · AUTO ${_actionLabel(action)}',
+        );
+        await Future<void>.delayed(const Duration(milliseconds: 650));
         final ended = action.type == GameActionType.discard;
         if (!await performAction(action)) return false;
         if (ended) return true;
@@ -338,6 +360,14 @@ class GameController extends StateNotifier<GameSessionState> {
     }
     return !state.isCurrentPlayersTurn;
   }
+
+  String _actionLabel(GameAction action) => switch (action.type) {
+        GameActionType.captureTable => 'CAPTURE ${action.cardId}',
+        GameActionType.stealOpponent => 'STEAL WITH ${action.cardId}',
+        GameActionType.extendStack => 'EXTEND WITH ${action.cardId}',
+        GameActionType.discard => 'DISCARD ${action.cardId}',
+        GameActionType.unknown => 'MOVE ${action.cardId}',
+      };
 
   Future<void> _ensureConnected() async {
     if (_socketService.isConnected) return;
@@ -418,12 +448,19 @@ class GameController extends StateNotifier<GameSessionState> {
       final card = event.data['cardId']?.toString();
       state = state.copyWith(
         activity: 'AI ${action ?? 'moved'}${card == null ? '' : ' · $card'}',
+        turnTimerRevision: state.turnTimerRevision + 1,
       );
     } else if (event.name == 'action_performed') {
       final action = event.data['type']?.toString().replaceAll('_', ' ');
-      state = state.copyWith(activity: 'Action: ${action ?? 'performed'}');
+      state = state.copyWith(
+        activity: 'Action: ${action ?? 'performed'}',
+        turnTimerRevision: state.turnTimerRevision + 1,
+      );
     } else if (event.name == 'turn_started') {
-      state = state.copyWith(activity: 'New turn started');
+      state = state.copyWith(
+        activity: null,
+        turnTimerRevision: state.turnTimerRevision + 1,
+      );
     } else if (event.name == 'player_joined') {
       state = state.copyWith(
         activity: '${event.data['playerName'] ?? 'Player'} joined',

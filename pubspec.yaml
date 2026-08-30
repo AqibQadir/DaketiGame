@@ -25,6 +25,7 @@ flutter:
 
   assets:
     - assets/images/
+    - assets/images/players/
     - assets/images/cards/style01/Clubs/
     - assets/images/cards/style01/Diamonds/
     - assets/images/cards/style01/Hearts/

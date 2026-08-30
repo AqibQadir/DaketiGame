@@ -1,14 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/routes/app_routes.dart';
 import '../../../../core/widgets/game_background.dart';
 import '../../../../core/widgets/game_button.dart';
 import '../../../../core/widgets/game_icon_button.dart';
-import '../../../game/presentation/controllers/game_controller.dart';
 
-class HomeScreen extends ConsumerWidget {
+class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
 
   Widget buildCounter({
@@ -48,8 +46,7 @@ class HomeScreen extends ConsumerWidget {
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final session = ref.watch(gameControllerProvider);
+  Widget build(BuildContext context) {
     return Scaffold(
       body: GameBackground(
         child: SafeArea(
@@ -217,7 +214,7 @@ class HomeScreen extends ConsumerWidget {
                       icon: Icons.groups,
                       label: 'Teams',
                       onTap: () {
-                        Navigator.pushNamed(context, AppRoutes.tables);
+                        Navigator.pushNamed(context, AppRoutes.multiplayer);
                       },
                     ),
                     const SizedBox(width: 12),
@@ -238,34 +235,12 @@ class HomeScreen extends ConsumerWidget {
                 bottom: 16,
                 child: Center(
                   child: GameButton(
-                    text: session.isLoading ? 'Connecting' : 'Start game',
+                    text: 'Start game',
                     width: 180,
-                    onTap: session.isLoading
-                        ? () {}
-                        : () async {
-                            final setup = await showDialog<_SoloSetup>(
-                              context: context,
-                              builder: (_) => const _SoloSetupDialog(),
-                            );
-                            if (setup == null || !context.mounted) return;
-                            final success = await ref
-                                .read(gameControllerProvider.notifier)
-                                .createSoloGame(
-                                  playerName: setup.playerName,
-                                  aiCount: setup.aiCount,
-                                );
-                            if (!context.mounted) return;
-                            if (success) {
-                              Navigator.pushNamed(context, AppRoutes.game);
-                            } else {
-                              final message =
-                                  ref.read(gameControllerProvider).error ??
-                                      'Unable to start the game.';
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text(message)),
-                              );
-                            }
-                          },
+                    onTap: () => Navigator.pushNamed(
+                      context,
+                      AppRoutes.guestName,
+                    ),
                   ),
                 ),
               ),
@@ -273,75 +248,6 @@ class HomeScreen extends ConsumerWidget {
           ),
         ),
       ),
-    );
-  }
-}
-
-class _SoloSetup {
-  const _SoloSetup(this.playerName, this.aiCount);
-
-  final String playerName;
-  final int aiCount;
-}
-
-class _SoloSetupDialog extends StatefulWidget {
-  const _SoloSetupDialog();
-
-  @override
-  State<_SoloSetupDialog> createState() => _SoloSetupDialogState();
-}
-
-class _SoloSetupDialogState extends State<_SoloSetupDialog> {
-  final TextEditingController nameController =
-      TextEditingController(text: 'Player');
-  int aiCount = 1;
-
-  @override
-  void dispose() {
-    nameController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      backgroundColor: const Color(0xEE181411),
-      title: const Text('START SOLO GAME'),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          TextField(
-            controller: nameController,
-            maxLength: 24,
-            decoration: const InputDecoration(labelText: 'Player name'),
-          ),
-          const SizedBox(height: 8),
-          DropdownButtonFormField<int>(
-            initialValue: aiCount,
-            decoration: const InputDecoration(labelText: 'AI opponents'),
-            items: const [
-              DropdownMenuItem(value: 1, child: Text('1 opponent')),
-              DropdownMenuItem(value: 2, child: Text('2 opponents')),
-              DropdownMenuItem(value: 3, child: Text('3 opponents')),
-            ],
-            onChanged: (value) => setState(() => aiCount = value ?? 1),
-          ),
-        ],
-      ),
-      actions: [
-        TextButton(
-          onPressed: Navigator.of(context).pop,
-          child: const Text('CANCEL'),
-        ),
-        TextButton(
-          onPressed: () {
-            final name = nameController.text.trim();
-            if (name.isEmpty) return;
-            Navigator.of(context).pop(_SoloSetup(name, aiCount));
-          },
-          child: const Text('CREATE'),
-        ),
-      ],
     );
   }
 }

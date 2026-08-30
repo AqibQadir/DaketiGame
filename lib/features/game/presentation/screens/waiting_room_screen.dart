@@ -24,6 +24,11 @@ class WaitingRoomScreen extends ConsumerWidget {
     });
     final session = ref.watch(gameControllerProvider);
     final game = session.game;
+    final currentPlayer = game?.playerById(session.playerId);
+    final isReady = currentPlayer?.isReady ?? false;
+    final playerCount = game?.players.length ?? 0;
+    final capacity = game?.maxPlayers ?? 0;
+    final isFull = capacity > 0 && playerCount == capacity;
     return Scaffold(
       body: GameBackground(
         child: Stack(
@@ -40,8 +45,13 @@ class WaitingRoomScreen extends ConsumerWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     const Text(
-                      'WAITING ROOM',
+                      'PRIVATE TEAM ROOM',
                       style: TextStyle(fontFamily: 'Dirty Brush', fontSize: 28),
+                    ),
+                    const SizedBox(height: 8),
+                    const Text(
+                      'SHARE THIS CODE WITH YOUR TEAM',
+                      style: TextStyle(color: Colors.white60, fontSize: 10),
                     ),
                     const SizedBox(height: 8),
                     InkWell(
@@ -53,11 +63,35 @@ class WaitingRoomScreen extends ConsumerWidget {
                           const SnackBar(content: Text('Room code copied')),
                         );
                       },
-                      child: Text(
-                        'ROOM ${session.gameId ?? '----'}  ·  TAP TO COPY',
-                        style: const TextStyle(
-                          color: AppColors.orange,
-                          fontWeight: FontWeight.w900,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 24,
+                          vertical: 10,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xD9201914),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: AppColors.orange),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              session.gameId ?? '----',
+                              style: const TextStyle(
+                                color: AppColors.orange,
+                                fontSize: 27,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: 7,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            const Icon(
+                              Icons.copy_rounded,
+                              color: AppColors.cream,
+                              size: 19,
+                            ),
+                          ],
                         ),
                       ),
                     ),
@@ -76,7 +110,27 @@ class WaitingRoomScreen extends ConsumerWidget {
                         ),
                         child: Row(
                           children: [
-                            Expanded(child: Text(player.name)),
+                            CircleAvatar(
+                              radius: 13,
+                              backgroundColor: AppColors.tileBorder,
+                              child: Text(
+                                player.name.isEmpty
+                                    ? '?'
+                                    : player.name[0].toUpperCase(),
+                                style: const TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w900,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                player.id == session.playerId
+                                    ? '${player.name}  (YOU)'
+                                    : player.name,
+                              ),
+                            ),
                             Text(
                               player.isReady ? 'READY' : 'NOT READY',
                               style: TextStyle(
@@ -90,17 +144,46 @@ class WaitingRoomScreen extends ConsumerWidget {
                         ),
                       ),
                     Text(
-                      '${game?.players.length ?? 0}/${game?.maxPlayers ?? 0} PLAYERS',
+                      '$playerCount/$capacity TEAM MEMBERS',
+                      style: TextStyle(
+                        color: isFull ? AppColors.green : AppColors.orange,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      isFull
+                          ? 'Room is full. Everyone must be ready.'
+                          : 'Waiting for ${capacity - playerCount} more teammate${capacity - playerCount == 1 ? '' : 's'}…',
+                      style: const TextStyle(
+                        color: Colors.white54,
+                        fontSize: 10,
+                      ),
                     ),
                     const SizedBox(height: 14),
                     GameButton(
-                      text: 'Ready',
+                      text: isReady ? 'Ready ✓' : 'Ready',
                       width: 180,
-                      onTap: () {
-                        HapticFeedback.mediumImpact();
-                        ref.read(gameControllerProvider.notifier).sendReady();
-                      },
+                      onTap: isReady
+                          ? () {}
+                          : () {
+                              HapticFeedback.mediumImpact();
+                              ref
+                                  .read(gameControllerProvider.notifier)
+                                  .sendReady();
+                            },
                     ),
+                    if (isReady) ...[
+                      const SizedBox(height: 8),
+                      const Text(
+                        'READY — WAITING FOR THE REST OF YOUR TEAM',
+                        style: TextStyle(
+                          color: AppColors.green,
+                          fontSize: 9,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),

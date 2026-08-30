@@ -7,12 +7,44 @@ import '../../../../core/widgets/game_button.dart';
 import '../../../../core/widgets/glass_panel.dart';
 import '../controllers/game_controller.dart';
 
+const _pakistaniBotNames = <String>[
+  'Hamza Malik',
+  'Ayesha Khan',
+  'Bilal Ahmed',
+  'Mahnoor Fatima',
+  'Saad Qureshi',
+];
+
+int _stableIdentitySeed(String value) {
+  var hash = 17;
+  for (final codeUnit in value.codeUnits) {
+    hash = (hash * 37 + codeUnit) & 0x7fffffff;
+  }
+  return hash;
+}
+
 class GameResultsScreen extends ConsumerWidget {
   const GameResultsScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final session = ref.watch(gameControllerProvider);
+    final game = session.game;
+    final aiDisplayNames = <String, String>{};
+    if (game != null) {
+      final seed = _stableIdentitySeed(session.gameId ?? game.gameId);
+      final step = 1 + (seed ~/ _pakistaniBotNames.length) % 4;
+      final opponents = game.players
+          .where((player) => player.id != session.playerId)
+          .toList();
+      for (final indexedPlayer in opponents.indexed) {
+        final player = indexedPlayer.$2;
+        if (!player.isAi) continue;
+        final rosterIndex =
+            (seed + indexedPlayer.$1 * step) % _pakistaniBotNames.length;
+        aiDisplayNames[player.id] = _pakistaniBotNames[rosterIndex];
+      }
+    }
     final winnerText = session.winner == 'draw'
         ? 'DRAW'
         : session.winner == session.playerId
@@ -76,7 +108,11 @@ class GameResultsScreen extends ConsumerWidget {
                           ),
                         ),
                       ),
-                      title: Text(score['name']?.toString() ?? 'Player'),
+                      title: Text(
+                        aiDisplayNames[score['id']?.toString()] ??
+                            score['name']?.toString() ??
+                            'Player',
+                      ),
                       subtitle: isWinner
                           ? const Text(
                               'WINNER',
