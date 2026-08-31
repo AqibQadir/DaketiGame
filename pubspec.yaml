@@ -14,7 +14,7 @@ dependencies:
   flutter_riverpod: ^2.3.0
   http: ^1.6.0
   socket_io_client: ^2.0.0
-
+  audioplayers: 6.4.0
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -24,6 +24,7 @@ flutter:
   uses-material-design: true
 
   assets:
+    - assets/audio/game/
     - assets/images/
     - assets/images/players/
     - assets/images/cards/style01/Clubs/

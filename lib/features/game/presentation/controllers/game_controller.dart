@@ -316,7 +316,17 @@ class GameController extends StateNotifier<GameSessionState> {
       if (action.targetPlayerId != null)
         'targetPlayerId': action.targetPlayerId,
     };
-    return _runAction(() => _socketService.performAction(event, payload));
+    final completed =
+        await _runAction(() => _socketService.performAction(event, payload));
+    if (completed) {
+      // A successful move must always receive a fresh turn allowance. Socket
+      // events still reset remote/AI turns, while this guarantees that local
+      // moves reset immediately even if an action event is delayed or omitted.
+      state = state.copyWith(
+        turnTimerRevision: state.turnTimerRevision + 1,
+      );
+    }
+    return completed;
   }
 
   Future<bool> handleTurnTimeout() async {

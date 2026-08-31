@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -6,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/routes/app_routes.dart';
 import '../../../../core/constants/app_assets.dart';
+import '../../../../core/services/game_sound_service.dart';
 import '../../../../core/widgets/game_close_button.dart';
 import '../../domain/models/daketi_game.dart';
 import '../../domain/models/game_action.dart';
@@ -59,6 +61,14 @@ class _GameScreenState extends ConsumerState<GameScreen> {
   bool isHandlingTimeout = false;
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) GameSoundService.shuffle();
+    });
+  }
+
+  @override
   void dispose() {
     chatTimer?.cancel();
     super.dispose();
@@ -83,7 +93,10 @@ class _GameScreenState extends ConsumerState<GameScreen> {
     final state = ref.read(gameControllerProvider);
     if (!state.isCurrentPlayersTurn || isSubmitting) return;
     HapticFeedback.selectionClick();
-    setState(() => selectedCardId = card.id);
+    GameSoundService.cardSelected();
+    final isAlreadySelected = selectedCardId == card.id;
+    setState(() => selectedCardId = isAlreadySelected ? null : card.id);
+    if (isAlreadySelected) return;
     await ref.read(gameControllerProvider.notifier).loadAvailableActions();
     if (mounted && ref.read(gameControllerProvider).error != null) {
       _message(ref.read(gameControllerProvider).error!);
@@ -100,10 +113,25 @@ class _GameScreenState extends ConsumerState<GameScreen> {
       selectedCardId = null;
     });
     if (!ok) {
+      GameSoundService.invalidMove();
       _message(
           ref.read(gameControllerProvider).error ?? 'The move was rejected.');
     } else {
-      SystemSound.play(SystemSoundType.click);
+      switch (action.type) {
+        case GameActionType.captureTable:
+        case GameActionType.extendStack:
+          GameSoundService.specialCard();
+          break;
+        case GameActionType.stealOpponent:
+          GameSoundService.challenge();
+          break;
+        case GameActionType.discard:
+          GameSoundService.cardSlap();
+          break;
+        case GameActionType.unknown:
+          GameSoundService.goodMove();
+          break;
+      }
       HapticFeedback.mediumImpact();
     }
   }
@@ -111,7 +139,7 @@ class _GameScreenState extends ConsumerState<GameScreen> {
   Future<void> handleTurnTimeout() async {
     if (isHandlingTimeout || isSubmitting) return;
     setState(() => isHandlingTimeout = true);
-    SystemSound.play(SystemSoundType.alert);
+    GameSoundService.invalidMove();
     HapticFeedback.heavyImpact();
     final ok =
         await ref.read(gameControllerProvider.notifier).handleTurnTimeout();
@@ -190,7 +218,7 @@ class _GameScreenState extends ConsumerState<GameScreen> {
       }
       final wasMyTurn = previous?.isCurrentPlayersTurn ?? false;
       if (!wasMyTurn && next.isCurrentPlayersTurn) {
-        SystemSound.play(SystemSoundType.alert);
+        GameSoundService.yourTurn();
         HapticFeedback.mediumImpact();
       }
     });
@@ -290,14 +318,25 @@ class _Board extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final opponents =
-        game.players.where((p) => p.id != session.playerId).toList();
-    // Seat order follows the approved table zones. The first opponent always
-    // occupies top-center, the second uses the left seat, and only a fourth
-    // player introduces the right seat. This keeps legal actions unobstructed.
-    final GamePlayer? topOpponent = opponents.isNotEmpty ? opponents[0] : null;
+    // Rotate the server's player list around the local player so the visual
+    // seats always follow the same clockwise turn order. The next player is
+    // seated on the left, followed by top-center and then the right seat.
+    final localPlayerIndex =
+        game.players.indexWhere((p) => p.id == session.playerId);
+    final opponents = localPlayerIndex < 0
+        ? game.players.where((p) => p.id != session.playerId).toList()
+        : List<GamePlayer>.generate(
+            game.players.length - 1,
+            (index) => game
+                .players[(localPlayerIndex + index + 1) % game.players.length],
+          );
+    final GamePlayer? topOpponent = opponents.length == 1
+        ? opponents[0]
+        : opponents.length >= 2
+            ? opponents[1]
+            : null;
     final GamePlayer? leftOpponent =
-        opponents.length >= 2 ? opponents[1] : null;
+        opponents.length >= 2 ? opponents[0] : null;
     final GamePlayer? rightOpponent =
         opponents.length >= 3 ? opponents[2] : null;
     final isTwoPlayerMatch = opponents.length == 1;
@@ -386,8 +425,10 @@ class _Board extends StatelessWidget {
             )),
       if (leftOpponent?.topCard != null)
         Positioned(
-            left: isThreePlayerMatch ? 178 : 59,
-            top: 246,
+            // In a three-player game, center the captured stack above Player
+            // 2's profile. Their hidden hand remains in its usual right lane.
+            left: isThreePlayerMatch ? 66 : 59,
+            top: isThreePlayerMatch ? 128 : 246,
             child: _CapturePile(
                 card: leftOpponent!.topCard!, count: leftOpponent.stackCount)),
       if (rightOpponent != null)
@@ -432,9 +473,6 @@ class _Board extends StatelessWidget {
           left: 492,
           top: 105,
           child: _TurnLabel(isLocalTurn: session.isCurrentPlayersTurn)),
-      if (game.protectedValues.isNotEmpty)
-        Positioned(
-            left: 349, top: 130, child: _Protected(game.protectedValues)),
       Positioned(
           // Keep the radial hand in its own lane to the right of the local
           // medallion. The shared fan pivot must never sit behind the avatar.
@@ -690,11 +728,14 @@ class _MedallionState extends State<_Medallion> {
       return;
     }
     lastAlert = next;
-    if (next == 1) {
-      SystemSound.play(SystemSoundType.alert);
+    if (next == 5) {
+      GameSoundService.timerWarning();
+      HapticFeedback.lightImpact();
+    } else if (next == 1) {
+      GameSoundService.timerTick();
       HapticFeedback.heavyImpact();
     } else {
-      SystemSound.play(SystemSoundType.click);
+      GameSoundService.timerTick();
       HapticFeedback.lightImpact();
     }
   }
@@ -733,7 +774,7 @@ class _MedallionState extends State<_Medallion> {
             : const Color(0xFF35C96F);
     return SizedBox(
         width: 96,
-        height: 96,
+        height: 110,
         child: Stack(alignment: Alignment.topCenter, children: [
           SizedBox(
             width: 62,
@@ -741,12 +782,11 @@ class _MedallionState extends State<_Medallion> {
             child: Stack(alignment: Alignment.center, children: [
               if (widget.isActive)
                 SizedBox.expand(
-                  child: CircularProgressIndicator(
-                    value: progress,
-                    strokeWidth: 4,
-                    strokeCap: StrokeCap.round,
-                    backgroundColor: const Color(0x733B2B19),
-                    color: ringColor,
+                  child: CustomPaint(
+                    painter: _TurnTimerRingPainter(
+                      progress: progress,
+                      color: ringColor,
+                    ),
                   ),
                 ),
               Container(
@@ -778,7 +818,9 @@ class _MedallionState extends State<_Medallion> {
             ]),
           ),
           Positioned(
-              top: 48,
+              // Keep the badge below the avatar so the complete circular
+              // turn-timer remains visible.
+              top: 62,
               child: SizedBox(
                   width: 94,
                   child: _Badge(
@@ -789,6 +831,51 @@ class _MedallionState extends State<_Medallion> {
                   ))),
         ]));
   }
+}
+
+class _TurnTimerRingPainter extends CustomPainter {
+  const _TurnTimerRingPainter({
+    required this.progress,
+    required this.color,
+  });
+
+  final double progress;
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    const strokeWidth = 4.0;
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = (size.shortestSide - strokeWidth) / 2;
+    final bounds = Rect.fromCircle(center: center, radius: radius);
+
+    canvas.drawCircle(
+      center,
+      radius,
+      Paint()
+        ..color = const Color(0x733B2B19)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = strokeWidth,
+    );
+
+    // Zero radians is the avatar's right edge. A negative sweep makes the
+    // countdown travel from right to left around the profile.
+    canvas.drawArc(
+      bounds,
+      0,
+      -2 * math.pi * progress,
+      false,
+      Paint()
+        ..color = color
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = strokeWidth
+        ..strokeCap = StrokeCap.round,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _TurnTimerRingPainter oldDelegate) =>
+      oldDelegate.progress != progress || oldDelegate.color != color;
 }
 
 class _Badge extends StatelessWidget {
@@ -1505,20 +1592,6 @@ class _TurnLabel extends StatelessWidget {
           ),
         ),
       );
-}
-
-class _Protected extends StatelessWidget {
-  const _Protected(this.values);
-  final List<String> values;
-  @override
-  Widget build(BuildContext context) => Container(
-      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-      decoration: BoxDecoration(
-          color: const Color(0xE011130F),
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: _darkGold)),
-      child: Text('🔒 ${values.join(' · ')}',
-          style: const TextStyle(fontSize: 7, color: _cream)));
 }
 
 class _Activity extends StatelessWidget {

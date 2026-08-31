@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/routes/app_routes.dart';
+import '../../../../core/services/game_sound_service.dart';
 import '../../../../core/widgets/game_background.dart';
 import '../../../../core/widgets/game_button.dart';
 import '../../../../core/widgets/glass_panel.dart';
@@ -23,11 +24,30 @@ int _stableIdentitySeed(String value) {
   return hash;
 }
 
-class GameResultsScreen extends ConsumerWidget {
+class GameResultsScreen extends ConsumerStatefulWidget {
   const GameResultsScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<GameResultsScreen> createState() => _GameResultsScreenState();
+}
+
+class _GameResultsScreenState extends ConsumerState<GameResultsScreen> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final session = ref.read(gameControllerProvider);
+      if (session.winner == session.playerId) {
+        GameSoundService.roundWon();
+      } else if (session.winner != 'draw') {
+        GameSoundService.gameLost();
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final session = ref.watch(gameControllerProvider);
     final game = session.game;
     final aiDisplayNames = <String, String>{};

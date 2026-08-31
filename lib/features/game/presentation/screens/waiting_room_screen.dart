@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/routes/app_routes.dart';
+import '../../../../core/services/game_sound_service.dart';
 import '../../../../core/widgets/game_background.dart';
 import '../../../../core/widgets/game_button.dart';
 import '../../../../core/widgets/game_close_button.dart';
@@ -17,8 +18,14 @@ class WaitingRoomScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     ref.listen(gameControllerProvider, (previous, next) {
+      final previousCount = previous?.game?.players.length ?? 0;
+      final nextCount = next.game?.players.length ?? 0;
+      if (previous != null && nextCount > previousCount) {
+        GameSoundService.playerJoined();
+      }
       if (previous?.game?.status != DaketiGameStatus.playing &&
           next.game?.status == DaketiGameStatus.playing) {
+        GameSoundService.matchFound();
         Navigator.pushReplacementNamed(context, AppRoutes.game);
       }
     });
