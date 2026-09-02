@@ -25,7 +25,7 @@ class TablePageShell extends StatelessWidget {
         overlayOpacity: .19,
         child: Center(
           child: FittedBox(
-            fit: BoxFit.contain,
+            fit: BoxFit.cover,
             child: SizedBox(
               width: 844,
               height: 390,

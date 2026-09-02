@@ -54,7 +54,7 @@ class _GuestOpponentScreenState extends ConsumerState<GuestOpponentScreen> {
       body: GameBackground(
         child: Center(
           child: FittedBox(
-            fit: BoxFit.contain,
+            fit: BoxFit.cover,
             child: SizedBox(
               width: 844,
               height: 390,

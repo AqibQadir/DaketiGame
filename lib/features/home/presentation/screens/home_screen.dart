@@ -49,9 +49,8 @@ class HomeScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       body: GameBackground(
-        child: SafeArea(
-          child: Stack(
-            children: [
+        child: Stack(
+          children: [
               const Positioned(
                 left: 16,
                 top: 12,
@@ -170,7 +169,7 @@ class HomeScreen extends StatelessWidget {
               ),
               Positioned(
                 left: 18,
-                bottom: 16,
+                bottom: 8,
                 child: Row(
                   children: [
                     GameIconButton(
@@ -207,7 +206,7 @@ class HomeScreen extends StatelessWidget {
               ),
               Positioned(
                 right: 18,
-                bottom: 16,
+                bottom: 8,
                 child: Row(
                   children: [
                     GameIconButton(
@@ -232,7 +231,7 @@ class HomeScreen extends StatelessWidget {
               Positioned(
                 left: 0,
                 right: 0,
-                bottom: 16,
+                bottom: 8,
                 child: Center(
                   child: GameButton(
                     text: 'Start game',
@@ -244,8 +243,7 @@ class HomeScreen extends StatelessWidget {
                   ),
                 ),
               ),
-            ],
-          ),
+          ],
         ),
       ),
     );

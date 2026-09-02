@@ -47,7 +47,7 @@ class ProfileScreen extends StatelessWidget {
       body: GameBackground(
         child: Center(
           child: FittedBox(
-            fit: BoxFit.contain,
+            fit: BoxFit.cover,
             child: SizedBox(
               width: 844,
               height: 390,

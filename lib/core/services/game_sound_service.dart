@@ -20,88 +20,45 @@ class GameSoundService {
   static const _assetRoot = 'audio/game/';
   static const _masterVolumeBoost = 1.4;
 
-  static void uiClick() => _play(_uiPlayer, 'UIclicl.wav', volume: .55);
+  static void uiClick() => _play(_uiPlayer, 'CardMove.wav', volume: .45);
 
-  static void cardSelected() =>
-      _play(_uiPlayer, 'card_sliding.wav', volume: .65);
+  static void cardSelected() => _play(_uiPlayer, 'SwipeCard.wav', volume: .65);
 
-  static void shuffle() => _play(
-        _gamePlayer,
-        _variant(const ['CardShuffle.wav', 'CardShuffle2.wav']),
-        volume: .72,
-      );
+  static void shuffle() => _play(_gamePlayer, 'CardShuffle.wav', volume: .72);
 
-  static void cardSlap() =>
-      _play(_gamePlayer, 'CardSlap.wav', volume: .78);
+  static void cardSlap() => _play(_gamePlayer, 'CardMove.wav', volume: .78);
 
-  static void goodMove() => _play(
-        _gamePlayer,
-        _variant(const ['GoodMove.wav', 'GoodMove2.wav']),
-        volume: .72,
-      );
+  static void goodMove() => _play(_gamePlayer, 'good move.wav', volume: .72);
 
-  static void specialCard() => _play(
-        _gamePlayer,
-        _variant(const ['SpecialCard.wav', 'Special card2.wav.wav']),
-        volume: .78,
-      );
+  static void specialCard() =>
+      _play(_gamePlayer, 'Special card.wav', volume: .78);
 
-  static void challenge() =>
-      _play(_gamePlayer, 'Challenge.wav', volume: .82);
+  static void challenge() => _play(_gamePlayer, 'Challenge.wav', volume: .82);
 
   static void invalidMove() =>
-      _play(_alertPlayer, 'InvalidMove.wav', volume: .8);
+      _play(_alertPlayer, 'invalidmove.wav', volume: .8);
 
-  static void yourTurn() =>
-      _play(_alertPlayer, 'TurnTumbi.wav', volume: .75);
+  static void yourTurn() => _play(
+        _alertPlayer,
+        _variant(const ['TurnChange.wav', 'TurnChange2.wav']),
+        volume: .75,
+      );
 
   static void timerWarning() =>
-      _play(_alertPlayer, 'TimeWarning.wav.wav', volume: .72);
+      _play(_alertPlayer, 'Timer Start.wav', volume: .72);
 
-  static void timerTick() => _play(
-        _alertPlayer,
-        _variant(const ['TimerTabla.wav', 'TimerTabla2.wav']),
-        volume: .55,
-      );
+  static void timerTick() =>
+      _play(_alertPlayer, 'timerwarning.wav', volume: .55);
 
-  static void playerJoined() =>
-      _play(_uiPlayer, 'playerJoin.wav', volume: .7);
+  static void playerJoined() {}
 
-  static void matchFound() => _play(
-        _alertPlayer,
-        _variant(const [
-          'match found.wav',
-          'match found2.wav',
-          'match found3.wav',
-          'match found4.wav',
-        ]),
-        volume: .78,
-      );
+  static void matchFound() {}
 
-  static void reaction() => _play(
-        _uiPlayer,
-        _variant(const ['reaction.wav', 'reaction2.wav']),
-        volume: .65,
-      );
+  static void reaction() {}
 
-  static void roundWon() {
-    _play(_gamePlayer, 'RoundWin.wav', volume: .85);
-    Future<void>.delayed(
-      const Duration(milliseconds: 650),
-      () => _play(_uiPlayer, 'Coin reward.wav', volume: .7),
-    );
-  }
+  static void roundWon() => _play(_gamePlayer, 'rOUNDwIN.wav', volume: .85);
 
-  static void gameLost() => _play(
-        _gamePlayer,
-        _variant(const [
-          'defeat.wav',
-          'defeat2.wav',
-          'defeat3.wav',
-          'gameloose.wav',
-        ]),
-        volume: .82,
-      );
+  static void gameLost() {}
 
   static String _variant(List<String> values) =>
       values[_random.nextInt(values.length)];

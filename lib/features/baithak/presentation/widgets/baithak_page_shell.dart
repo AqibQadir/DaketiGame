@@ -23,7 +23,7 @@ class BaithakPageShell extends StatelessWidget {
           overlayOpacity: .18,
           child: Center(
             child: FittedBox(
-              fit: BoxFit.contain,
+              fit: BoxFit.cover,
               child: SizedBox(
                 width: 844,
                 height: 390,

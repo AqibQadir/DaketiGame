@@ -57,7 +57,7 @@ class _SideQuestsScreenState extends State<SideQuestsScreen> {
         overlayOpacity: .20,
         child: Center(
           child: FittedBox(
-            fit: BoxFit.contain,
+            fit: BoxFit.cover,
             child: SizedBox(
               width: 844,
               height: 390,
