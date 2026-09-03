@@ -52,6 +52,7 @@ class GameSessionState {
     this.lastAiCount = 1,
     this.chatMessages = const [],
     this.turnTimerRevision = 0,
+    this.recoveryFailed = false,
   });
 
   final GameConnectionStatus connectionStatus;
@@ -69,6 +70,7 @@ class GameSessionState {
   final int lastAiCount;
   final List<RoomChatMessage> chatMessages;
   final int turnTimerRevision;
+  final bool recoveryFailed;
 
   bool get isCurrentPlayersTurn =>
       game?.currentPlayerId != null && game?.currentPlayerId == playerId;
@@ -89,6 +91,7 @@ class GameSessionState {
     int? lastAiCount,
     List<RoomChatMessage>? chatMessages,
     int? turnTimerRevision,
+    bool? recoveryFailed,
   }) {
     return GameSessionState(
       connectionStatus: connectionStatus ?? this.connectionStatus,
@@ -109,6 +112,7 @@ class GameSessionState {
       lastAiCount: lastAiCount ?? this.lastAiCount,
       chatMessages: chatMessages ?? this.chatMessages,
       turnTimerRevision: turnTimerRevision ?? this.turnTimerRevision,
+      recoveryFailed: recoveryFailed ?? this.recoveryFailed,
     );
   }
 }
@@ -148,6 +152,9 @@ class GameController extends StateNotifier<GameSessionState> {
   final GameRestClient _restClient;
   final GameSocketService _socketService;
   late final StreamSubscription<GameSocketEvent> _eventsSubscription;
+  Timer? _reconnectTimer;
+
+  static const _reconnectDeadline = Duration(seconds: 15);
 
   Future<bool> createSoloGame({
     required String playerName,
@@ -281,6 +288,7 @@ class GameController extends StateNotifier<GameSessionState> {
   }
 
   void resetSession() {
+    _reconnectTimer?.cancel();
     state = GameSessionState(connectionStatus: state.connectionStatus);
   }
 
@@ -405,6 +413,7 @@ class GameController extends StateNotifier<GameSessionState> {
 
   void _handleSocketEvent(GameSocketEvent event) {
     if (event.name == 'connected') {
+      _reconnectTimer?.cancel();
       state = state.copyWith(
         connectionStatus: GameConnectionStatus.connected,
         disconnectedPlayer: null,
@@ -417,6 +426,12 @@ class GameController extends StateNotifier<GameSessionState> {
         connectionStatus: GameConnectionStatus.disconnected,
         activity: 'Connection lost. Reconnecting…',
       );
+      _reconnectTimer?.cancel();
+      _reconnectTimer = Timer(_reconnectDeadline, () {
+        if (!_socketService.isConnected && state.gameId != null) {
+          _endUnrecoverableSession();
+        }
+      });
       return;
     }
     if (event.name == 'game_over') {
@@ -502,12 +517,22 @@ class GameController extends StateNotifier<GameSessionState> {
         game: _gameFrom(response['gameState']) ?? state.game,
         activity: 'Reconnected to room $gameId',
         error: null,
+        recoveryFailed: false,
       );
     } catch (error) {
-      state = state.copyWith(
-        error: 'Connected, but the server could not restore your seat.',
-      );
+      _endUnrecoverableSession();
     }
+  }
+
+  void _endUnrecoverableSession() {
+    _reconnectTimer?.cancel();
+    state = GameSessionState(
+      connectionStatus: _socketService.isConnected
+          ? GameConnectionStatus.connected
+          : GameConnectionStatus.disconnected,
+      recoveryFailed: true,
+      error: 'The game could not be restored after the connection was lost.',
+    );
   }
 
   DaketiGame? _gameFrom(Object? value) {
@@ -527,6 +552,7 @@ class GameController extends StateNotifier<GameSessionState> {
 
   @override
   void dispose() {
+    _reconnectTimer?.cancel();
     _eventsSubscription.cancel();
     super.dispose();
   }

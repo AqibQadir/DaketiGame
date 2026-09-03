@@ -57,8 +57,11 @@ class _GameScreenState extends ConsumerState<GameScreen> {
   String? selectedCardId;
   String? chatMessage;
   Timer? chatTimer;
+  String? noticeMessage;
+  Timer? noticeTimer;
   bool isSubmitting = false;
   bool isHandlingTimeout = false;
+  bool isLeavingDisconnectedGame = false;
 
   @override
   void initState() {
@@ -71,6 +74,7 @@ class _GameScreenState extends ConsumerState<GameScreen> {
   @override
   void dispose() {
     chatTimer?.cancel();
+    noticeTimer?.cancel();
     super.dispose();
   }
 
@@ -88,6 +92,57 @@ class _GameScreenState extends ConsumerState<GameScreen> {
         context: context,
         builder: (_) => _ChatHistoryDialog(onSend: sendChatMessage),
       );
+
+  Future<void> showCapturedCards(GamePlayer player) {
+    final cards = player.stack.isNotEmpty
+        ? player.stack
+        : player.topCard == null
+            ? const <GameCard>[]
+            : <GameCard>[player.topCard!];
+    return showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: const Color(0xF2181411),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(18),
+          side: const BorderSide(color: _gold),
+        ),
+        title: Text(
+          '${player.name.toUpperCase()} · CAPTURED SERIES',
+          textAlign: TextAlign.center,
+          style: const TextStyle(
+            fontFamily: 'Dirty Brush',
+            color: _cream,
+            fontSize: 22,
+          ),
+        ),
+        content: SizedBox(
+          width: math.min(520, MediaQuery.sizeOf(context).width * .8),
+          height: 120,
+          child: cards.isEmpty
+              ? const Center(child: Text('NO CAPTURED CARDS'))
+              : SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: [
+                      for (final card in cards) ...[
+                        _Card(card, 61, 91),
+                        const SizedBox(width: 8),
+                      ],
+                    ],
+                  ),
+                ),
+        ),
+        actionsAlignment: MainAxisAlignment.center,
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('CLOSE'),
+          ),
+        ],
+      ),
+    );
+  }
 
   Future<void> selectCard(GameCard card) async {
     final state = ref.read(gameControllerProvider);
@@ -153,9 +208,23 @@ class _GameScreenState extends ConsumerState<GameScreen> {
     }
   }
 
-  void _message(String text) => ScaffoldMessenger.of(context)
-    ..hideCurrentSnackBar()
-    ..showSnackBar(SnackBar(content: Text(text)));
+  void _message(String text) {
+    noticeTimer?.cancel();
+    setState(() => noticeMessage = text);
+    noticeTimer = Timer(const Duration(seconds: 3), () {
+      if (mounted) setState(() => noticeMessage = null);
+    });
+  }
+
+  void returnToOverviewAfterConnectionFailure() {
+    if (isLeavingDisconnectedGame || !mounted) return;
+    isLeavingDisconnectedGame = true;
+    Navigator.pushNamedAndRemoveUntil(
+      context,
+      AppRoutes.home,
+      (_) => false,
+    );
+  }
 
   Future<void> leaveMatch() async {
     final confirmed = await showDialog<bool>(
@@ -212,9 +281,8 @@ class _GameScreenState extends ConsumerState<GameScreen> {
       if (previous?.winner == null && next.winner != null) {
         Navigator.pushReplacementNamed(context, AppRoutes.results);
       }
-      if (previous?.connectionStatus != next.connectionStatus &&
-          next.connectionStatus == GameConnectionStatus.disconnected) {
-        _message('Connection lost. Reconnecting…');
+      if (previous?.recoveryFailed != true && next.recoveryFailed) {
+        returnToOverviewAfterConnectionFailure();
       }
       final wasMyTurn = previous?.isCurrentPlayersTurn ?? false;
       if (!wasMyTurn && next.isCurrentPlayersTurn) {
@@ -275,16 +343,56 @@ class _GameScreenState extends ConsumerState<GameScreen> {
                         onAction: perform,
                         onChat: sendChatMessage,
                         onOpenChat: openChatHistory,
+                        onViewCapturedCards: showCapturedCards,
                         onTurnTimeout: handleTurnTimeout,
                         onExit: leaveMatch,
                       ),
               ),
             ),
           ),
+          if (noticeMessage != null)
+            Positioned(
+              top: 12,
+              right: 78,
+              child: IgnorePointer(
+                child: _CompactNotice(noticeMessage!),
+              ),
+            ),
         ],
       ),
     );
   }
+}
+
+class _CompactNotice extends StatelessWidget {
+  const _CompactNotice(this.text);
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        constraints: const BoxConstraints(maxWidth: 260),
+        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
+        decoration: BoxDecoration(
+          color: const Color(0xF21B1814),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: _gold, width: 1),
+          boxShadow: const [
+            BoxShadow(color: Colors.black54, blurRadius: 6),
+          ],
+        ),
+        child: Text(
+          text,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(
+            color: _cream,
+            fontSize: 11,
+            height: 1.15,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      );
 }
 
 class _Board extends StatelessWidget {
@@ -300,6 +408,7 @@ class _Board extends StatelessWidget {
       required this.onAction,
       required this.onChat,
       required this.onOpenChat,
+      required this.onViewCapturedCards,
       required this.onTurnTimeout,
       required this.onExit});
   final GameSessionState session;
@@ -313,6 +422,7 @@ class _Board extends StatelessWidget {
   final ValueChanged<GameAction> onAction;
   final ValueChanged<String> onChat;
   final VoidCallback onOpenChat;
+  final ValueChanged<GamePlayer> onViewCapturedCards;
   final VoidCallback onTurnTimeout;
   final VoidCallback onExit;
 
@@ -353,6 +463,23 @@ class _Board extends StatelessWidget {
     final topIdentity = identityFor(topOpponent, 0);
     final leftIdentity = identityFor(leftOpponent, 1);
     final rightIdentity = identityFor(rightOpponent, 2);
+    GameAction? stealActionFor(GamePlayer? opponent) {
+      if (opponent == null) return null;
+      for (final action in actions) {
+        if (action.type == GameActionType.stealOpponent &&
+            action.targetPlayerId == opponent.id) {
+          return action;
+        }
+      }
+      return null;
+    }
+
+    final topStealAction = stealActionFor(topOpponent);
+    final leftStealAction = stealActionFor(leftOpponent);
+    final rightStealAction = stealActionFor(rightOpponent);
+    final standardActions = actions
+        .where((action) => action.type != GameActionType.stealOpponent)
+        .toList(growable: false);
     final reducedPlayerScale = isTwoPlayerMatch
         ? 1.18
         : isThreePlayerMatch
@@ -404,7 +531,12 @@ class _Board extends StatelessWidget {
             left: isTwoPlayerMatch ? 300 : 310,
             top: isTwoPlayerMatch ? 36 : 22,
             child: _CapturePile(
-                card: topOpponent!.topCard!, count: topOpponent.stackCount)),
+              card: topOpponent!.topCard!,
+              count: topOpponent.stackCount,
+              stealAction: topStealAction,
+              onSteal: onAction,
+              onView: () => onViewCapturedCards(topOpponent),
+            )),
       if (leftOpponent != null)
         Positioned(
             // With two opponents, reserve the upper-left for room details and
@@ -430,7 +562,12 @@ class _Board extends StatelessWidget {
             left: isThreePlayerMatch ? 66 : 59,
             top: isThreePlayerMatch ? 128 : 246,
             child: _CapturePile(
-                card: leftOpponent!.topCard!, count: leftOpponent.stackCount)),
+              card: leftOpponent!.topCard!,
+              count: leftOpponent.stackCount,
+              stealAction: leftStealAction,
+              onSteal: onAction,
+              onView: () => onViewCapturedCards(leftOpponent),
+            )),
       if (rightOpponent != null)
         Positioned(
             // In a four-player match, move Player 3 toward the outer rail so
@@ -454,8 +591,12 @@ class _Board extends StatelessWidget {
             right: 59,
             top: 246,
             child: _CapturePile(
-                card: rightOpponent!.topCard!,
-                count: rightOpponent.stackCount)),
+              card: rightOpponent!.topCard!,
+              count: rightOpponent.stackCount,
+              stealAction: rightStealAction,
+              onSteal: onAction,
+              onView: () => onViewCapturedCards(rightOpponent),
+            )),
       Positioned(
           left: 220,
           right: 220,
@@ -498,7 +639,10 @@ class _Board extends StatelessWidget {
             left: isTwoPlayerMatch ? 300 : 310,
             bottom: 5,
             child: _CapturePile(
-                card: player!.topCard!, count: player!.stackCount)),
+              card: player!.topCard!,
+              count: player!.stackCount,
+              onView: () => onViewCapturedCards(player!),
+            )),
       Positioned(
           left: isTwoPlayerMatch ? 359 : 369,
           bottom: 2,
@@ -521,12 +665,14 @@ class _Board extends StatelessWidget {
           left: 4,
           bottom: 12,
           child: _Chat(onSend: onChat, onOpenHistory: onOpenChat)),
-      if (selected != null)
+      if (selected != null && (standardActions.isNotEmpty || submitting))
         Positioned(
             right: 13,
             bottom: 12,
             child: _Actions(
-                actions: actions, loading: submitting, onTap: onAction)),
+                actions: standardActions,
+                loading: submitting,
+                onTap: onAction)),
       if (session.activity != null)
         Positioned(
             left: 152,
@@ -930,9 +1076,11 @@ class _Fan extends StatelessWidget {
             clipBehavior: Clip.none,
             children: List.generate(count, (i) {
               final distance = i - center;
+              final centerLift =
+                  ((center - distance.abs()) * 5).clamp(0.0, 6.0);
               return Positioned(
                   left: start + i * overlapStep,
-                  bottom: 0,
+                  bottom: centerLift,
                   child: Transform.rotate(
                     angle: distance * .14,
                     alignment: Alignment.bottomCenter,
@@ -1044,10 +1192,19 @@ class _TableCards extends StatelessWidget {
 }
 
 class _CapturePile extends StatelessWidget {
-  const _CapturePile({required this.card, required this.count});
+  const _CapturePile({
+    required this.card,
+    required this.count,
+    this.stealAction,
+    this.onSteal,
+    this.onView,
+  });
 
   final GameCard card;
   final int count;
+  final GameAction? stealAction;
+  final ValueChanged<GameAction>? onSteal;
+  final VoidCallback? onView;
 
   @override
   Widget build(BuildContext context) => Semantics(
@@ -1063,37 +1220,42 @@ class _CapturePile extends StatelessWidget {
           alignment: Alignment.center,
           child: child,
         ),
-        child: SizedBox(
-          width: 57,
-          height: 82,
-          child: Stack(clipBehavior: Clip.none, children: [
-            if (count > 2)
+        child: GestureDetector(
+          onTap: stealAction != null && onSteal != null
+              ? () => onSteal!(stealAction!)
+              : onView,
+          child: SizedBox(
+            width: 57,
+            height: 82,
+            child: Stack(clipBehavior: Clip.none, children: [
+              if (count > 2)
+                Positioned(
+                    left: 5,
+                    top: 5,
+                    child: Opacity(opacity: .75, child: _Card(card, 47, 67))),
+              if (count > 1)
+                Positioned(
+                    left: 2,
+                    top: 2,
+                    child: Opacity(opacity: .88, child: _Card(card, 47, 67))),
+              Positioned(left: 0, top: 0, child: _Card(card, 47, 67)),
               Positioned(
-                  left: 5,
-                  top: 5,
-                  child: Opacity(opacity: .75, child: _Card(card, 47, 67))),
-            if (count > 1)
-              Positioned(
-                  left: 2,
-                  top: 2,
-                  child: Opacity(opacity: .88, child: _Card(card, 47, 67))),
-            Positioned(left: 0, top: 0, child: _Card(card, 47, 67)),
-            Positioned(
-                right: 0,
-                bottom: 0,
-                child: Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                    decoration: BoxDecoration(
-                        color: const Color(0xED11130F),
-                        borderRadius: BorderRadius.circular(7),
-                        border: Border.all(color: _gold)),
-                    child: Text('$count',
-                        style: const TextStyle(
-                            color: _cream,
-                            fontSize: 7,
-                            fontWeight: FontWeight.w900))))
-          ]),
+                  right: 0,
+                  bottom: 0,
+                  child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 4, vertical: 2),
+                      decoration: BoxDecoration(
+                          color: const Color(0xED11130F),
+                          borderRadius: BorderRadius.circular(7),
+                          border: Border.all(color: _gold)),
+                      child: Text('$count',
+                          style: const TextStyle(
+                              color: _cream,
+                              fontSize: 7,
+                              fontWeight: FontWeight.w900)))),
+            ]),
+          ),
         ),
       ));
 }
