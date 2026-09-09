@@ -35,6 +35,12 @@ class GameSoundService {
 
   static void challenge() => _play(_gamePlayer, 'Challenge.wav', volume: .82);
 
+  static void daketiRide() {
+    challenge();
+    Timer(const Duration(milliseconds: 880), cardSelected);
+    Timer(const Duration(milliseconds: 1480), cardSlap);
+  }
+
   static void invalidMove() =>
       _play(_alertPlayer, 'invalidmove.wav', volume: .8);
 

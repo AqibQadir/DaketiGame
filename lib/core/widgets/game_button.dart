@@ -11,6 +11,7 @@ class GameButton extends StatelessWidget {
     this.icon,
     this.backgroundAsset = AppAssets.buttonBrush,
     this.splatterColor = const Color(0xFFFF8500),
+    this.fontSize = 18,
   });
 
   final String text;
@@ -19,13 +20,12 @@ class GameButton extends StatelessWidget {
   final IconData? icon;
   final String backgroundAsset;
   final Color splatterColor;
+  final double fontSize;
 
   @override
   Widget build(BuildContext context) {
     // Preserve the source artwork's 152:39 aspect ratio at every button width.
     final height = width * 39 / 152;
-    const fontSize = 18.0;
-
     return Semantics(
       button: true,
       label: text,
@@ -48,32 +48,38 @@ class GameButton extends StatelessWidget {
                   colorBlendMode: onTap == null ? BlendMode.saturation : null,
                 ),
                 Center(
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      if (icon != null) ...[
-                        Icon(icon, size: 16, color: Colors.white),
-                        const SizedBox(width: 6),
-                      ],
-                      Text(
-                        text.toUpperCase(),
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontFamily: 'Dirty Brush',
-                          fontSize: fontSize,
-                          height: 1,
-                          fontWeight: FontWeight.w400,
-                          letterSpacing: 0,
-                          shadows: [
-                            Shadow(
-                              color: Color(0x66000000),
-                              offset: Offset(0, 1),
-                              blurRadius: 2,
-                            ),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 6),
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (icon != null) ...[
+                            Icon(icon, size: 16, color: Colors.white),
+                            const SizedBox(width: 6),
                           ],
-                        ),
+                          Text(
+                            text.toUpperCase(),
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontFamily: 'Dirty Brush',
+                              fontSize: fontSize,
+                              height: 1,
+                              fontWeight: FontWeight.w400,
+                              letterSpacing: 0,
+                              shadows: const [
+                                Shadow(
+                                  color: Color(0x66000000),
+                                  offset: Offset(0, 1),
+                                  blurRadius: 2,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ),
-                    ],
+                    ),
                   ),
                 ),
               ],

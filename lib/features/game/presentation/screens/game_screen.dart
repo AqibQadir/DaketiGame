@@ -14,6 +14,7 @@ import '../../domain/models/game_action.dart';
 import '../../domain/models/game_card.dart';
 import '../../domain/models/game_player.dart';
 import '../controllers/game_controller.dart';
+import '../widgets/bike_daketi_overlay.dart';
 import '../widgets/fanned_card_hand.dart';
 
 // Gameplay palette sampled from the approved table reference.
@@ -47,6 +48,20 @@ int _stableIdentitySeed(String value) {
   return hash;
 }
 
+class _StealAnimation {
+  const _StealAnimation({
+    required this.id,
+    required this.targetPlayerId,
+    required this.cardCount,
+    required this.cards,
+  });
+
+  final int id;
+  final String targetPlayerId;
+  final int cardCount;
+  final List<GameCard> cards;
+}
+
 class GameScreen extends ConsumerStatefulWidget {
   const GameScreen({super.key});
   @override
@@ -62,6 +77,8 @@ class _GameScreenState extends ConsumerState<GameScreen> {
   bool isSubmitting = false;
   bool isHandlingTimeout = false;
   bool isLeavingDisconnectedGame = false;
+  _StealAnimation? stealAnimation;
+  int stealAnimationId = 0;
 
   @override
   void initState() {
@@ -159,6 +176,12 @@ class _GameScreenState extends ConsumerState<GameScreen> {
   }
 
   Future<void> perform(GameAction action) async {
+    final targetBeforeMove = action.targetPlayerId == null
+        ? null
+        : ref
+            .read(gameControllerProvider)
+            .game
+            ?.playerById(action.targetPlayerId);
     setState(() => isSubmitting = true);
     final ok =
         await ref.read(gameControllerProvider.notifier).performAction(action);
@@ -178,7 +201,21 @@ class _GameScreenState extends ConsumerState<GameScreen> {
           GameSoundService.specialCard();
           break;
         case GameActionType.stealOpponent:
-          GameSoundService.challenge();
+          GameSoundService.daketiRide();
+          setState(() {
+            stealAnimation = _StealAnimation(
+              id: ++stealAnimationId,
+              targetPlayerId: action.targetPlayerId ?? '',
+              cardCount: targetBeforeMove?.stackCount.clamp(1, 99) ?? 1,
+              cards: targetBeforeMove == null
+                  ? const []
+                  : targetBeforeMove.stack.isNotEmpty
+                      ? List<GameCard>.of(targetBeforeMove.stack)
+                      : targetBeforeMove.topCard == null
+                          ? const []
+                          : [targetBeforeMove.topCard!],
+            );
+          });
           break;
         case GameActionType.discard:
           GameSoundService.cardSlap();
@@ -345,6 +382,10 @@ class _GameScreenState extends ConsumerState<GameScreen> {
                         onOpenChat: openChatHistory,
                         onViewCapturedCards: showCapturedCards,
                         onTurnTimeout: handleTurnTimeout,
+                        stealAnimation: stealAnimation,
+                        onStealAnimationComplete: () {
+                          if (mounted) setState(() => stealAnimation = null);
+                        },
                         onExit: leaveMatch,
                       ),
               ),
@@ -410,6 +451,8 @@ class _Board extends StatelessWidget {
       required this.onOpenChat,
       required this.onViewCapturedCards,
       required this.onTurnTimeout,
+      required this.stealAnimation,
+      required this.onStealAnimationComplete,
       required this.onExit});
   final GameSessionState session;
   final DaketiGame game;
@@ -424,6 +467,8 @@ class _Board extends StatelessWidget {
   final VoidCallback onOpenChat;
   final ValueChanged<GamePlayer> onViewCapturedCards;
   final VoidCallback onTurnTimeout;
+  final _StealAnimation? stealAnimation;
+  final VoidCallback onStealAnimationComplete;
   final VoidCallback onExit;
 
   @override
@@ -477,9 +522,28 @@ class _Board extends StatelessWidget {
     final topStealAction = stealActionFor(topOpponent);
     final leftStealAction = stealActionFor(leftOpponent);
     final rightStealAction = stealActionFor(rightOpponent);
-    final standardActions = actions
-        .where((action) => action.type != GameActionType.stealOpponent)
-        .toList(growable: false);
+    Offset? stealSourceFor(String targetPlayerId) {
+      if (topOpponent?.id == targetPlayerId) {
+        return Offset(isTwoPlayerMatch ? 328 : 338, isTwoPlayerMatch ? 68 : 56);
+      }
+      if (leftOpponent?.id == targetPlayerId) {
+        return Offset(87, isThreePlayerMatch ? 165 : 280);
+      }
+      if (rightOpponent?.id == targetPlayerId) {
+        return const Offset(728, 280);
+      }
+      return null;
+    }
+
+    GameAction? actionOfType(GameActionType type) {
+      for (final action in actions) {
+        if (action.type == type) return action;
+      }
+      return null;
+    }
+
+    final captureTableAction = actionOfType(GameActionType.captureTable);
+    final extendOwnStackAction = actionOfType(GameActionType.extendStack);
     final reducedPlayerScale = isTwoPlayerMatch
         ? 1.18
         : isThreePlayerMatch
@@ -608,7 +672,12 @@ class _Board extends StatelessWidget {
                 : isThreePlayerMatch
                     ? 1.06
                     : 1,
-            child: _TableCards(cards: game.table, deck: game.deckCount),
+            child: _TableCards(
+              cards: game.table,
+              deck: game.deckCount,
+              captureAction: captureTableAction,
+              onCapture: onAction,
+            ),
           )),
       Positioned(
           left: 492,
@@ -617,8 +686,8 @@ class _Board extends StatelessWidget {
       Positioned(
           // Keep the radial hand in its own lane to the right of the local
           // medallion. The shared fan pivot must never sit behind the avatar.
-          left: 350,
-          right: 95,
+          left: 368,
+          right: 77,
           bottom: 12,
           height: 133,
           child: Transform.scale(
@@ -641,10 +710,12 @@ class _Board extends StatelessWidget {
             child: _CapturePile(
               card: player!.topCard!,
               count: player!.stackCount,
+              primaryAction: extendOwnStackAction,
+              onPrimaryAction: onAction,
               onView: () => onViewCapturedCards(player!),
             )),
       Positioned(
-          left: isTwoPlayerMatch ? 359 : 369,
+          left: isTwoPlayerMatch ? 342 : 352,
           bottom: 2,
           child: _Medallion(
             player: player,
@@ -665,20 +736,28 @@ class _Board extends StatelessWidget {
           left: 4,
           bottom: 12,
           child: _Chat(onSend: onChat, onOpenHistory: onOpenChat)),
-      if (selected != null && (standardActions.isNotEmpty || submitting))
+      if (selected != null && (actions.isNotEmpty || submitting))
         Positioned(
             right: 13,
             bottom: 12,
             child: _Actions(
-                actions: standardActions,
-                loading: submitting,
-                onTap: onAction)),
+                actions: actions, loading: submitting, onTap: onAction)),
       if (session.activity != null)
         Positioned(
             left: 152,
             top: 18,
             width: 190,
             child: _Activity(session.activity!)),
+      if (stealAnimation case final animation?)
+        BikeDaketiOverlay(
+          key: ValueKey(animation.id),
+          source: stealSourceFor(animation.targetPlayerId) ??
+              const Offset(700, 185),
+          destination: const Offset(400, 330),
+          cardCount: animation.cardCount,
+          cards: animation.cards,
+          onComplete: onStealAnimationComplete,
+        ),
     ]);
   }
 }
@@ -889,13 +968,18 @@ class _MedallionState extends State<_Medallion> {
   @override
   void didUpdateWidget(covariant _Medallion oldWidget) {
     super.didUpdateWidget(oldWidget);
-    final turnChanged =
-        oldWidget.game.currentPlayerId != widget.game.currentPlayerId ||
-            oldWidget.game.turnStartTime != widget.game.turnStartTime;
+    final playerChanged =
+        oldWidget.game.currentPlayerId != widget.game.currentPlayerId;
+    final serverStartChanged =
+        oldWidget.game.turnStartTime != widget.game.turnStartTime;
     final moveAccepted = oldWidget.timerRevision != widget.timerRevision;
-    if (turnChanged || moveAccepted) {
+    if (playerChanged || serverStartChanged || moveAccepted) {
       fallbackStart = DateTime.now().millisecondsSinceEpoch;
-      useFallbackStart = moveAccepted && !turnChanged;
+      // Captures, steals and stack extensions can keep the same player active.
+      // A successful-move revision must therefore restart that player's timer
+      // locally even when the response also contains a changed/stale server
+      // timestamp. A real hand-off still follows the next player's server time.
+      useFallbackStart = moveAccepted && !playerChanged;
       lastAlert = null;
       timeoutSent = false;
       remaining = calculateRemaining();
@@ -1095,9 +1179,16 @@ class _Fan extends StatelessWidget {
 }
 
 class _TableCards extends StatelessWidget {
-  const _TableCards({required this.cards, required this.deck});
+  const _TableCards({
+    required this.cards,
+    required this.deck,
+    this.captureAction,
+    this.onCapture,
+  });
   final List<GameCard> cards;
   final int deck;
+  final GameAction? captureAction;
+  final ValueChanged<GameAction>? onCapture;
   @override
   Widget build(BuildContext context) => Stack(
         fit: StackFit.expand,
@@ -1154,7 +1245,19 @@ class _TableCards extends StatelessWidget {
                       return Positioned(
                         left: baseLeft + column * horizontalStep + stagger,
                         top: row * verticalStep,
-                        child: _Card(cards[index], cardWidth, cardHeight),
+                        child: Semantics(
+                          button: captureAction != null,
+                          label: captureAction == null
+                              ? null
+                              : 'Take matching table cards',
+                          child: GestureDetector(
+                            behavior: HitTestBehavior.opaque,
+                            onTap: captureAction != null && onCapture != null
+                                ? () => onCapture!(captureAction!)
+                                : null,
+                            child: _Card(cards[index], cardWidth, cardHeight),
+                          ),
+                        ),
                       );
                     }).toList(growable: false),
                   );
@@ -1197,6 +1300,8 @@ class _CapturePile extends StatelessWidget {
     required this.count,
     this.stealAction,
     this.onSteal,
+    this.primaryAction,
+    this.onPrimaryAction,
     this.onView,
   });
 
@@ -1204,6 +1309,8 @@ class _CapturePile extends StatelessWidget {
   final int count;
   final GameAction? stealAction;
   final ValueChanged<GameAction>? onSteal;
+  final GameAction? primaryAction;
+  final ValueChanged<GameAction>? onPrimaryAction;
   final VoidCallback? onView;
 
   @override
@@ -1223,7 +1330,9 @@ class _CapturePile extends StatelessWidget {
         child: GestureDetector(
           onTap: stealAction != null && onSteal != null
               ? () => onSteal!(stealAction!)
-              : onView,
+              : primaryAction != null && onPrimaryAction != null
+                  ? () => onPrimaryAction!(primaryAction!)
+                  : onView,
           child: SizedBox(
             width: 57,
             height: 82,
@@ -1658,7 +1767,7 @@ class _Actions extends StatelessWidget {
               child: Text('LOADING MOVES…', style: TextStyle(fontSize: 8))));
     }
     return SizedBox(
-      width: 190,
+      width: 154,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: actions
@@ -1701,7 +1810,7 @@ class _BrushActionButton extends StatelessWidget {
                     filterQuality: FilterQuality.high,
                   ),
                   Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 13),
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
                     child: Center(
                       child: FittedBox(
                         fit: BoxFit.scaleDown,
@@ -1711,7 +1820,7 @@ class _BrushActionButton extends StatelessWidget {
                           style: const TextStyle(
                             color: Colors.white,
                             fontFamily: 'Dirty Brush',
-                            fontSize: 15,
+                            fontSize: 12,
                             height: 1,
                             shadows: [
                               Shadow(

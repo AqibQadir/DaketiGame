@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/constants/app_colors.dart';
+import '../../../../core/routes/app_routes.dart';
 import '../../../../core/widgets/game_background.dart';
 import '../../../../core/widgets/game_button.dart';
 import '../../../../core/widgets/game_close_button.dart';
@@ -68,7 +69,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     GameButton(
                       text: 'Tutorial',
                       width: 190,
-                      onTap: () {},
+                      onTap: () => Navigator.pushNamed(
+                        context,
+                        AppRoutes.gameTutorial,
+                        arguments: AppRoutes.settings,
+                      ),
                     ),
                     const SizedBox(height: 12),
                     Row(

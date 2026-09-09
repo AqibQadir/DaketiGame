@@ -344,7 +344,8 @@ class GameController extends StateNotifier<GameSessionState> {
     await Future<void>.delayed(const Duration(milliseconds: 650));
 
     // The API has no timeout event. Use only server-approved actions and keep
-    // the room authoritative: prefer a discard because it ends the turn.
+    // the room authoritative. When a discard is available, always put the
+    // lowest-ranked card on the table and end the expired turn.
     for (var step = 0; step < 12 && state.isCurrentPlayersTurn; step++) {
       final gameId = state.gameId;
       if (gameId == null) return false;
@@ -360,10 +361,15 @@ class GameController extends StateNotifier<GameSessionState> {
           );
           return false;
         }
-        final action = actions.firstWhere(
-          (item) => item.type == GameActionType.discard,
-          orElse: () => actions.first,
-        );
+        final discardActions = actions
+            .where((item) => item.type == GameActionType.discard)
+            .toList(growable: false);
+        final action = discardActions.isEmpty
+            ? actions.first
+            : discardActions.reduce((lowest, candidate) =>
+                _cardRank(candidate.cardId) < _cardRank(lowest.cardId)
+                    ? candidate
+                    : lowest);
         state = state.copyWith(
           activity: 'TIME OVER · AUTO ${_actionLabel(action)}',
         );
@@ -386,6 +392,18 @@ class GameController extends StateNotifier<GameSessionState> {
         GameActionType.discard => 'DISCARD ${action.cardId}',
         GameActionType.unknown => 'MOVE ${action.cardId}',
       };
+
+  int _cardRank(String cardId) {
+    if (cardId.isEmpty) return 99;
+    return switch (cardId[0].toUpperCase()) {
+      'A' => 14,
+      'K' => 13,
+      'Q' => 12,
+      'J' => 11,
+      'T' => 10,
+      final value => int.tryParse(value) ?? 99,
+    };
+  }
 
   Future<void> _ensureConnected() async {
     if (_socketService.isConnected) return;

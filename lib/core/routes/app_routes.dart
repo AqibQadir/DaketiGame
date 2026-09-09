@@ -21,6 +21,7 @@ class AppRoutes {
   static const String faqs = '/support/faqs';
   static const String home = '/home';
   static const String game = '/game';
+  static const String gameTutorial = '/game/tutorial';
   static const String baithak = '/baithak';
   static const String myClan = '/baithak/my-clan';
   static const String globalPlayers = '/baithak/global';

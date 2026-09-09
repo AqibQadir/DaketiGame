@@ -11,7 +11,7 @@ class MenuScreen extends StatelessWidget {
   Widget build(BuildContext context) => SupportPageShell(
         title: 'Menu',
         width: 440,
-        height: 260,
+        height: 315,
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
@@ -26,6 +26,16 @@ class MenuScreen extends StatelessWidget {
               text: 'Leaderboard',
               width: 225,
               onTap: () => Navigator.pushNamed(context, AppRoutes.leaderboard),
+            ),
+            const SizedBox(height: 24),
+            GameButton(
+              text: 'How to play',
+              width: 225,
+              onTap: () => Navigator.pushNamed(
+                context,
+                AppRoutes.gameTutorial,
+                arguments: AppRoutes.menu,
+              ),
             ),
           ],
         ),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/routes/app_routes.dart';
+import '../../../tutorial/data/tutorial_storage_service.dart';
 import 'legal_content_screen.dart';
 
 class TermsConditionsScreen extends StatelessWidget {
@@ -31,8 +32,15 @@ class TermsConditionsScreen extends StatelessWidget {
         ),
       ],
       buttonText: 'Accept',
-      onContinue: () =>
-          Navigator.pushReplacementNamed(context, AppRoutes.welcome),
+      onContinue: () async {
+        final completed = await TutorialStorageService().isCompleted();
+        if (!context.mounted) return;
+        Navigator.pushReplacementNamed(
+          context,
+          completed ? AppRoutes.welcome : AppRoutes.gameTutorial,
+          arguments: AppRoutes.welcome,
+        );
+      },
     );
   }
 }
