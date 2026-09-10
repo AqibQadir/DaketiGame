@@ -36,7 +36,9 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final keyboardOpen = MediaQuery.viewInsetsOf(context).bottom > 0;
     return Scaffold(
+      resizeToAvoidBottomInset: false,
       body: GameBackground(
         child: Stack(
           children: [
@@ -60,36 +62,41 @@ class _LoginScreenState extends State<LoginScreen> {
                 },
               ),
             ),
-            Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const DaketiLogo(
-                    type: DaketiLogoType.whiteOrange,
-                    width: 300,
-                  ),
-                  const SizedBox(height: 18),
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      GameTextField(
-                        hint: 'Email',
-                        controller: usernameController,
-                      ),
-                      const SizedBox(width: 14),
-                      GameTextField(
-                        hint: 'Password',
-                        obscureText: true,
-                        controller: passwordController,
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 15),
-                  GameButton(
-                    text: 'Login',
-                    onTap: submit,
-                  ),
-                ],
+            AnimatedSlide(
+              offset: Offset(0, keyboardOpen ? -.30 : 0),
+              duration: const Duration(milliseconds: 220),
+              curve: Curves.easeOutCubic,
+              child: Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const DaketiLogo(
+                      type: DaketiLogoType.whiteOrange,
+                      width: 300,
+                    ),
+                    const SizedBox(height: 18),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        GameTextField(
+                          hint: 'Email',
+                          controller: usernameController,
+                        ),
+                        const SizedBox(width: 14),
+                        GameTextField(
+                          hint: 'Password',
+                          obscureText: true,
+                          controller: passwordController,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 15),
+                    GameButton(
+                      text: 'Login',
+                      onTap: submit,
+                    ),
+                  ],
+                ),
               ),
             ),
             Positioned(

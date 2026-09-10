@@ -40,32 +40,39 @@ class _GuestNameScreenState extends State<GuestNameScreen> {
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-        body: GameBackground(
-          child: Center(
-            child: FittedBox(
-              fit: BoxFit.cover,
-              child: SizedBox(
-                width: 844,
-                height: 390,
-                child: Stack(children: [
-                  Positioned(
-                    left: 18,
-                    top: 18,
-                    child: GameCloseButton(
-                      size: 54,
-                      onTap: Navigator.of(context).pop,
-                    ),
+  Widget build(BuildContext context) {
+    final keyboardOpen = MediaQuery.viewInsetsOf(context).bottom > 0;
+    return Scaffold(
+      resizeToAvoidBottomInset: false,
+      body: GameBackground(
+        child: Center(
+          child: FittedBox(
+            fit: BoxFit.cover,
+            child: SizedBox(
+              width: 844,
+              height: 390,
+              child: Stack(children: [
+                Positioned(
+                  left: 18,
+                  top: 18,
+                  child: GameCloseButton(
+                    size: 54,
+                    onTap: Navigator.of(context).pop,
                   ),
-                  Positioned(
-                    right: 18,
-                    top: 18,
-                    child: GameIconButton(
-                      icon: Icons.menu,
-                      onTap: () => Navigator.pushNamed(context, AppRoutes.menu),
-                    ),
+                ),
+                Positioned(
+                  right: 18,
+                  top: 18,
+                  child: GameIconButton(
+                    icon: Icons.menu,
+                    onTap: () => Navigator.pushNamed(context, AppRoutes.menu),
                   ),
-                  Center(
+                ),
+                AnimatedSlide(
+                  offset: Offset(0, keyboardOpen ? -.30 : 0),
+                  duration: const Duration(milliseconds: 220),
+                  curve: Curves.easeOutCubic,
+                  child: Center(
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
@@ -87,40 +94,42 @@ class _GuestNameScreenState extends State<GuestNameScreen> {
                       ],
                     ),
                   ),
-                  Positioned(
-                    left: 18,
-                    bottom: 18,
-                    child: Row(children: [
-                      GameIconButton(
-                        icon: Icons.settings,
-                        onTap: () =>
-                            Navigator.pushNamed(context, AppRoutes.settings),
-                      ),
-                      const SizedBox(width: 8),
-                      GameIconButton(
-                        icon: Icons.support_agent,
-                        onTap: () =>
-                            Navigator.pushNamed(context, AppRoutes.support),
-                      ),
-                    ]),
-                  ),
-                  const Positioned(
-                    right: 18,
-                    bottom: 18,
-                    child: Row(children: [
-                      GameIconButton(icon: Icons.facebook, onTap: null),
-                      SizedBox(width: 8),
-                      GameIconButton(icon: Icons.camera_alt, onTap: null),
-                      SizedBox(width: 8),
-                      GameIconButton(icon: Icons.play_arrow, onTap: null),
-                      SizedBox(width: 8),
-                      GameIconButton(icon: Icons.music_note, onTap: null),
-                    ]),
-                  ),
-                ]),
-              ),
+                ),
+                Positioned(
+                  left: 18,
+                  bottom: 18,
+                  child: Row(children: [
+                    GameIconButton(
+                      icon: Icons.settings,
+                      onTap: () =>
+                          Navigator.pushNamed(context, AppRoutes.settings),
+                    ),
+                    const SizedBox(width: 8),
+                    GameIconButton(
+                      icon: Icons.support_agent,
+                      onTap: () =>
+                          Navigator.pushNamed(context, AppRoutes.support),
+                    ),
+                  ]),
+                ),
+                const Positioned(
+                  right: 18,
+                  bottom: 18,
+                  child: Row(children: [
+                    GameIconButton(icon: Icons.facebook, onTap: null),
+                    SizedBox(width: 8),
+                    GameIconButton(icon: Icons.camera_alt, onTap: null),
+                    SizedBox(width: 8),
+                    GameIconButton(icon: Icons.play_arrow, onTap: null),
+                    SizedBox(width: 8),
+                    GameIconButton(icon: Icons.music_note, onTap: null),
+                  ]),
+                ),
+              ]),
             ),
           ),
         ),
-      );
+      ),
+    );
+  }
 }

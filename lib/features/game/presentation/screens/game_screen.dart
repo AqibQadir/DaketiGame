@@ -16,6 +16,7 @@ import '../../domain/models/game_player.dart';
 import '../controllers/game_controller.dart';
 import '../widgets/bike_daketi_overlay.dart';
 import '../widgets/fanned_card_hand.dart';
+import '../widgets/opening_deal_overlay.dart';
 
 // Gameplay palette sampled from the approved table reference.
 const _gold = Color(0xFFC58B43);
@@ -62,6 +63,25 @@ class _StealAnimation {
   final List<GameCard> cards;
 }
 
+class _DrawDeal {
+  const _DrawDeal({
+    required this.playerId,
+    required this.destination,
+    required this.card,
+  });
+
+  final String playerId;
+  final Offset destination;
+  final GameCard card;
+}
+
+class _DrawAnimation {
+  const _DrawAnimation({required this.id, required this.deals});
+
+  final int id;
+  final List<_DrawDeal> deals;
+}
+
 class GameScreen extends ConsumerStatefulWidget {
   const GameScreen({super.key});
   @override
@@ -79,6 +99,78 @@ class _GameScreenState extends ConsumerState<GameScreen> {
   bool isLeavingDisconnectedGame = false;
   _StealAnimation? stealAnimation;
   int stealAnimationId = 0;
+  _DrawAnimation? drawAnimation;
+  int drawAnimationId = 0;
+  int openingDealPhase = 0;
+
+  List<_DrawDeal> _drawDealsFor(
+    GameSessionState previous,
+    GameSessionState next,
+  ) {
+    final oldGame = previous.game;
+    final newGame = next.game;
+    if (oldGame == null ||
+        newGame == null ||
+        openingDealPhase < 2 ||
+        newGame.deckCount >= oldGame.deckCount) {
+      return const [];
+    }
+    final localId = next.playerId;
+    final localIndex = newGame.players.indexWhere((item) => item.id == localId);
+    if (localIndex < 0) return const [];
+    final opponents = List<GamePlayer>.generate(
+      newGame.players.length - 1,
+      (index) =>
+          newGame.players[(localIndex + index + 1) % newGame.players.length],
+    );
+    Offset destinationFor(String playerId) {
+      if (playerId == localId) return const Offset(560, 330);
+      final index = opponents.indexWhere((item) => item.id == playerId);
+      if (opponents.length == 1) return const Offset(515, 70);
+      if (opponents.length == 2) {
+        return index == 0 ? const Offset(126, 212) : const Offset(515, 70);
+      }
+      return switch (index) {
+        0 => const Offset(126, 212),
+        1 => const Offset(515, 70),
+        _ => const Offset(700, 212),
+      };
+    }
+
+    final deals = <_DrawDeal>[];
+    for (final newPlayer in newGame.players) {
+      final oldPlayer = oldGame.playerById(newPlayer.id);
+      if (oldPlayer == null) continue;
+      final increase = newPlayer.handCount - oldPlayer.handCount;
+      if (increase <= 0) continue;
+      final destination = destinationFor(newPlayer.id);
+      if (newPlayer.id == localId) {
+        final oldIds = oldPlayer.hand.map((card) => card.id).toSet();
+        final added = newPlayer.hand
+            .where((card) => !oldIds.contains(card.id))
+            .toList(growable: false);
+        for (var index = 0; index < increase; index++) {
+          deals.add(_DrawDeal(
+            playerId: newPlayer.id,
+            destination: destination,
+            card: index < added.length
+                ? added[index]
+                : const GameCard(id: 'hidden', value: '', suit: ''),
+          ));
+        }
+      } else {
+        for (var index = 0; index < increase; index++) {
+          deals.add(_DrawDeal(
+            playerId: newPlayer.id,
+            destination: destination,
+            card: const GameCard(id: 'hidden', value: '', suit: ''),
+          ));
+        }
+      }
+    }
+    final available = oldGame.deckCount - newGame.deckCount;
+    return deals.take(available).toList(growable: false);
+  }
 
   @override
   void initState() {
@@ -111,52 +203,92 @@ class _GameScreenState extends ConsumerState<GameScreen> {
       );
 
   Future<void> showCapturedCards(GamePlayer player) {
+    if (player.id != ref.read(gameControllerProvider).playerId) {
+      return Future<void>.value();
+    }
     final cards = player.stack.isNotEmpty
         ? player.stack
         : player.topCard == null
             ? const <GameCard>[]
             : <GameCard>[player.topCard!];
+    final dialogWidth = (cards.length * 55.0 + 40).clamp(220.0, 430.0);
     return showDialog<void>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        backgroundColor: const Color(0xF2181411),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(18),
-          side: const BorderSide(color: _gold),
-        ),
-        title: Text(
-          '${player.name.toUpperCase()} · CAPTURED SERIES',
-          textAlign: TextAlign.center,
-          style: const TextStyle(
-            fontFamily: 'Dirty Brush',
-            color: _cream,
-            fontSize: 22,
+      builder: (dialogContext) => Dialog(
+        insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 18),
+        backgroundColor: Colors.transparent,
+        child: Container(
+          width: dialogWidth,
+          height: 145,
+          padding: const EdgeInsets.fromLTRB(16, 13, 16, 12),
+          decoration: BoxDecoration(
+            color: const Color(0xF2181411),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: _gold),
+            boxShadow: const [
+              BoxShadow(color: Colors.black87, blurRadius: 14),
+            ],
           ),
-        ),
-        content: SizedBox(
-          width: math.min(520, MediaQuery.sizeOf(context).width * .8),
-          height: 120,
-          child: cards.isEmpty
-              ? const Center(child: Text('NO CAPTURED CARDS'))
-              : SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
-                    children: [
-                      for (final card in cards) ...[
-                        _Card(card, 61, 91),
-                        const SizedBox(width: 8),
-                      ],
-                    ],
+          child: Column(
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      '${player.name.toUpperCase()} · CAPTURED SERIES',
+                      textAlign: TextAlign.center,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontFamily: 'Dirty Brush',
+                        color: _cream,
+                        fontSize: 16,
+                      ),
+                    ),
                   ),
-                ),
-        ),
-        actionsAlignment: MainAxisAlignment.center,
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(),
-            child: const Text('CLOSE'),
+                  InkWell(
+                    onTap: () => Navigator.of(dialogContext).pop(),
+                    borderRadius: BorderRadius.circular(6),
+                    child: const Padding(
+                      padding: EdgeInsets.all(5),
+                      child: Icon(
+                        Icons.close_rounded,
+                        color: _cream,
+                        size: 16,
+                        shadows: [
+                          Shadow(color: Color(0xFFFF8500), blurRadius: 6),
+                          Shadow(color: Colors.black, blurRadius: 2),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 9),
+              Expanded(
+                child: cards.isEmpty
+                    ? const Center(
+                        child: Text(
+                          'NO CAPTURED CARDS',
+                          style: TextStyle(fontSize: 9),
+                        ),
+                      )
+                    : SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            for (final card in cards) ...[
+                              _Card(card, 47, 67),
+                              const SizedBox(width: 8),
+                            ],
+                          ],
+                        ),
+                      ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
@@ -285,7 +417,7 @@ class _GameScreenState extends ConsumerState<GameScreen> {
         content: const Text(
           'Are you sure you want to leave the match?',
           textAlign: TextAlign.center,
-          style: TextStyle(color: Colors.white70, fontSize: 12),
+          style: TextStyle(color: Colors.white70, fontSize: 14),
         ),
         actionsAlignment: MainAxisAlignment.center,
         actions: [
@@ -325,6 +457,18 @@ class _GameScreenState extends ConsumerState<GameScreen> {
       if (!wasMyTurn && next.isCurrentPlayersTurn) {
         GameSoundService.yourTurn();
         HapticFeedback.mediumImpact();
+      }
+      if (previous != null && drawAnimation == null) {
+        final deals = _drawDealsFor(previous, next);
+        if (deals.isNotEmpty) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted || drawAnimation != null) return;
+            setState(() => drawAnimation = _DrawAnimation(
+                  id: ++drawAnimationId,
+                  deals: deals,
+                ));
+          });
+        }
       }
     });
     final session = ref.watch(gameControllerProvider);
@@ -374,7 +518,7 @@ class _GameScreenState extends ConsumerState<GameScreen> {
                         player: player,
                         selected: selectedCardId,
                         actions: actions,
-                        submitting: isSubmitting,
+                        submitting: isSubmitting || drawAnimation != null,
                         chatMessage: chatMessage,
                         onCard: selectCard,
                         onAction: perform,
@@ -382,9 +526,20 @@ class _GameScreenState extends ConsumerState<GameScreen> {
                         onOpenChat: openChatHistory,
                         onViewCapturedCards: showCapturedCards,
                         onTurnTimeout: handleTurnTimeout,
+                        openingDealPhase: openingDealPhase,
+                        onHandsDealt: () {
+                          if (mounted) setState(() => openingDealPhase = 1);
+                        },
+                        onTableDealt: () {
+                          if (mounted) setState(() => openingDealPhase = 2);
+                        },
                         stealAnimation: stealAnimation,
                         onStealAnimationComplete: () {
                           if (mounted) setState(() => stealAnimation = null);
+                        },
+                        drawAnimation: drawAnimation,
+                        onDrawAnimationComplete: () {
+                          if (mounted) setState(() => drawAnimation = null);
                         },
                         onExit: leaveMatch,
                       ),
@@ -451,8 +606,13 @@ class _Board extends StatelessWidget {
       required this.onOpenChat,
       required this.onViewCapturedCards,
       required this.onTurnTimeout,
+      required this.openingDealPhase,
+      required this.onHandsDealt,
+      required this.onTableDealt,
       required this.stealAnimation,
       required this.onStealAnimationComplete,
+      required this.drawAnimation,
+      required this.onDrawAnimationComplete,
       required this.onExit});
   final GameSessionState session;
   final DaketiGame game;
@@ -467,8 +627,13 @@ class _Board extends StatelessWidget {
   final VoidCallback onOpenChat;
   final ValueChanged<GamePlayer> onViewCapturedCards;
   final VoidCallback onTurnTimeout;
+  final int openingDealPhase;
+  final VoidCallback onHandsDealt;
+  final VoidCallback onTableDealt;
   final _StealAnimation? stealAnimation;
   final VoidCallback onStealAnimationComplete;
+  final _DrawAnimation? drawAnimation;
+  final VoidCallback onDrawAnimationComplete;
   final VoidCallback onExit;
 
   @override
@@ -496,6 +661,30 @@ class _Board extends StatelessWidget {
         opponents.length >= 3 ? opponents[2] : null;
     final isTwoPlayerMatch = opponents.length == 1;
     final isThreePlayerMatch = opponents.length == 2;
+    final isFourPlayerMatch = opponents.length >= 3;
+    int dealingCountFor(String playerId) =>
+        drawAnimation?.deals
+            .where((deal) => deal.playerId == playerId)
+            .length ??
+        0;
+    final localDeals = drawAnimation?.deals
+            .where((deal) => deal.playerId == session.playerId)
+            .toList(growable: false) ??
+        const <_DrawDeal>[];
+    final dealtCardIds = localDeals
+        .where((deal) => !deal.card.isHidden)
+        .map((deal) => deal.card.id)
+        .toSet();
+    var visibleLocalCards = (player?.hand ?? const <GameCard>[])
+        .where((card) => !dealtCardIds.contains(card.id))
+        .toList(growable: false);
+    final unknownLocalDeals =
+        localDeals.where((deal) => deal.card.isHidden).length;
+    if (unknownLocalDeals > 0 && visibleLocalCards.isNotEmpty) {
+      visibleLocalCards = visibleLocalCards
+          .take(math.max(0, visibleLocalCards.length - unknownLocalDeals))
+          .toList(growable: false);
+    }
     final identitySeed = _stableIdentitySeed(session.gameId ?? game.gameId);
     final identityStep = 1 + (identitySeed ~/ 5) % 4;
     _PlayerIdentity? identityFor(GamePlayer? opponent, int seatIndex) {
@@ -524,13 +713,16 @@ class _Board extends StatelessWidget {
     final rightStealAction = stealActionFor(rightOpponent);
     Offset? stealSourceFor(String targetPlayerId) {
       if (topOpponent?.id == targetPlayerId) {
-        return Offset(isTwoPlayerMatch ? 328 : 338, isTwoPlayerMatch ? 68 : 56);
+        return Offset(
+          isFourPlayerMatch ? 430 : 515,
+          isFourPlayerMatch ? 72 : 70,
+        );
       }
       if (leftOpponent?.id == targetPlayerId) {
-        return Offset(87, isThreePlayerMatch ? 165 : 280);
+        return const Offset(145, 275);
       }
       if (rightOpponent?.id == targetPlayerId) {
-        return const Offset(728, 280);
+        return const Offset(680, 185);
       }
       return null;
     }
@@ -576,10 +768,20 @@ class _Board extends StatelessWidget {
           right: 13, top: 118, child: _Square(icon: Icons.settings)),
       if (topOpponent != null)
         Positioned(
-            left: isTwoPlayerMatch ? 277 : 287,
-            top: isTwoPlayerMatch ? 18 : 4,
+            // The supplied frames use two distinct top lanes: centered in a
+            // three-seat game and left-of-centre when the right seat is used.
+            left: isFourPlayerMatch
+                ? 158
+                : isTwoPlayerMatch
+                    ? 287
+                    : 295,
+            top: isFourPlayerMatch
+                ? 5
+                : isTwoPlayerMatch
+                    ? 0
+                    : 8,
             child: Transform.scale(
-              scale: reducedPlayerScale,
+              scale: isTwoPlayerMatch ? reducedPlayerScale : 1,
               alignment: Alignment.topCenter,
               child: _Seat(
                 player: topOpponent,
@@ -588,27 +790,29 @@ class _Board extends StatelessWidget {
                 isActive: game.currentPlayerId == topOpponent.id,
                 game: game,
                 timerRevision: session.turnTimerRevision,
+                showHand: openingDealPhase >= 1,
+                dealingCardCount: dealingCountFor(topOpponent.id),
+                identityScale: isFourPlayerMatch ? 1.08 : 1,
+                handLeft: isFourPlayerMatch ? 225 : 180,
+                handTop: isFourPlayerMatch ? 33 : 37,
               ),
             )),
       if (topOpponent?.topCard != null)
         Positioned(
-            left: isTwoPlayerMatch ? 300 : 310,
-            top: isTwoPlayerMatch ? 36 : 22,
+            left: isFourPlayerMatch ? 350 : 333,
+            top: isFourPlayerMatch ? 44 : 49,
             child: _CapturePile(
               card: topOpponent!.topCard!,
               count: topOpponent.stackCount,
               stealAction: topStealAction,
               onSteal: onAction,
-              onView: () => onViewCapturedCards(topOpponent),
             )),
       if (leftOpponent != null)
         Positioned(
-            // With two opponents, reserve the upper-left for room details and
-            // place this whole seat in the clear lane above match chat.
-            left: isThreePlayerMatch ? 42 : 37,
-            top: isThreePlayerMatch ? 214 : 151,
+            left: 67,
+            top: 164,
             child: Transform.scale(
-              scale: reducedPlayerScale,
+              scale: 1,
               alignment: Alignment.topLeft,
               child: _Seat(
                 player: leftOpponent,
@@ -617,29 +821,28 @@ class _Board extends StatelessWidget {
                 isActive: game.currentPlayerId == leftOpponent.id,
                 game: game,
                 timerRevision: session.turnTimerRevision,
+                showHand: openingDealPhase >= 1,
+                dealingCardCount: dealingCountFor(leftOpponent.id),
+                handLeft: 30,
+                handTop: 92,
               ),
             )),
       if (leftOpponent?.topCard != null)
         Positioned(
-            // In a three-player game, center the captured stack above Player
-            // 2's profile. Their hidden hand remains in its usual right lane.
-            left: isThreePlayerMatch ? 66 : 59,
-            top: isThreePlayerMatch ? 128 : 246,
+            left: 174,
+            top: 204,
             child: _CapturePile(
               card: leftOpponent!.topCard!,
               count: leftOpponent.stackCount,
               stealAction: leftStealAction,
               onSteal: onAction,
-              onView: () => onViewCapturedCards(leftOpponent),
             )),
       if (rightOpponent != null)
         Positioned(
-            // In a four-player match, move Player 3 toward the outer rail so
-            // their hidden hand has clear breathing room from the draw deck.
-            right: isThreePlayerMatch ? 82 : 22,
-            top: isThreePlayerMatch ? 58 : 151,
+            right: 108,
+            top: 49,
             child: Transform.scale(
-              scale: reducedPlayerScale,
+              scale: 1,
               alignment: Alignment.topRight,
               child: _Seat(
                 player: rightOpponent,
@@ -648,41 +851,43 @@ class _Board extends StatelessWidget {
                 isActive: game.currentPlayerId == rightOpponent.id,
                 game: game,
                 timerRevision: session.turnTimerRevision,
+                showHand: openingDealPhase >= 1,
+                dealingCardCount: dealingCountFor(rightOpponent.id),
+                handLeft: 33,
+                handTop: 105,
               ),
             )),
       if (rightOpponent?.topCard != null)
         Positioned(
-            right: 59,
-            top: 246,
+            right: 69,
+            top: 158,
             child: _CapturePile(
               card: rightOpponent!.topCard!,
               count: rightOpponent.stackCount,
               stealAction: rightStealAction,
               onSteal: onAction,
-              onView: () => onViewCapturedCards(rightOpponent),
             )),
-      Positioned(
-          left: 220,
-          right: 220,
-          top: 137,
-          height: 116,
-          child: Transform.scale(
-            scale: isTwoPlayerMatch
-                ? 1.12
-                : isThreePlayerMatch
-                    ? 1.06
-                    : 1,
-            child: _TableCards(
-              cards: game.table,
-              deck: game.deckCount,
-              captureAction: captureTableAction,
-              onCapture: onAction,
-            ),
-          )),
-      Positioned(
-          left: 492,
-          top: 105,
-          child: _TurnLabel(isLocalTurn: session.isCurrentPlayersTurn)),
+      if (openingDealPhase >= 1)
+        Positioned(
+            left: 220,
+            right: 220,
+            top: 137,
+            height: 116,
+            child: Transform.scale(
+              scale: isTwoPlayerMatch ? 1.12 : 1,
+              child: _TableCards(
+                cards: game.table,
+                deck: game.deckCount,
+                captureAction: captureTableAction,
+                onCapture: onAction,
+                onOpeningComplete: openingDealPhase == 1 ? onTableDealt : null,
+              ),
+            )),
+      if (openingDealPhase >= 2)
+        Positioned(
+            left: 492,
+            top: 105,
+            child: _TurnLabel(isLocalTurn: session.isCurrentPlayersTurn)),
       Positioned(
           // Keep the radial hand in its own lane to the right of the local
           // medallion. The shared fan pivot must never sit behind the avatar.
@@ -697,16 +902,22 @@ class _Board extends StatelessWidget {
                     ? 1.05
                     : 1,
             alignment: Alignment.bottomCenter,
-            child: _Hand(
-                cards: player?.hand ?? const [],
-                selected: selected,
-                enabled: session.isCurrentPlayersTurn && !submitting,
-                onTap: onCard),
+            child: AnimatedOpacity(
+              opacity: openingDealPhase >= 1 ? 1 : 0,
+              duration: const Duration(milliseconds: 220),
+              child: _Hand(
+                  cards: visibleLocalCards,
+                  selected: selected,
+                  enabled: openingDealPhase >= 2 &&
+                      session.isCurrentPlayersTurn &&
+                      !submitting,
+                  onTap: onCard),
+            ),
           )),
       if (player?.topCard != null)
         Positioned(
-            left: isTwoPlayerMatch ? 300 : 310,
-            bottom: 5,
+            left: 294,
+            bottom: 10,
             child: _CapturePile(
               card: player!.topCard!,
               count: player!.stackCount,
@@ -715,7 +926,7 @@ class _Board extends StatelessWidget {
               onView: () => onViewCapturedCards(player!),
             )),
       Positioned(
-          left: isTwoPlayerMatch ? 342 : 352,
+          left: 346,
           bottom: 2,
           child: _Medallion(
             player: player,
@@ -736,7 +947,9 @@ class _Board extends StatelessWidget {
           left: 4,
           bottom: 12,
           child: _Chat(onSend: onChat, onOpenHistory: onOpenChat)),
-      if (selected != null && (actions.isNotEmpty || submitting))
+      if (openingDealPhase >= 2 &&
+          selected != null &&
+          (actions.isNotEmpty || submitting))
         Positioned(
             right: 13,
             bottom: 12,
@@ -758,8 +971,152 @@ class _Board extends StatelessWidget {
           cards: animation.cards,
           onComplete: onStealAnimationComplete,
         ),
+      if (drawAnimation case final animation?)
+        _DeckDrawOverlay(
+          key: ValueKey('draw-${animation.id}'),
+          source: Offset(
+            isTwoPlayerMatch
+                ? 613
+                : isThreePlayerMatch
+                    ? 603
+                    : 593,
+            176,
+          ),
+          deals: animation.deals,
+          onComplete: onDrawAnimationComplete,
+        ),
+      if (openingDealPhase == 0)
+        OpeningDealOverlay(
+          playerCount: game.players.length,
+          cardsPerPlayer: player == null
+              ? 4
+              : math.max(player!.handCount, player!.hand.length).clamp(1, 5),
+          onComplete: onHandsDealt,
+        ),
     ]);
   }
+}
+
+class _DeckDrawOverlay extends StatefulWidget {
+  const _DeckDrawOverlay({
+    super.key,
+    required this.source,
+    required this.deals,
+    required this.onComplete,
+  });
+
+  final Offset source;
+  final List<_DrawDeal> deals;
+  final VoidCallback onComplete;
+
+  @override
+  State<_DeckDrawOverlay> createState() => _DeckDrawOverlayState();
+}
+
+class _DeckDrawOverlayState extends State<_DeckDrawOverlay>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController controller;
+  int lastSoundIndex = -1;
+
+  @override
+  void initState() {
+    super.initState();
+    controller = AnimationController(
+      vsync: this,
+      duration: Duration(milliseconds: 180 + widget.deals.length * 470),
+    )
+      ..addListener(_playDealSound)
+      ..addStatusListener((status) {
+        if (status == AnimationStatus.completed) widget.onComplete();
+      })
+      ..forward();
+  }
+
+  void _playDealSound() {
+    final index = (controller.value * widget.deals.length)
+        .floor()
+        .clamp(0, widget.deals.length - 1);
+    if (index == lastSoundIndex) return;
+    lastSoundIndex = index;
+    GameSoundService.cardSelected();
+  }
+
+  @override
+  void dispose() {
+    controller
+      ..removeListener(_playDealSound)
+      ..dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => Positioned.fill(
+        child: AbsorbPointer(
+          child: AnimatedBuilder(
+            animation: controller,
+            builder: (context, child) {
+              final scaled = controller.value * widget.deals.length;
+              final index = scaled.floor().clamp(0, widget.deals.length - 1);
+              final progress = (scaled - index).clamp(0.0, 1.0);
+              final travel = Curves.easeInOutCubic.transform(
+                (progress / .72).clamp(0.0, 1.0),
+              );
+              final flip = Curves.easeInOut.transform(
+                ((progress - .68) / .30).clamp(0.0, 1.0),
+              );
+              final deal = widget.deals[index];
+              final position =
+                  Offset.lerp(widget.source, deal.destination, travel)! +
+                      Offset(0, -math.sin(travel * math.pi) * 38);
+              final scaleX = math.cos(flip * math.pi).abs().clamp(.06, 1.0);
+              final showFace = !deal.card.isHidden && flip >= .5;
+              return Stack(
+                children: [
+                  for (var settledIndex = 0;
+                      settledIndex < index;
+                      settledIndex++)
+                    Positioned(
+                      left: widget.deals[settledIndex].destination.dx -
+                          24 +
+                          widget.deals
+                                  .take(settledIndex)
+                                  .where((item) =>
+                                      item.playerId ==
+                                      widget.deals[settledIndex].playerId)
+                                  .length *
+                              7,
+                      top: widget.deals[settledIndex].destination.dy - 34,
+                      child: _Card(
+                        widget.deals[settledIndex].card,
+                        48,
+                        69,
+                      ),
+                    ),
+                  Positioned(
+                    left: position.dx - 24,
+                    top: position.dy - 34,
+                    child: Transform.rotate(
+                      angle: (1 - travel) * .14,
+                      child: Transform(
+                        alignment: Alignment.center,
+                        transform: Matrix4.diagonal3Values(scaleX, 1, 1),
+                        child: _Card(
+                          showFace
+                              ? deal.card
+                              : const GameCard(
+                                  id: 'hidden', value: '', suit: ''),
+                          48,
+                          69,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
+        ),
+      );
 }
 
 class _Panel extends StatelessWidget {
@@ -835,6 +1192,11 @@ class _Seat extends StatelessWidget {
     required this.isActive,
     required this.game,
     required this.timerRevision,
+    required this.showHand,
+    required this.dealingCardCount,
+    this.identityScale = 1,
+    this.handLeft,
+    this.handTop,
   });
   final GamePlayer player;
   final _PlayerIdentity? identity;
@@ -842,6 +1204,11 @@ class _Seat extends StatelessWidget {
   final bool isActive;
   final DaketiGame game;
   final int timerRevision;
+  final bool showHand;
+  final int dealingCardCount;
+  final double identityScale;
+  final double? handLeft;
+  final double? handTop;
   @override
   Widget build(BuildContext context) {
     final side = place != 0;
@@ -857,23 +1224,34 @@ class _Seat extends StatelessWidget {
                       : null,
               right: side && place == 2 ? 0 : null,
               top: side ? 2 : 0,
-              child: _Medallion(
-                player: player,
-                displayName: identity?.name,
-                avatarAsset: identity?.avatarAsset,
-                isActive: isActive,
-                isLocal: false,
-                game: game,
-                timerRevision: timerRevision,
+              child: Transform.scale(
+                scale: identityScale,
+                alignment: Alignment.topLeft,
+                child: _Medallion(
+                  player: player,
+                  displayName: identity?.name,
+                  avatarAsset: identity?.avatarAsset,
+                  isActive: isActive,
+                  isLocal: false,
+                  game: game,
+                  timerRevision: timerRevision,
+                ),
               )),
           Positioned(
-              left: place == 1
-                  ? 95
-                  : place == 2
-                      ? -45
-                      : 160,
-              top: side ? 42 : 5,
-              child: _Fan(player.handCount.clamp(0, 5))),
+              left: handLeft ??
+                  (place == 1
+                      ? 95
+                      : place == 2
+                          ? -45
+                          : 160),
+              top: handTop ?? (side ? 42 : 5),
+              child: AnimatedOpacity(
+                opacity: showHand ? 1 : 0,
+                duration: const Duration(milliseconds: 220),
+                child: _Fan(
+                  (player.handCount - dealingCardCount).clamp(0, 5),
+                ),
+              )),
         ]));
   }
 }
@@ -1048,9 +1426,9 @@ class _MedallionState extends State<_Medallion> {
             ]),
           ),
           Positioned(
-              // Keep the badge below the avatar so the complete circular
-              // turn-timer remains visible.
-              top: 62,
+              // Leave the complete turn-timer ring visible above the compact
+              // identity panel.
+              top: 60,
               child: SizedBox(
                   width: 94,
                   child: _Badge(
@@ -1116,7 +1494,7 @@ class _Badge extends StatelessWidget {
   Widget build(BuildContext context) => SizedBox(
       width: 94,
       child: _Panel(
-          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 3),
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
           child: Column(children: [
             Text(name.toUpperCase(),
                 maxLines: 1,
@@ -1178,17 +1556,51 @@ class _Fan extends StatelessWidget {
   }
 }
 
-class _TableCards extends StatelessWidget {
+class _TableCards extends StatefulWidget {
   const _TableCards({
     required this.cards,
     required this.deck,
     this.captureAction,
     this.onCapture,
+    this.onOpeningComplete,
   });
   final List<GameCard> cards;
   final int deck;
   final GameAction? captureAction;
   final ValueChanged<GameAction>? onCapture;
+  final VoidCallback? onOpeningComplete;
+
+  @override
+  State<_TableCards> createState() => _TableCardsState();
+}
+
+class _TableCardsState extends State<_TableCards> {
+  Timer? openingDealTimer;
+  bool openingDeal = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _startOpeningDeal();
+  }
+
+  void _startOpeningDeal() {
+    openingDealTimer?.cancel();
+    openingDeal = true;
+    final duration = 520 + widget.cards.length * 145;
+    openingDealTimer = Timer(Duration(milliseconds: duration), () {
+      if (!mounted) return;
+      setState(() => openingDeal = false);
+      widget.onOpeningComplete?.call();
+    });
+  }
+
+  @override
+  void dispose() {
+    openingDealTimer?.cancel();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) => Stack(
         fit: StackFit.expand,
@@ -1198,76 +1610,77 @@ class _TableCards extends StatelessWidget {
             right: 72,
             top: 2,
             bottom: 2,
-            child: AnimatedSwitcher(
-              duration: const Duration(milliseconds: 340),
-              switchInCurve: Curves.easeOutBack,
-              switchOutCurve: Curves.easeIn,
-              transitionBuilder: (child, animation) => FadeTransition(
-                opacity: animation,
-                child: ScaleTransition(scale: animation, child: child),
-              ),
-              child: LayoutBuilder(
-                key: ValueKey(cards.map((card) => card.id).join('|')),
-                builder: (context, constraints) {
-                  const cardsPerRow = 5;
-                  const cardWidth = 47.0;
-                  const cardHeight = 67.0;
-                  const horizontalStep = 54.0;
-                  final rowCount = (cards.length / cardsPerRow).ceil();
-                  final verticalStep = rowCount <= 1
-                      ? 0.0
-                      : ((constraints.maxHeight - cardHeight) / (rowCount - 1))
-                          .clamp(14.0, 28.0);
-                  final firstRowCount = cards.length.clamp(0, cardsPerRow);
-                  final firstRowWidth = firstRowCount == 0
-                      ? 0.0
-                      : cardWidth + (firstRowCount - 1) * horizontalStep;
-                  final baseLeft = (constraints.maxWidth - firstRowWidth) / 2;
-                  final paintOrder = List<int>.generate(cards.length, (i) => i)
-                    ..sort((a, b) {
-                      final rowA = a ~/ cardsPerRow;
-                      final rowB = b ~/ cardsPerRow;
-                      final rowComparison = rowA.compareTo(rowB);
-                      return rowComparison != 0
-                          ? rowComparison
-                          : a.compareTo(b);
-                    });
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                const cardsPerRow = 5;
+                const cardWidth = 47.0;
+                const cardHeight = 67.0;
+                const horizontalStep = 54.0;
+                final rowCount = (widget.cards.length / cardsPerRow).ceil();
+                final verticalStep = rowCount <= 1
+                    ? 0.0
+                    : ((constraints.maxHeight - cardHeight) / (rowCount - 1))
+                        .clamp(14.0, 28.0);
+                final firstRowCount = widget.cards.length.clamp(0, cardsPerRow);
+                final firstRowWidth = firstRowCount == 0
+                    ? 0.0
+                    : cardWidth + (firstRowCount - 1) * horizontalStep;
+                final baseLeft = (constraints.maxWidth - firstRowWidth) / 2;
+                final paintOrder = List<int>.generate(
+                    widget.cards.length, (i) => i)
+                  ..sort((a, b) {
+                    final rowA = a ~/ cardsPerRow;
+                    final rowB = b ~/ cardsPerRow;
+                    final rowComparison = rowA.compareTo(rowB);
+                    return rowComparison != 0 ? rowComparison : a.compareTo(b);
+                  });
 
-                  return Stack(
-                    clipBehavior: Clip.none,
-                    children: paintOrder.map((index) {
-                      final row = index ~/ cardsPerRow;
-                      final column = index % cardsPerRow;
-                      // Each additional row sits above the row before it.
-                      // Its first card begins halfway between the first two
-                      // cards, matching the requested overlapping pile.
-                      final stagger = row.isOdd ? horizontalStep / 2 : 0.0;
-                      return Positioned(
-                        left: baseLeft + column * horizontalStep + stagger,
-                        top: row * verticalStep,
-                        child: Semantics(
-                          button: captureAction != null,
-                          label: captureAction == null
-                              ? null
-                              : 'Take matching table cards',
-                          child: GestureDetector(
-                            behavior: HitTestBehavior.opaque,
-                            onTap: captureAction != null && onCapture != null
-                                ? () => onCapture!(captureAction!)
-                                : null,
-                            child: _Card(cards[index], cardWidth, cardHeight),
+                return Stack(
+                  clipBehavior: Clip.none,
+                  children: paintOrder.map((index) {
+                    final row = index ~/ cardsPerRow;
+                    final column = index % cardsPerRow;
+                    // Each additional row sits above the row before it.
+                    // Its first card begins halfway between the first two
+                    // cards, matching the requested overlapping pile.
+                    final stagger = row.isOdd ? horizontalStep / 2 : 0.0;
+                    final card = widget.cards[index];
+                    return Positioned(
+                      key: ValueKey('table-${card.id}'),
+                      left: baseLeft + column * horizontalStep + stagger,
+                      top: row * verticalStep,
+                      child: Semantics(
+                        button: widget.captureAction != null,
+                        label: widget.captureAction == null
+                            ? null
+                            : 'Take matching table cards',
+                        child: GestureDetector(
+                          behavior: HitTestBehavior.opaque,
+                          onTap: widget.captureAction != null &&
+                                  widget.onCapture != null
+                              ? () => widget.onCapture!(widget.captureAction!)
+                              : null,
+                          child: _OpeningTableCard(
+                            card: card,
+                            index: index,
+                            travelX: 220 - column * horizontalStep,
+                            animate: openingDeal,
+                            width: cardWidth,
+                            height: cardHeight,
                           ),
                         ),
-                      );
-                    }).toList(growable: false),
-                  );
-                },
-              ),
+                      ),
+                    );
+                  }).toList(growable: false),
+                );
+              },
             ),
           ),
-          if (deck > 0)
+          if (widget.deck > 0)
             Positioned(
-              right: 8,
+              // Preserve the clear lane between the draw pile and the right
+              // opponent's hidden hand shown in the approved frame.
+              right: 21,
               top: 7,
               child: Stack(children: [
                 const Padding(
@@ -1286,11 +1699,118 @@ class _TableCards extends StatelessWidget {
                 Positioned(
                   right: 3,
                   bottom: 2,
-                  child: Text('$deck', style: const TextStyle(fontSize: 7)),
+                  child: Text('${widget.deck}',
+                      style: const TextStyle(fontSize: 7)),
                 ),
               ]),
             ),
         ],
+      );
+}
+
+class _OpeningTableCard extends StatefulWidget {
+  const _OpeningTableCard({
+    required this.card,
+    required this.index,
+    required this.travelX,
+    required this.animate,
+    required this.width,
+    required this.height,
+  });
+
+  final GameCard card;
+  final int index;
+  final double travelX;
+  final bool animate;
+  final double width;
+  final double height;
+
+  @override
+  State<_OpeningTableCard> createState() => _OpeningTableCardState();
+}
+
+class _OpeningTableCardState extends State<_OpeningTableCard>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController controller;
+
+  @override
+  void initState() {
+    super.initState();
+    controller = AnimationController(
+      vsync: this,
+      duration: Duration(milliseconds: widget.animate ? 500 : 230),
+    );
+    if (widget.animate) {
+      Future<void>.delayed(
+        Duration(milliseconds: 70 + widget.index * 145),
+        () {
+          if (mounted) controller.forward();
+        },
+      );
+    } else {
+      controller.forward();
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant _OpeningTableCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.animate && !widget.animate && !controller.isCompleted) {
+      controller.value = 1;
+    }
+  }
+
+  @override
+  void dispose() {
+    controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AnimatedBuilder(
+        animation: controller,
+        builder: (context, child) {
+          if (!widget.animate) {
+            final arrival = Curves.easeOutBack.transform(controller.value);
+            return Opacity(
+              opacity: controller.value.clamp(0.0, 1.0),
+              child: Transform.scale(
+                scale: .84 + .16 * arrival,
+                alignment: Alignment.center,
+                child: _Card(widget.card, widget.width, widget.height),
+              ),
+            );
+          }
+          final progress = Curves.easeOutCubic.transform(controller.value);
+          final flipProgress = Curves.easeInOut.transform(
+            ((controller.value - .18) / .82).clamp(0.0, 1.0),
+          );
+          final scaleX = math.cos(flipProgress * math.pi).abs().clamp(.06, 1.0);
+          final faceUp = flipProgress >= .5;
+          return Opacity(
+            opacity: controller.value.clamp(0.0, 1.0),
+            child: Transform.translate(
+              offset: Offset(
+                widget.travelX * (1 - progress),
+                -12 * (1 - progress),
+              ),
+              child: Transform.rotate(
+                angle: (1 - progress) * .10,
+                child: Transform(
+                  alignment: Alignment.center,
+                  transform: Matrix4.diagonal3Values(scaleX, 1, 1),
+                  child: _Card(
+                    faceUp
+                        ? widget.card
+                        : const GameCard(id: 'hidden', value: '', suit: ''),
+                    widget.width,
+                    widget.height,
+                  ),
+                ),
+              ),
+            ),
+          );
+        },
       );
 }
 
@@ -1314,59 +1834,67 @@ class _CapturePile extends StatelessWidget {
   final VoidCallback? onView;
 
   @override
-  Widget build(BuildContext context) => Semantics(
-      label:
-          'Captured stack, $count cards, top card ${card.value} of ${card.suit}',
-      child: TweenAnimationBuilder<double>(
-        key: ValueKey('${card.id}-$count'),
-        tween: Tween(begin: .78, end: 1),
-        duration: const Duration(milliseconds: 360),
-        curve: Curves.easeOutBack,
-        builder: (context, scale, child) => Transform.scale(
-          scale: scale,
-          alignment: Alignment.center,
-          child: child,
-        ),
-        child: GestureDetector(
-          onTap: stealAction != null && onSteal != null
-              ? () => onSteal!(stealAction!)
-              : primaryAction != null && onPrimaryAction != null
-                  ? () => onPrimaryAction!(primaryAction!)
-                  : onView,
-          child: SizedBox(
-            width: 57,
-            height: 82,
-            child: Stack(clipBehavior: Clip.none, children: [
-              if (count > 2)
-                Positioned(
-                    left: 5,
-                    top: 5,
-                    child: Opacity(opacity: .75, child: _Card(card, 47, 67))),
-              if (count > 1)
-                Positioned(
-                    left: 2,
-                    top: 2,
-                    child: Opacity(opacity: .88, child: _Card(card, 47, 67))),
-              Positioned(left: 0, top: 0, child: _Card(card, 47, 67)),
-              Positioned(
-                  right: 0,
-                  bottom: 0,
-                  child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 4, vertical: 2),
-                      decoration: BoxDecoration(
-                          color: const Color(0xED11130F),
-                          borderRadius: BorderRadius.circular(7),
-                          border: Border.all(color: _gold)),
-                      child: Text('$count',
-                          style: const TextStyle(
-                              color: _cream,
-                              fontSize: 7,
-                              fontWeight: FontWeight.w900)))),
-            ]),
-          ),
-        ),
-      ));
+  Widget build(BuildContext context) => Transform.scale(
+        // Captured piles use the compact orange-box footprint from the
+        // approved frames, while table and hand cards retain their full size.
+        scale: .84,
+        alignment: Alignment.topLeft,
+        child: Semantics(
+            label:
+                'Captured stack, $count cards, top card ${card.value} of ${card.suit}',
+            child: TweenAnimationBuilder<double>(
+              key: ValueKey('${card.id}-$count'),
+              tween: Tween(begin: .78, end: 1),
+              duration: const Duration(milliseconds: 360),
+              curve: Curves.easeOutBack,
+              builder: (context, scale, child) => Transform.scale(
+                scale: scale,
+                alignment: Alignment.center,
+                child: child,
+              ),
+              child: GestureDetector(
+                onTap: stealAction != null && onSteal != null
+                    ? () => onSteal!(stealAction!)
+                    : primaryAction != null && onPrimaryAction != null
+                        ? () => onPrimaryAction!(primaryAction!)
+                        : onView,
+                child: SizedBox(
+                  width: 57,
+                  height: 82,
+                  child: Stack(clipBehavior: Clip.none, children: [
+                    if (count > 2)
+                      Positioned(
+                          left: 5,
+                          top: 5,
+                          child: Opacity(
+                              opacity: .75, child: _Card(card, 47, 67))),
+                    if (count > 1)
+                      Positioned(
+                          left: 2,
+                          top: 2,
+                          child: Opacity(
+                              opacity: .88, child: _Card(card, 47, 67))),
+                    Positioned(left: 0, top: 0, child: _Card(card, 47, 67)),
+                    Positioned(
+                        right: 0,
+                        bottom: 0,
+                        child: Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 4, vertical: 2),
+                            decoration: BoxDecoration(
+                                color: const Color(0xED11130F),
+                                borderRadius: BorderRadius.circular(7),
+                                border: Border.all(color: _gold)),
+                            child: Text('$count',
+                                style: const TextStyle(
+                                    color: _cream,
+                                    fontSize: 7,
+                                    fontWeight: FontWeight.w900)))),
+                  ]),
+                ),
+              ),
+            )),
+      );
 }
 
 class _Hand extends StatelessWidget {

@@ -80,8 +80,7 @@ class TutorialOverlay extends StatelessWidget {
             top: 10,
             child: GameButton(
               text: 'Skip Tutorial',
-              width: 125,
-              fontSize: 10,
+              width: 155,
               onTap: onSkip,
             ),
           ),
