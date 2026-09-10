@@ -793,13 +793,16 @@ class _Board extends StatelessWidget {
                 showHand: openingDealPhase >= 1,
                 dealingCardCount: dealingCountFor(topOpponent.id),
                 identityScale: isFourPlayerMatch ? 1.08 : 1,
+                identityLeft: 70,
                 handLeft: isFourPlayerMatch ? 225 : 180,
                 handTop: isFourPlayerMatch ? 33 : 37,
               ),
             )),
       if (topOpponent?.topCard != null)
         Positioned(
-            left: isFourPlayerMatch ? 350 : 333,
+            // Travel with the shifted profile, leaving the hidden hand in its
+            // approved position and using the space opened on the left.
+            left: isFourPlayerMatch ? 332 : 315,
             top: isFourPlayerMatch ? 44 : 49,
             child: _CapturePile(
               card: topOpponent!.topCard!,
@@ -1195,6 +1198,7 @@ class _Seat extends StatelessWidget {
     required this.showHand,
     required this.dealingCardCount,
     this.identityScale = 1,
+    this.identityLeft,
     this.handLeft,
     this.handTop,
   });
@@ -1207,6 +1211,7 @@ class _Seat extends StatelessWidget {
   final bool showHand;
   final int dealingCardCount;
   final double identityScale;
+  final double? identityLeft;
   final double? handLeft;
   final double? handTop;
   @override
@@ -1218,7 +1223,7 @@ class _Seat extends StatelessWidget {
         child: Stack(clipBehavior: Clip.none, children: [
           Positioned(
               left: place == 0
-                  ? 82
+                  ? identityLeft ?? 82
                   : side && place == 1
                       ? 0
                       : null,
@@ -1527,7 +1532,7 @@ class _Fan extends StatelessWidget {
     // retaining enough overlap to keep their name and score unobstructed.
     const cardWidth = 38.0;
     const cardHeight = 55.0;
-    const overlapStep = 12.0;
+    const overlapStep = 9.0;
     final rowWidth = count == 0 ? 0.0 : cardWidth + (count - 1) * overlapStep;
     final start = (100 - rowWidth) / 2;
     final center = (count - 1) / 2;

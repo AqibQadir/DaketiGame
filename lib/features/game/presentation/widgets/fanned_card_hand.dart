@@ -47,14 +47,13 @@ class FannedCardHand extends StatelessWidget {
       final width = constraints.maxWidth.isFinite
           ? constraints.maxWidth
           : cardWidth + (count - 1) * cardWidth * .42;
-      final availableStep = count <= 1
-          ? 0.0
-          : math.max(0.0, width - cardWidth - 8) / (count - 1);
-      // A little under half-card exposure keeps each top corner readable while
-      // giving the hand the tighter layered appearance from the reference.
+      final availableStep =
+          count <= 1 ? 0.0 : math.max(0.0, width - cardWidth - 8) / (count - 1);
+      // Keep the cards tightly layered like the approved hand reference while
+      // leaving enough of each top corner exposed for rank recognition.
       final exposure = count <= 1
           ? 0.0
-          : math.min(cardWidth * .42, availableStep).toDouble();
+          : math.min(cardWidth * .34, availableStep).toDouble();
       final handWidth = cardWidth + exposure * (count - 1);
       final startX = (width - handWidth) / 2;
       final centerX = width / 2;
@@ -71,7 +70,8 @@ class FannedCardHand extends StatelessWidget {
           final normalizedIndex = index - centerIndex;
           final angle = count <= 1 ? 0.0 : normalizedIndex * .12;
           final distanceFromCenter = normalizedIndex.abs();
-          final centerLift = math.max(0.0, centerIndex - distanceFromCenter) * 3;
+          final centerLift =
+              math.max(0.0, centerIndex - distanceFromCenter) * 3;
           final selected = card.id == selectedCardId;
 
           return AnimatedPositioned(
