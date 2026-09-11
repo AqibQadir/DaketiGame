@@ -9,16 +9,27 @@ import '../../../../core/widgets/glass_panel.dart';
 import '../controllers/game_controller.dart';
 
 class MultiplayerScreen extends ConsumerStatefulWidget {
-  const MultiplayerScreen({super.key});
+  const MultiplayerScreen({
+    super.key,
+    this.initialPlayerName = 'Player',
+  });
+
+  final String initialPlayerName;
 
   @override
   ConsumerState<MultiplayerScreen> createState() => _MultiplayerScreenState();
 }
 
 class _MultiplayerScreenState extends ConsumerState<MultiplayerScreen> {
-  final nameController = TextEditingController(text: 'Player');
+  late final TextEditingController nameController;
   final codeController = TextEditingController();
   int maxPlayers = 4;
+
+  @override
+  void initState() {
+    super.initState();
+    nameController = TextEditingController(text: widget.initialPlayerName);
+  }
 
   @override
   void dispose() {

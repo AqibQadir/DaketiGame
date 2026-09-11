@@ -504,9 +504,10 @@ class _GameScreenState extends ConsumerState<GameScreen> {
             filterQuality: FilterQuality.high,
           ),
           const ColoredBox(color: Color(0x18000000)),
-          Center(
+          Positioned.fill(
             child: FittedBox(
               fit: BoxFit.cover,
+              alignment: Alignment.center,
               child: SizedBox(
                 width: 844,
                 height: 390,

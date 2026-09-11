@@ -105,9 +105,10 @@ class _GameTutorialScreenState extends State<GameTutorialScreen> {
           fit: StackFit.expand,
           children: [
             Image.asset(AppAssets.tableBackground, fit: BoxFit.cover),
-            Center(
+            Positioned.fill(
               child: FittedBox(
-                fit: BoxFit.contain,
+                fit: BoxFit.cover,
+                alignment: Alignment.center,
                 child: SizedBox(
                   width: 844,
                   height: 390,

@@ -16,9 +16,10 @@ class BaithakScreen extends StatelessWidget {
     return Scaffold(
       body: GameBackground(
         overlayOpacity: .18,
-        child: Center(
+        child: SizedBox.expand(
           child: FittedBox(
             fit: BoxFit.cover,
+            alignment: Alignment.center,
             child: SizedBox(
               width: 844,
               height: 390,

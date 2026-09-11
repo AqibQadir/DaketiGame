@@ -62,41 +62,43 @@ class _LoginScreenState extends State<LoginScreen> {
                 },
               ),
             ),
-            AnimatedSlide(
-              offset: Offset(0, keyboardOpen ? -.30 : 0),
-              duration: const Duration(milliseconds: 220),
-              curve: Curves.easeOutCubic,
-              child: Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const DaketiLogo(
-                      type: DaketiLogoType.whiteOrange,
-                      width: 300,
-                    ),
-                    const SizedBox(height: 18),
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        GameTextField(
-                          hint: 'Email',
-                          controller: usernameController,
-                        ),
-                        const SizedBox(width: 14),
-                        GameTextField(
-                          hint: 'Password',
-                          obscureText: true,
-                          controller: passwordController,
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 15),
-                    GameButton(
-                      text: 'Login',
-                      onTap: submit,
-                    ),
-                  ],
-                ),
+            Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const DaketiLogo(
+                    type: DaketiLogoType.whiteOrange,
+                    width: 300,
+                  ),
+                  const SizedBox(height: 18),
+                  AnimatedSlide(
+                    offset: Offset(0, keyboardOpen ? -.55 : 0),
+                    duration: const Duration(milliseconds: 220),
+                    curve: Curves.easeOutCubic,
+                    child: Column(children: [
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          GameTextField(
+                            hint: 'Email',
+                            controller: usernameController,
+                          ),
+                          const SizedBox(width: 14),
+                          GameTextField(
+                            hint: 'Password',
+                            obscureText: true,
+                            controller: passwordController,
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 15),
+                      GameButton(
+                        text: 'Login',
+                        onTap: submit,
+                      ),
+                    ]),
+                  ),
+                ],
               ),
             ),
             Positioned(

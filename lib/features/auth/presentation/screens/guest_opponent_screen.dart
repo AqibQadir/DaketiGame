@@ -23,7 +23,7 @@ class GuestOpponentScreen extends ConsumerStatefulWidget {
 }
 
 class _GuestOpponentScreenState extends ConsumerState<GuestOpponentScreen> {
-  int opponents = 1;
+  int opponents = 2;
 
   Future<void> startGame() async {
     final success = await ref
@@ -52,9 +52,10 @@ class _GuestOpponentScreenState extends ConsumerState<GuestOpponentScreen> {
     final loading = ref.watch(gameControllerProvider).isLoading;
     return Scaffold(
       body: GameBackground(
-        child: Center(
+        child: SizedBox.expand(
           child: FittedBox(
             fit: BoxFit.cover,
+            alignment: Alignment.center,
             child: SizedBox(
               width: 844,
               height: 390,
@@ -95,12 +96,23 @@ class _GuestOpponentScreenState extends ConsumerState<GuestOpponentScreen> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: List.generate(3, (index) {
+                          final isCustom = index == 0;
                           final count = index + 1;
-                          final selected = opponents == count;
+                          final selected = !isCustom && opponents == count;
                           return Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 8),
                             child: InkWell(
-                              onTap: () => setState(() => opponents = count),
+                              onTap: () {
+                                if (isCustom) {
+                                  Navigator.pushNamed(
+                                    context,
+                                    AppRoutes.multiplayer,
+                                    arguments: widget.playerName,
+                                  );
+                                  return;
+                                }
+                                setState(() => opponents = count);
+                              },
                               borderRadius: BorderRadius.circular(12),
                               child: AnimatedContainer(
                                 duration: const Duration(milliseconds: 160),
@@ -122,7 +134,9 @@ class _GuestOpponentScreenState extends ConsumerState<GuestOpponentScreen> {
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
                                     Icon(
-                                      count == 1 ? Icons.person : Icons.groups,
+                                      isCustom
+                                          ? Icons.group_add_rounded
+                                          : Icons.groups,
                                       color: selected
                                           ? AppColors.orange
                                           : AppColors.cream,
@@ -130,7 +144,7 @@ class _GuestOpponentScreenState extends ConsumerState<GuestOpponentScreen> {
                                     ),
                                     const SizedBox(height: 3),
                                     Text(
-                                      '$count ${count == 1 ? 'OPPONENT' : 'OPPONENTS'}',
+                                      isCustom ? 'CUSTOM' : '$count OPPONENTS',
                                       style: const TextStyle(
                                         fontSize: 8,
                                         fontWeight: FontWeight.w800,

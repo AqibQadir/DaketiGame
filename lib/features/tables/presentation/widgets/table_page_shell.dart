@@ -23,9 +23,10 @@ class TablePageShell extends StatelessWidget {
     return Scaffold(
       body: GameBackground(
         overlayOpacity: .19,
-        child: Center(
+        child: SizedBox.expand(
           child: FittedBox(
             fit: BoxFit.cover,
+            alignment: Alignment.center,
             child: SizedBox(
               width: 844,
               height: 390,

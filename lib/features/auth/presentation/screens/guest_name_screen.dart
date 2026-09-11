@@ -45,9 +45,10 @@ class _GuestNameScreenState extends State<GuestNameScreen> {
     return Scaffold(
       resizeToAvoidBottomInset: false,
       body: GameBackground(
-        child: Center(
+        child: SizedBox.expand(
           child: FittedBox(
             fit: BoxFit.cover,
+            alignment: Alignment.center,
             child: SizedBox(
               width: 844,
               height: 390,
@@ -68,31 +69,33 @@ class _GuestNameScreenState extends State<GuestNameScreen> {
                     onTap: () => Navigator.pushNamed(context, AppRoutes.menu),
                   ),
                 ),
-                AnimatedSlide(
-                  offset: Offset(0, keyboardOpen ? -.30 : 0),
-                  duration: const Duration(milliseconds: 220),
-                  curve: Curves.easeOutCubic,
-                  child: Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const DaketiLogo(
-                          type: DaketiLogoType.whiteOrange,
-                          width: 315,
-                        ),
-                        const SizedBox(height: 21),
-                        GameTextField(
-                          hint: 'Temporary username',
-                          controller: controller,
-                        ),
-                        const SizedBox(height: 23),
-                        GameButton(
-                          text: 'Play',
-                          width: 180,
-                          onTap: continueToOpponents,
-                        ),
-                      ],
-                    ),
+                Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const DaketiLogo(
+                        type: DaketiLogoType.whiteOrange,
+                        width: 315,
+                      ),
+                      const SizedBox(height: 21),
+                      AnimatedSlide(
+                        offset: Offset(0, keyboardOpen ? -.55 : 0),
+                        duration: const Duration(milliseconds: 220),
+                        curve: Curves.easeOutCubic,
+                        child: Column(children: [
+                          GameTextField(
+                            hint: 'Temporary username',
+                            controller: controller,
+                          ),
+                          const SizedBox(height: 23),
+                          GameButton(
+                            text: 'Play',
+                            width: 180,
+                            onTap: continueToOpponents,
+                          ),
+                        ]),
+                      ),
+                    ],
                   ),
                 ),
                 Positioned(

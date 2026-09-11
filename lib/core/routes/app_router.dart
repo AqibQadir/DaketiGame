@@ -111,7 +111,10 @@ class AppRouter {
             : TableRoom.oldLahore;
         return _page(TableRoomScreen(room: room));
       case AppRoutes.multiplayer:
-        return _page(const MultiplayerScreen());
+        final playerName = settings.arguments is String
+            ? settings.arguments! as String
+            : 'Player';
+        return _page(MultiplayerScreen(initialPlayerName: playerName));
       case AppRoutes.waitingRoom:
         return _page(const WaitingRoomScreen());
       case AppRoutes.results:

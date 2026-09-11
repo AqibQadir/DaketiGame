@@ -55,9 +55,10 @@ class _SideQuestsScreenState extends State<SideQuestsScreen> {
     return Scaffold(
       body: GameBackground(
         overlayOpacity: .20,
-        child: Center(
+        child: SizedBox.expand(
           child: FittedBox(
             fit: BoxFit.cover,
+            alignment: Alignment.center,
             child: SizedBox(
               width: 844,
               height: 390,

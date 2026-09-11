@@ -67,57 +67,59 @@ class _SignupScreenState extends State<SignupScreen> {
                 },
               ),
             ),
-            AnimatedSlide(
-              offset: Offset(0, keyboardOpen ? -.34 : 0),
-              duration: const Duration(milliseconds: 220),
-              curve: Curves.easeOutCubic,
-              child: Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const DaketiLogo(
-                      type: DaketiLogoType.whiteOrange,
-                      width: 300,
-                    ),
-                    const SizedBox(height: 14),
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        GameTextField(
-                          hint: 'Email',
-                          controller: emailController,
-                        ),
-                        const SizedBox(width: 14),
-                        GameTextField(
-                          hint: 'Username',
-                          controller: usernameController,
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        GameTextField(
-                          hint: 'Password',
-                          obscureText: true,
-                          controller: passwordController,
-                        ),
-                        const SizedBox(width: 14),
-                        GameTextField(
-                          hint: 'Re-enter password',
-                          obscureText: true,
-                          controller: confirmPasswordController,
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 14),
-                    GameButton(
-                      text: 'Signup',
-                      onTap: submit,
-                    ),
-                  ],
-                ),
+            Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const DaketiLogo(
+                    type: DaketiLogoType.whiteOrange,
+                    width: 300,
+                  ),
+                  const SizedBox(height: 14),
+                  AnimatedSlide(
+                    offset: Offset(0, keyboardOpen ? -.55 : 0),
+                    duration: const Duration(milliseconds: 220),
+                    curve: Curves.easeOutCubic,
+                    child: Column(children: [
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          GameTextField(
+                            hint: 'Email',
+                            controller: emailController,
+                          ),
+                          const SizedBox(width: 14),
+                          GameTextField(
+                            hint: 'Username',
+                            controller: usernameController,
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          GameTextField(
+                            hint: 'Password',
+                            obscureText: true,
+                            controller: passwordController,
+                          ),
+                          const SizedBox(width: 14),
+                          GameTextField(
+                            hint: 'Re-enter password',
+                            obscureText: true,
+                            controller: confirmPasswordController,
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 14),
+                      GameButton(
+                        text: 'Signup',
+                        onTap: submit,
+                      ),
+                    ]),
+                  ),
+                ],
               ),
             ),
             Positioned(
