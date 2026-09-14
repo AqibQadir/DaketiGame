@@ -1,41 +1,72 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
 import '../../../../core/routes/app_routes.dart';
 import '../../../../core/widgets/game_background.dart';
+import '../../../legal/data/legal_acceptance_storage.dart';
+import '../../../auth/presentation/controllers/auth_controller.dart';
 
-class SplashScreen extends StatefulWidget {
+class SplashScreen extends ConsumerStatefulWidget {
   const SplashScreen({super.key});
 
   @override
-  State<SplashScreen> createState() => _SplashScreenState();
+  ConsumerState<SplashScreen> createState() => _SplashScreenState();
 }
 
-class _SplashScreenState extends State<SplashScreen> {
+class _SplashScreenState extends ConsumerState<SplashScreen> {
   Timer? _timer;
+  ProviderSubscription<AuthState>? _authSubscription;
+  bool _minimumDisplayElapsed = false;
+  bool? _legalAccepted;
+  bool _navigated = false;
 
   @override
   void initState() {
     super.initState();
 
-    _timer = Timer(
-      const Duration(seconds: 3),
-      () {
-        if (!mounted) return;
-
-        Navigator.pushReplacementNamed(
-          context,
-          AppRoutes.terms,
-        );
-      },
+    _authSubscription = ref.listenManual<AuthState>(
+      authControllerProvider,
+      (_, __) => _tryNavigate(),
+      fireImmediately: true,
     );
+    _loadStartupState();
+  }
+
+  Future<void> _loadStartupState() async {
+    final accepted = await LegalAcceptanceStorage().isAccepted();
+    if (!mounted) return;
+    _legalAccepted = accepted;
+    _timer = Timer(const Duration(seconds: 3), () {
+      _minimumDisplayElapsed = true;
+      _tryNavigate();
+    });
+  }
+
+  void _tryNavigate() {
+    if (!mounted ||
+        _navigated ||
+        !_minimumDisplayElapsed ||
+        _legalAccepted == null) {
+      return;
+    }
+    final auth = ref.read(authControllerProvider);
+    if (auth.isRestoring) return;
+    _navigated = true;
+    final route = _legalAccepted! == false
+        ? AppRoutes.terms
+        : auth.isAuthenticated
+            ? AppRoutes.home
+            : AppRoutes.welcome;
+    Navigator.pushReplacementNamed(context, route);
   }
 
   @override
   void dispose() {
     _timer?.cancel();
+    _authSubscription?.close();
     super.dispose();
   }
 

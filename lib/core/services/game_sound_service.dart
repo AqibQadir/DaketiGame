@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:math';
 
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/foundation.dart';
@@ -11,7 +10,6 @@ import 'package:flutter/foundation.dart';
 class GameSoundService {
   GameSoundService._();
 
-  static final _random = Random();
   static final _uiPlayer = AudioPlayer(playerId: 'daketi_ui_sounds');
   static final _gamePlayer = AudioPlayer(playerId: 'daketi_game_sounds');
   static final _alertPlayer = AudioPlayer(playerId: 'daketi_alert_sounds');
@@ -24,9 +22,11 @@ class GameSoundService {
 
   static void cardSelected() => _play(_uiPlayer, 'SwipeCard.wav', volume: .65);
 
-  static void shuffle() => _play(_gamePlayer, 'CardShuffle.wav', volume: .72);
+  static void shuffle() =>
+      _play(_gamePlayer, 'cardshuffleatbeginning.wav', volume: .72);
 
-  static void cardSlap() => _play(_gamePlayer, 'CardMove.wav', volume: .78);
+  static void cardSlap() =>
+      _play(_gamePlayer, 'throwcardontable.wav', volume: .78);
 
   static void goodMove() => _play(_gamePlayer, 'good move.wav', volume: .72);
 
@@ -35,26 +35,19 @@ class GameSoundService {
 
   static void challenge() => _play(_gamePlayer, 'Challenge.wav', volume: .82);
 
-  static void daketiRide() {
-    challenge();
-    Timer(const Duration(milliseconds: 880), cardSelected);
-    Timer(const Duration(milliseconds: 1480), cardSlap);
-  }
+  static void stealCard() => _play(_gamePlayer, 'stealcard.wav', volume: .82);
 
   static void invalidMove() =>
       _play(_alertPlayer, 'invalidmove.wav', volume: .8);
 
-  static void yourTurn() => _play(
-        _alertPlayer,
-        _variant(const ['TurnChange.wav', 'TurnChange2.wav']),
-        volume: .75,
-      );
+  static void nextPlayerMove() =>
+      _play(_alertPlayer, 'nextplayermove.wav', volume: .75);
 
-  static void timerWarning() =>
-      _play(_alertPlayer, 'Timer Start.wav', volume: .72);
+  static void timerWarning10Seconds() =>
+      _play(_alertPlayer, 'timerwarning10secondsleft.wav', volume: .72);
 
-  static void timerTick() =>
-      _play(_alertPlayer, 'timerwarning.wav', volume: .55);
+  static void timerCountdown() =>
+      _play(_alertPlayer, 'timerwarning5-0secondleft.wav', volume: .72);
 
   static void playerJoined() {}
 
@@ -65,9 +58,6 @@ class GameSoundService {
   static void roundWon() => _play(_gamePlayer, 'rOUNDwIN.wav', volume: .85);
 
   static void gameLost() {}
-
-  static String _variant(List<String> values) =>
-      values[_random.nextInt(values.length)];
 
   static void _play(
     AudioPlayer player,

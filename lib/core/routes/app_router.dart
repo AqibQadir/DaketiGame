@@ -11,6 +11,7 @@ import '../../features/tutorial/presentation/screens/game_tutorial_screen.dart';
 import '../../features/legal/presentation/screens/privacy_policy_screen.dart';
 import '../../features/legal/presentation/screens/terms_conditions_screen.dart';
 import '../../features/profile/presentation/screens/profile_screen.dart';
+import '../../features/profile/presentation/screens/game_history_screen.dart';
 import '../../features/settings/presentation/screens/settings_screen.dart';
 import '../../features/splash/presentation/screens/splash_screen.dart';
 import '../../features/support/presentation/screens/support_screen.dart';
@@ -66,6 +67,8 @@ class AppRouter {
         return _page(const SettingsScreen());
       case AppRoutes.profile:
         return _page(const ProfileScreen());
+      case AppRoutes.gameHistory:
+        return _page(const GameHistoryScreen());
       case AppRoutes.support:
         return _page(const SupportScreen());
       case AppRoutes.menu:

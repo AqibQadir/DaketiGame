@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/widgets/game_button.dart';
+import '../../../../core/widgets/game_alert.dart';
 import '../widgets/support_page_shell.dart';
 
 class ReportIssueScreen extends StatefulWidget {
@@ -23,15 +24,11 @@ class _ReportIssueScreenState extends State<ReportIssueScreen> {
   void submit() {
     final text = controller.text.trim();
     if (text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please describe the issue first.')),
-      );
+      showGameAlert(context, 'Please describe the issue first.');
       return;
     }
     controller.clear();
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Your report has been recorded.')),
-    );
+    showGameAlert(context, 'Your report has been recorded.');
   }
 
   @override

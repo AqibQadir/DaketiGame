@@ -6,6 +6,7 @@ import '../../../../core/constants/app_colors.dart';
 import '../../../../core/routes/app_routes.dart';
 import '../../../../core/services/game_sound_service.dart';
 import '../../../../core/widgets/game_background.dart';
+import '../../../../core/widgets/game_alert.dart';
 import '../../../../core/widgets/game_button.dart';
 import '../../../../core/widgets/game_close_button.dart';
 import '../../../../core/widgets/glass_panel.dart';
@@ -66,9 +67,7 @@ class WaitingRoomScreen extends ConsumerWidget {
                         Clipboard.setData(
                           ClipboardData(text: session.gameId ?? ''),
                         );
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Room code copied')),
-                        );
+                        showGameAlert(context, 'Room code copied');
                       },
                       child: Container(
                         padding: const EdgeInsets.symmetric(

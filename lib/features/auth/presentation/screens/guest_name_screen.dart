@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../../core/routes/app_routes.dart';
 import '../../../../core/widgets/daketi_logo.dart';
 import '../../../../core/widgets/game_background.dart';
+import '../../../../core/widgets/game_alert.dart';
 import '../../../../core/widgets/game_button.dart';
 import '../../../../core/widgets/game_close_button.dart';
 import '../../../../core/widgets/game_icon_button.dart';
@@ -27,9 +28,7 @@ class _GuestNameScreenState extends State<GuestNameScreen> {
   void continueToOpponents() {
     final name = controller.text.trim();
     if (name.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Enter a temporary username.')),
-      );
+      showGameAlert(context, 'Enter a temporary username.');
       return;
     }
     Navigator.pushNamed(

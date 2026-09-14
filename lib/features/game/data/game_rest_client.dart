@@ -28,11 +28,16 @@ class GameRestClient {
   Future<CreatedGame> createSoloGame({
     required String playerName,
     int aiCount = 1,
+    String difficulty = 'master',
   }) async {
     final response = await _client.post(
       Uri.parse('$baseUrl/api/game/solo'),
       headers: const {'Content-Type': 'application/json'},
-      body: jsonEncode({'playerName': playerName, 'aiCount': aiCount}),
+      body: jsonEncode({
+        'playerName': playerName,
+        'aiCount': aiCount,
+        'difficulty': difficulty
+      }),
     );
     return _createdGameFromResponse(response);
   }

@@ -8,11 +8,15 @@ class GameTextField extends StatelessWidget {
     required this.hint,
     this.obscureText = false,
     this.controller,
+    this.keyboardType,
+    this.autofillHints,
   });
 
   final String hint;
   final bool obscureText;
   final TextEditingController? controller;
+  final TextInputType? keyboardType;
+  final Iterable<String>? autofillHints;
 
   @override
   Widget build(BuildContext context) {
@@ -21,6 +25,9 @@ class GameTextField extends StatelessWidget {
       height: 39,
       child: TextField(
         controller: controller,
+        keyboardType: keyboardType,
+        autofillHints: autofillHints,
+        autocorrect: false,
         obscureText: obscureText,
         style: const TextStyle(fontSize: 12),
         decoration: InputDecoration(

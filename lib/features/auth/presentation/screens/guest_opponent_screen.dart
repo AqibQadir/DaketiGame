@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/routes/app_routes.dart';
 import '../../../../core/widgets/game_background.dart';
+import '../../../../core/widgets/game_alert.dart';
 import '../../../../core/widgets/game_button.dart';
 import '../../../../core/widgets/game_close_button.dart';
 import '../../../../core/widgets/glass_panel.dart';
@@ -24,11 +25,15 @@ class GuestOpponentScreen extends ConsumerStatefulWidget {
 
 class _GuestOpponentScreenState extends ConsumerState<GuestOpponentScreen> {
   int opponents = 2;
+  String difficulty = 'master';
 
   Future<void> startGame() async {
-    final success = await ref
-        .read(gameControllerProvider.notifier)
-        .createSoloGame(playerName: widget.playerName, aiCount: opponents);
+    final success =
+        await ref.read(gameControllerProvider.notifier).createSoloGame(
+              playerName: widget.playerName,
+              aiCount: opponents,
+              difficulty: difficulty,
+            );
     if (!mounted) return;
     if (success) {
       Navigator.pushNamedAndRemoveUntil(
@@ -38,12 +43,9 @@ class _GuestOpponentScreenState extends ConsumerState<GuestOpponentScreen> {
       );
       return;
     }
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          ref.read(gameControllerProvider).error ?? 'Unable to start the game.',
-        ),
-      ),
+    showGameAlert(
+      context,
+      ref.read(gameControllerProvider).error ?? 'Unable to start the game.',
     );
   }
 
@@ -71,10 +73,10 @@ class _GuestOpponentScreenState extends ConsumerState<GuestOpponentScreen> {
                 Center(
                   child: GlassPanel(
                     width: 470,
-                    height: 255,
+                    height: 285,
                     padding: const EdgeInsets.symmetric(
                       horizontal: 38,
-                      vertical: 26,
+                      vertical: 20,
                     ),
                     child: Column(children: [
                       const Text(
@@ -157,6 +159,33 @@ class _GuestOpponentScreenState extends ConsumerState<GuestOpponentScreen> {
                           );
                         }),
                       ),
+                      const SizedBox(height: 12),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Text(
+                            'AI DIFFICULTY',
+                            style: TextStyle(
+                              color: Colors.white60,
+                              fontSize: 9,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          _DifficultyOption(
+                            label: 'BEGINNER',
+                            selected: difficulty == 'beginner',
+                            onTap: () =>
+                                setState(() => difficulty = 'beginner'),
+                          ),
+                          const SizedBox(width: 8),
+                          _DifficultyOption(
+                            label: 'MASTER',
+                            selected: difficulty == 'master',
+                            onTap: () => setState(() => difficulty = 'master'),
+                          ),
+                        ],
+                      ),
                       const Spacer(),
                       GameButton(
                         text: loading ? 'Starting' : 'Play',
@@ -173,4 +202,44 @@ class _GuestOpponentScreenState extends ConsumerState<GuestOpponentScreen> {
       ),
     );
   }
+}
+
+class _DifficultyOption extends StatelessWidget {
+  const _DifficultyOption({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 160),
+          height: 27,
+          padding: const EdgeInsets.symmetric(horizontal: 14),
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: selected ? const Color(0xAA5A361E) : const Color(0xA31A1714),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: selected ? AppColors.orange : AppColors.panelBorder,
+              width: selected ? 2 : 1,
+            ),
+          ),
+          child: Text(
+            label,
+            style: TextStyle(
+              color: selected ? AppColors.orange : AppColors.cream,
+              fontSize: 8,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+        ),
+      );
 }

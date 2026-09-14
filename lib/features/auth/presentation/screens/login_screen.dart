@@ -1,21 +1,24 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/routes/app_routes.dart';
 import '../../../../core/widgets/daketi_logo.dart';
 import '../../../../core/widgets/game_background.dart';
+import '../../../../core/widgets/game_alert.dart';
 import '../../../../core/widgets/game_button.dart';
 import '../../../../core/widgets/game_close_button.dart';
 import '../../../../core/widgets/game_icon_button.dart';
 import '../../../../core/widgets/game_text_field.dart';
+import '../controllers/auth_controller.dart';
 
-class LoginScreen extends StatefulWidget {
+class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
 
   @override
-  State<LoginScreen> createState() => _LoginScreenState();
+  ConsumerState<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen> {
+class _LoginScreenState extends ConsumerState<LoginScreen> {
   final TextEditingController usernameController = TextEditingController();
   final TextEditingController passwordController = TextEditingController();
 
@@ -26,17 +29,32 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
-  void submit() {
-    Navigator.pushNamedAndRemoveUntil(
+  Future<void> submit() async {
+    FocusScope.of(context).unfocus();
+    final email = usernameController.text.trim().toLowerCase();
+    if (email.isEmpty || passwordController.text.isEmpty) {
+      showGameAlert(context, 'Enter your email and password.');
+      return;
+    }
+    final success = await ref.read(authControllerProvider.notifier).login(
+          email: email,
+          password: passwordController.text,
+        );
+    if (!mounted) return;
+    if (success) {
+      Navigator.pushNamedAndRemoveUntil(context, AppRoutes.home, (_) => false);
+      return;
+    }
+    showGameAlert(
       context,
-      AppRoutes.home,
-      (_) => false,
+      ref.read(authControllerProvider).error ?? 'Unable to log in.',
     );
   }
 
   @override
   Widget build(BuildContext context) {
     final keyboardOpen = MediaQuery.viewInsetsOf(context).bottom > 0;
+    final loading = ref.watch(authControllerProvider).isLoading;
     return Scaffold(
       resizeToAvoidBottomInset: false,
       body: GameBackground(
@@ -82,19 +100,26 @@ class _LoginScreenState extends State<LoginScreen> {
                           GameTextField(
                             hint: 'Email',
                             controller: usernameController,
+                            keyboardType: TextInputType.emailAddress,
+                            autofillHints: const [AutofillHints.email],
                           ),
                           const SizedBox(width: 14),
                           GameTextField(
                             hint: 'Password',
                             obscureText: true,
                             controller: passwordController,
+                            autofillHints: const [AutofillHints.password],
                           ),
                         ],
                       ),
                       const SizedBox(height: 15),
                       GameButton(
                         text: 'Login',
-                        onTap: submit,
+                        onTap: loading ? () {} : submit,
+                      ),
+                      TextButton(
+                        onPressed: loading ? null : _forgotPassword,
+                        child: const Text('Forgot password?'),
                       ),
                     ]),
                   ),
@@ -159,5 +184,46 @@ class _LoginScreenState extends State<LoginScreen> {
         ),
       ),
     );
+  }
+
+  Future<void> _forgotPassword() async {
+    final controller = TextEditingController(text: usernameController.text);
+    final email = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('RESET PASSWORD'),
+        content: TextField(
+            controller: controller,
+            decoration: const InputDecoration(labelText: 'Email')),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel')),
+          FilledButton(
+              onPressed: () => Navigator.pop(context, controller.text),
+              child: const Text('Send')),
+        ],
+      ),
+    );
+    if (email == null || email.trim().isEmpty || !mounted) {
+      Future<void>.delayed(
+        const Duration(milliseconds: 400),
+        controller.dispose,
+      );
+      return;
+    }
+    try {
+      final message =
+          await ref.read(authControllerProvider.notifier).forgotPassword(email);
+      if (mounted) {
+        await showGameAlert(context, message);
+      }
+    } catch (error) {
+      if (mounted) {
+        await showGameAlert(context, error.toString());
+      }
+    } finally {
+      controller.dispose();
+    }
   }
 }

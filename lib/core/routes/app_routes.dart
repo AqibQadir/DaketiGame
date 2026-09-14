@@ -12,6 +12,7 @@ class AppRoutes {
   static const String signup = '/signup';
   static const String settings = '/settings';
   static const String profile = '/profile';
+  static const String gameHistory = '/profile/history';
   static const String support = '/support';
   static const String menu = '/menu';
   static const String leaderboard = '/leaderboard';

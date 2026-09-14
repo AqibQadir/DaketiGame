@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/config/backend_config.dart';
+import '../../../auth/presentation/controllers/auth_controller.dart';
 import '../../data/game_api_exception.dart';
 import '../../data/game_rest_client.dart';
 import '../../data/game_socket_service.dart';
@@ -50,6 +51,7 @@ class GameSessionState {
     this.activity,
     this.disconnectedPlayer,
     this.lastAiCount = 1,
+    this.lastDifficulty = 'master',
     this.chatMessages = const [],
     this.turnTimerRevision = 0,
     this.recoveryFailed = false,
@@ -68,6 +70,7 @@ class GameSessionState {
   final String? activity;
   final String? disconnectedPlayer;
   final int lastAiCount;
+  final String lastDifficulty;
   final List<RoomChatMessage> chatMessages;
   final int turnTimerRevision;
   final bool recoveryFailed;
@@ -89,6 +92,7 @@ class GameSessionState {
     Object? activity = _unchanged,
     Object? disconnectedPlayer = _unchanged,
     int? lastAiCount,
+    String? lastDifficulty,
     List<RoomChatMessage>? chatMessages,
     int? turnTimerRevision,
     bool? recoveryFailed,
@@ -110,6 +114,7 @@ class GameSessionState {
           ? this.disconnectedPlayer
           : disconnectedPlayer as String?,
       lastAiCount: lastAiCount ?? this.lastAiCount,
+      lastDifficulty: lastDifficulty ?? this.lastDifficulty,
       chatMessages: chatMessages ?? this.chatMessages,
       turnTimerRevision: turnTimerRevision ?? this.turnTimerRevision,
       recoveryFailed: recoveryFailed ?? this.recoveryFailed,
@@ -136,6 +141,9 @@ final gameControllerProvider =
   return GameController(
     restClient: ref.watch(gameRestClientProvider),
     socketService: ref.watch(gameSocketServiceProvider),
+    tokenLoader: ref.watch(authTokenStorageProvider).read,
+    onGameCompleted: () =>
+        ref.read(authControllerProvider.notifier).refreshSession(),
   );
 });
 
@@ -143,14 +151,20 @@ class GameController extends StateNotifier<GameSessionState> {
   GameController({
     required GameRestClient restClient,
     required GameSocketService socketService,
+    Future<String?> Function()? tokenLoader,
+    Future<void> Function()? onGameCompleted,
   })  : _restClient = restClient,
         _socketService = socketService,
+        _tokenLoader = tokenLoader ?? _noToken,
+        _onGameCompleted = onGameCompleted,
         super(const GameSessionState()) {
     _eventsSubscription = _socketService.events.listen(_handleSocketEvent);
   }
 
   final GameRestClient _restClient;
   final GameSocketService _socketService;
+  final Future<String?> Function() _tokenLoader;
+  final Future<void> Function()? _onGameCompleted;
   late final StreamSubscription<GameSocketEvent> _eventsSubscription;
   Timer? _reconnectTimer;
 
@@ -159,12 +173,14 @@ class GameController extends StateNotifier<GameSessionState> {
   Future<bool> createSoloGame({
     required String playerName,
     int aiCount = 1,
+    String difficulty = 'master',
   }) async {
     state = state.copyWith(
       isLoading: true,
       error: null,
       playerName: playerName,
       lastAiCount: aiCount,
+      lastDifficulty: difficulty,
       winner: null,
       scores: const [],
     );
@@ -173,11 +189,13 @@ class GameController extends StateNotifier<GameSessionState> {
       final created = await _restClient.createSoloGame(
         playerName: playerName,
         aiCount: aiCount,
+        difficulty: difficulty,
       );
       state = state.copyWith(gameId: created.gameId, game: created.game);
       final response = await _socketService.joinGame(
         gameId: created.gameId,
         playerName: playerName,
+        token: await _tokenLoader(),
       );
       state = state.copyWith(
         isLoading: false,
@@ -242,6 +260,7 @@ class GameController extends StateNotifier<GameSessionState> {
       final response = await _socketService.joinGame(
         gameId: gameId,
         playerName: playerName,
+        token: await _tokenLoader(),
       );
       state = state.copyWith(
         isLoading: false,
@@ -284,6 +303,7 @@ class GameController extends StateNotifier<GameSessionState> {
     return createSoloGame(
       playerName: state.playerName ?? 'Player',
       aiCount: state.lastAiCount,
+      difficulty: state.lastDifficulty,
     );
   }
 
@@ -464,6 +484,8 @@ class GameController extends StateNotifier<GameSessionState> {
                 ))
             .toList(growable: false),
       );
+      final refreshAccount = _onGameCompleted;
+      if (refreshAccount != null) unawaited(refreshAccount());
       return;
     }
     if (event.name == 'chat_message') {
@@ -529,6 +551,7 @@ class GameController extends StateNotifier<GameSessionState> {
       final response = await _socketService.joinGame(
         gameId: gameId,
         playerName: playerName,
+        token: await _tokenLoader(),
       );
       state = state.copyWith(
         playerId: response['playerId']?.toString() ?? state.playerId,
@@ -575,3 +598,5 @@ class GameController extends StateNotifier<GameSessionState> {
     super.dispose();
   }
 }
+
+Future<String?> _noToken() async => null;

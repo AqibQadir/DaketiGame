@@ -54,17 +54,6 @@ class WelcomeScreen extends StatelessWidget {
                       );
                     },
                   ),
-                  const SizedBox(height: 12),
-                  GameButton(
-                    text: 'Home',
-                    icon: Icons.home,
-                    onTap: () {
-                      Navigator.pushReplacementNamed(
-                        context,
-                        AppRoutes.home,
-                      );
-                    },
-                  ),
                 ],
               ),
             ),

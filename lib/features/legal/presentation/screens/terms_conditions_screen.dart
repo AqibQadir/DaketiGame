@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/routes/app_routes.dart';
 import '../../../tutorial/data/tutorial_storage_service.dart';
+import '../../data/legal_acceptance_storage.dart';
 import 'legal_content_screen.dart';
 
 class TermsConditionsScreen extends StatelessWidget {
@@ -33,6 +34,7 @@ class TermsConditionsScreen extends StatelessWidget {
       ],
       buttonText: 'Accept',
       onContinue: () async {
+        await LegalAcceptanceStorage().markAccepted();
         final completed = await TutorialStorageService().isCompleted();
         if (!context.mounted) return;
         Navigator.pushReplacementNamed(

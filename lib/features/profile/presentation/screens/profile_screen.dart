@@ -1,13 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/routes/app_routes.dart';
 import '../../../../core/widgets/game_background.dart';
+import '../../../../core/widgets/game_alert.dart';
 import '../../../../core/widgets/game_close_button.dart';
 import '../../../../core/widgets/game_icon_button.dart';
 import '../../../../core/widgets/glass_panel.dart';
+import '../../../auth/presentation/controllers/auth_controller.dart';
 
-class ProfileScreen extends StatelessWidget {
+class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
 
   Widget buildStatRow(String label, String value) {
@@ -42,7 +45,9 @@ class ProfileScreen extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final auth = ref.watch(authControllerProvider);
+    final user = auth.user;
     return Scaffold(
       body: GameBackground(
         child: SizedBox.expand(
@@ -103,12 +108,12 @@ class ProfileScreen extends StatelessWidget {
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
-                          const SizedBox(
+                          SizedBox(
                             width: 145,
                             child: Column(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                CircleAvatar(
+                                const CircleAvatar(
                                   radius: 50,
                                   backgroundColor: Color(0xFFD9D9D9),
                                   child: Icon(
@@ -117,11 +122,11 @@ class ProfileScreen extends StatelessWidget {
                                     color: Color(0xFF3C352C),
                                   ),
                                 ),
-                                SizedBox(height: 11),
+                                const SizedBox(height: 11),
                                 Text(
-                                  'THE FULL NAME',
+                                  user?.name.toUpperCase() ?? 'GUEST PLAYER',
                                   textAlign: TextAlign.center,
-                                  style: TextStyle(
+                                  style: const TextStyle(
                                     color: AppColors.orange,
                                     fontFamily: 'Dirty Brush',
                                     fontSize: 15,
@@ -129,18 +134,22 @@ class ProfileScreen extends StatelessWidget {
                                     height: 1,
                                   ),
                                 ),
-                                SizedBox(height: 3),
+                                const SizedBox(height: 3),
                                 Text(
-                                  'The Username',
-                                  style: TextStyle(
+                                  user?.email ?? 'Not signed in',
+                                  style: const TextStyle(
                                     color: Colors.white60,
                                     fontSize: 10,
                                   ),
                                 ),
-                                SizedBox(height: 15),
+                                const SizedBox(height: 15),
                                 Text(
-                                  'REGIONAL',
-                                  style: TextStyle(
+                                  user == null
+                                      ? 'GUEST'
+                                      : (user.emailVerified
+                                          ? 'VERIFIED'
+                                          : 'UNVERIFIED'),
+                                  style: const TextStyle(
                                     color: AppColors.orange,
                                     fontFamily: 'Dirty Brush',
                                     fontSize: 17,
@@ -156,11 +165,52 @@ class ProfileScreen extends StatelessWidget {
                             child: Column(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                buildStatRow('Worth', '125,000'),
-                                buildStatRow('Total Wins', '100'),
-                                buildStatRow('Matches Played', '125,000'),
-                                buildStatRow('Level', '25'),
-                                buildStatRow('Position', '9th'),
+                                buildStatRow(
+                                    'Total Score', '${auth.stats.totalScore}'),
+                                buildStatRow(
+                                    'Total Wins', '${auth.stats.gamesWon}'),
+                                buildStatRow('Matches Played',
+                                    '${auth.stats.gamesPlayed}'),
+                                if (user != null)
+                                  Row(
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceEvenly,
+                                    children: [
+                                      TextButton(
+                                          style: _compactButtonStyle,
+                                          onPressed: () =>
+                                              _editProfile(context, ref),
+                                          child: const Text('EDIT')),
+                                      TextButton(
+                                          style: _compactButtonStyle,
+                                          onPressed: () => Navigator.pushNamed(
+                                              context, AppRoutes.gameHistory),
+                                          child: const Text('HISTORY')),
+                                      TextButton(
+                                        style: _compactButtonStyle,
+                                        onPressed: () => _logout(context, ref),
+                                        child: const Text('LOG OUT'),
+                                      ),
+                                      PopupMenuButton<String>(
+                                        padding: EdgeInsets.zero,
+                                        constraints: const BoxConstraints(
+                                          minWidth: 28,
+                                          minHeight: 28,
+                                        ),
+                                        onSelected: (value) =>
+                                            _accountAction(context, ref, value),
+                                        itemBuilder: (_) => const [
+                                          PopupMenuItem(
+                                              value: 'password',
+                                              child: Text('Change password')),
+                                          PopupMenuItem(
+                                              value: 'verify',
+                                              child:
+                                                  Text('Resend verification')),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
                               ],
                             ),
                           ),
@@ -176,4 +226,121 @@ class ProfileScreen extends StatelessWidget {
       ),
     );
   }
+
+  Future<void> _editProfile(BuildContext context, WidgetRef ref) async {
+    final user = ref.read(authControllerProvider).user;
+    if (user == null) return;
+    final name = TextEditingController(text: user.name);
+    final dob = TextEditingController(text: user.dateOfBirth ?? '');
+    final save = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+              title: const Text('EDIT PROFILE'),
+              content: Column(mainAxisSize: MainAxisSize.min, children: [
+                TextField(
+                    controller: name,
+                    decoration: const InputDecoration(labelText: 'Name')),
+                TextField(
+                    controller: dob,
+                    decoration: const InputDecoration(
+                        labelText: 'Date of birth (YYYY-MM-DD)')),
+              ]),
+              actions: [
+                TextButton(
+                    onPressed: () => Navigator.pop(context, false),
+                    child: const Text('Cancel')),
+                FilledButton(
+                    onPressed: () => Navigator.pop(context, true),
+                    child: const Text('Save'))
+              ],
+            ));
+    if (save == true) {
+      final ok = await ref.read(authControllerProvider.notifier).updateProfile(
+          name: name.text.trim(),
+          dateOfBirth: dob.text.trim().isEmpty ? null : dob.text.trim());
+      if (context.mounted && !ok) {
+        _message(context,
+            ref.read(authControllerProvider).error ?? 'Update failed.');
+      }
+    }
+    Future<void>.delayed(const Duration(milliseconds: 400), () {
+      name.dispose();
+      dob.dispose();
+    });
+  }
+
+  Future<void> _accountAction(
+      BuildContext context, WidgetRef ref, String value) async {
+    if (value == 'verify') {
+      try {
+        final message = await ref
+            .read(authControllerProvider.notifier)
+            .resendVerification();
+        if (context.mounted) _message(context, message);
+      } catch (error) {
+        if (context.mounted) _message(context, error.toString());
+      }
+      return;
+    }
+    final current = TextEditingController();
+    final next = TextEditingController();
+    final save = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+              title: const Text('CHANGE PASSWORD'),
+              content: Column(mainAxisSize: MainAxisSize.min, children: [
+                TextField(
+                    controller: current,
+                    obscureText: true,
+                    decoration:
+                        const InputDecoration(labelText: 'Current password')),
+                TextField(
+                    controller: next,
+                    obscureText: true,
+                    decoration:
+                        const InputDecoration(labelText: 'New password'))
+              ]),
+              actions: [
+                TextButton(
+                    onPressed: () => Navigator.pop(context, false),
+                    child: const Text('Cancel')),
+                FilledButton(
+                    onPressed: () => Navigator.pop(context, true),
+                    child: const Text('Update'))
+              ],
+            ));
+    if (save == true) {
+      try {
+        final message = await ref
+            .read(authControllerProvider.notifier)
+            .changePassword(current.text, next.text);
+        if (context.mounted) _message(context, message);
+      } catch (error) {
+        if (context.mounted) _message(context, error.toString());
+      }
+    }
+    Future<void>.delayed(const Duration(milliseconds: 400), () {
+      current.dispose();
+      next.dispose();
+    });
+  }
+
+  Future<void> _logout(BuildContext context, WidgetRef ref) async {
+    final navigator = Navigator.of(context);
+    await ref.read(authControllerProvider.notifier).logout();
+    navigator.pushNamedAndRemoveUntil(
+      AppRoutes.welcome,
+      (_) => false,
+    );
+  }
+
+  static final ButtonStyle _compactButtonStyle = TextButton.styleFrom(
+    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 4),
+    minimumSize: Size.zero,
+    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+    textStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800),
+  );
+
+  void _message(BuildContext context, String value) =>
+      showGameAlert(context, value);
 }

@@ -1,21 +1,24 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/routes/app_routes.dart';
 import '../../../../core/widgets/daketi_logo.dart';
 import '../../../../core/widgets/game_background.dart';
+import '../../../../core/widgets/game_alert.dart';
 import '../../../../core/widgets/game_button.dart';
 import '../../../../core/widgets/game_close_button.dart';
 import '../../../../core/widgets/game_icon_button.dart';
 import '../../../../core/widgets/game_text_field.dart';
+import '../controllers/auth_controller.dart';
 
-class SignupScreen extends StatefulWidget {
+class SignupScreen extends ConsumerStatefulWidget {
   const SignupScreen({super.key});
 
   @override
-  State<SignupScreen> createState() => _SignupScreenState();
+  ConsumerState<SignupScreen> createState() => _SignupScreenState();
 }
 
-class _SignupScreenState extends State<SignupScreen> {
+class _SignupScreenState extends ConsumerState<SignupScreen> {
   final TextEditingController emailController = TextEditingController();
   final TextEditingController usernameController = TextEditingController();
   final TextEditingController passwordController = TextEditingController();
@@ -31,17 +34,33 @@ class _SignupScreenState extends State<SignupScreen> {
     super.dispose();
   }
 
-  void submit() {
-    Navigator.pushNamedAndRemoveUntil(
+  Future<void> submit() async {
+    FocusScope.of(context).unfocus();
+    final email = emailController.text.trim().toLowerCase();
+    if (passwordController.text != confirmPasswordController.text) {
+      showGameAlert(context, 'Passwords do not match.');
+      return;
+    }
+    final success = await ref.read(authControllerProvider.notifier).signup(
+          name: usernameController.text.trim(),
+          email: email,
+          password: passwordController.text,
+        );
+    if (!mounted) return;
+    if (success) {
+      Navigator.pushNamedAndRemoveUntil(context, AppRoutes.home, (_) => false);
+      return;
+    }
+    showGameAlert(
       context,
-      AppRoutes.home,
-      (_) => false,
+      ref.read(authControllerProvider).error ?? 'Unable to sign up.',
     );
   }
 
   @override
   Widget build(BuildContext context) {
     final keyboardOpen = MediaQuery.viewInsetsOf(context).bottom > 0;
+    final loading = ref.watch(authControllerProvider).isLoading;
     return Scaffold(
       resizeToAvoidBottomInset: false,
       body: GameBackground(
@@ -87,6 +106,8 @@ class _SignupScreenState extends State<SignupScreen> {
                           GameTextField(
                             hint: 'Email',
                             controller: emailController,
+                            keyboardType: TextInputType.emailAddress,
+                            autofillHints: const [AutofillHints.email],
                           ),
                           const SizedBox(width: 14),
                           GameTextField(
@@ -103,19 +124,21 @@ class _SignupScreenState extends State<SignupScreen> {
                             hint: 'Password',
                             obscureText: true,
                             controller: passwordController,
+                            autofillHints: const [AutofillHints.newPassword],
                           ),
                           const SizedBox(width: 14),
                           GameTextField(
                             hint: 'Re-enter password',
                             obscureText: true,
                             controller: confirmPasswordController,
+                            autofillHints: const [AutofillHints.newPassword],
                           ),
                         ],
                       ),
                       const SizedBox(height: 14),
                       GameButton(
                         text: 'Signup',
-                        onTap: submit,
+                        onTap: loading ? () {} : submit,
                       ),
                     ]),
                   ),

@@ -80,10 +80,12 @@ class GameSocketService {
   Future<Map<String, dynamic>> joinGame({
     required String gameId,
     required String playerName,
+    String? token,
   }) {
     return _emitWithAck('join_game', {
       'gameId': gameId,
       'playerName': playerName,
+      if (token != null && token.isNotEmpty) 'token': token,
     });
   }
 

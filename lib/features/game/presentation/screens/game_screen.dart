@@ -333,7 +333,7 @@ class _GameScreenState extends ConsumerState<GameScreen> {
           GameSoundService.specialCard();
           break;
         case GameActionType.stealOpponent:
-          GameSoundService.daketiRide();
+          GameSoundService.stealCard();
           setState(() {
             stealAnimation = _StealAnimation(
               id: ++stealAnimationId,
@@ -454,8 +454,12 @@ class _GameScreenState extends ConsumerState<GameScreen> {
         returnToOverviewAfterConnectionFailure();
       }
       final wasMyTurn = previous?.isCurrentPlayersTurn ?? false;
+      final playerTurnChanged = previous?.game?.currentPlayerId != null &&
+          previous?.game?.currentPlayerId != next.game?.currentPlayerId;
+      if (playerTurnChanged) {
+        GameSoundService.nextPlayerMove();
+      }
       if (!wasMyTurn && next.isCurrentPlayersTurn) {
-        GameSoundService.yourTurn();
         HapticFeedback.mediumImpact();
       }
       if (previous != null && drawAnimation == null) {
@@ -1329,22 +1333,16 @@ class _MedallionState extends State<_Medallion> {
       widget.onTimeout?.call();
       return;
     }
-    if (!widget.isActive ||
-        !widget.isLocal ||
-        next <= 0 ||
-        next > 5 ||
-        lastAlert == next) {
+    if (!widget.isActive || !widget.isLocal || next <= 0) {
       return;
     }
-    lastAlert = next;
-    if (next == 5) {
-      GameSoundService.timerWarning();
+    if (next == 10 && lastAlert != 10) {
+      lastAlert = 10;
+      GameSoundService.timerWarning10Seconds();
       HapticFeedback.lightImpact();
-    } else if (next == 1) {
-      GameSoundService.timerTick();
-      HapticFeedback.heavyImpact();
-    } else {
-      GameSoundService.timerTick();
+    } else if (next == 5 && lastAlert != 5) {
+      lastAlert = 5;
+      GameSoundService.timerCountdown();
       HapticFeedback.lightImpact();
     }
   }
@@ -1703,10 +1701,12 @@ class _TableCardsState extends State<_TableCards> {
                   67,
                 ),
                 Positioned(
-                  right: 3,
-                  bottom: 2,
-                  child: Text('${widget.deck}',
-                      style: const TextStyle(fontSize: 7)),
+                  right: -1,
+                  bottom: -1,
+                  child: Transform.scale(
+                    scale: .84,
+                    child: _CardCountBadge(count: widget.deck),
+                  ),
                 ),
               ]),
             ),
@@ -1884,22 +1884,41 @@ class _CapturePile extends StatelessWidget {
                     Positioned(
                         right: 0,
                         bottom: 0,
-                        child: Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 4, vertical: 2),
-                            decoration: BoxDecoration(
-                                color: const Color(0xED11130F),
-                                borderRadius: BorderRadius.circular(7),
-                                border: Border.all(color: _gold)),
-                            child: Text('$count',
-                                style: const TextStyle(
-                                    color: _cream,
-                                    fontSize: 7,
-                                    fontWeight: FontWeight.w900)))),
+                        child: _CardCountBadge(count: count)),
                   ]),
                 ),
               ),
             )),
+      );
+}
+
+class _CardCountBadge extends StatelessWidget {
+  const _CardCountBadge({required this.count});
+
+  final int count;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        width: 18,
+        height: 18,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: const Color(0xED11130F),
+          shape: BoxShape.circle,
+          border: Border.all(color: _gold),
+          boxShadow: const [
+            BoxShadow(color: Color(0x99000000), blurRadius: 2),
+          ],
+        ),
+        child: Text(
+          '$count',
+          style: const TextStyle(
+            color: _cream,
+            fontSize: 7,
+            fontWeight: FontWeight.w900,
+            height: 1,
+          ),
+        ),
       );
 }
 
