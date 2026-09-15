@@ -150,7 +150,7 @@ void main() {
     expect(updated.name, 'New Name');
   });
 
-  test('rate-limit errors preserve message and reset header', () async {
+  test('rate-limit errors show a readable wait time', () async {
     final client = AuthRestClient(
       baseUrl: 'https://game.daketi.pk',
       client: MockClient((_) async => http.Response(
@@ -166,7 +166,7 @@ void main() {
       () => client.forgotPassword('aqib@example.com'),
       throwsA(isA<GameApiException>()
           .having((error) => error.statusCode, 'status', 429)
-          .having((error) => error.message, 'message', contains('60'))),
+          .having((error) => error.message, 'message', contains('1 minute'))),
     );
   });
 }

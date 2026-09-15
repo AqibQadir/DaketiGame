@@ -142,6 +142,8 @@ final gameControllerProvider =
     restClient: ref.watch(gameRestClientProvider),
     socketService: ref.watch(gameSocketServiceProvider),
     tokenLoader: ref.watch(authTokenStorageProvider).read,
+    sessionValidator: () =>
+        ref.read(authControllerProvider.notifier).refreshSession(),
     onGameCompleted: () =>
         ref.read(authControllerProvider.notifier).refreshSession(),
   );
@@ -152,10 +154,12 @@ class GameController extends StateNotifier<GameSessionState> {
     required GameRestClient restClient,
     required GameSocketService socketService,
     Future<String?> Function()? tokenLoader,
+    Future<bool> Function()? sessionValidator,
     Future<void> Function()? onGameCompleted,
   })  : _restClient = restClient,
         _socketService = socketService,
         _tokenLoader = tokenLoader ?? _noToken,
+        _sessionValidator = sessionValidator,
         _onGameCompleted = onGameCompleted,
         super(const GameSessionState()) {
     _eventsSubscription = _socketService.events.listen(_handleSocketEvent);
@@ -164,9 +168,11 @@ class GameController extends StateNotifier<GameSessionState> {
   final GameRestClient _restClient;
   final GameSocketService _socketService;
   final Future<String?> Function() _tokenLoader;
+  final Future<bool> Function()? _sessionValidator;
   final Future<void> Function()? _onGameCompleted;
   late final StreamSubscription<GameSocketEvent> _eventsSubscription;
   Timer? _reconnectTimer;
+  int _rejoinAttempts = 0;
 
   static const _reconnectDeadline = Duration(seconds: 15);
 
@@ -186,6 +192,7 @@ class GameController extends StateNotifier<GameSessionState> {
     );
     try {
       await _ensureConnected();
+      final authToken = await _validatedTokenForGame();
       final created = await _restClient.createSoloGame(
         playerName: playerName,
         aiCount: aiCount,
@@ -195,7 +202,7 @@ class GameController extends StateNotifier<GameSessionState> {
       final response = await _socketService.joinGame(
         gameId: created.gameId,
         playerName: playerName,
-        token: await _tokenLoader(),
+        token: authToken,
       );
       state = state.copyWith(
         isLoading: false,
@@ -224,6 +231,7 @@ class GameController extends StateNotifier<GameSessionState> {
     );
     try {
       await _ensureConnected();
+      await _validatedTokenForGame();
       final created = await _restClient.createMultiplayerRoom(
         playerName: playerName,
         maxPlayers: maxPlayers,
@@ -260,7 +268,7 @@ class GameController extends StateNotifier<GameSessionState> {
       final response = await _socketService.joinGame(
         gameId: gameId,
         playerName: playerName,
-        token: await _tokenLoader(),
+        token: await _validatedTokenForGame(),
       );
       state = state.copyWith(
         isLoading: false,
@@ -309,6 +317,7 @@ class GameController extends StateNotifier<GameSessionState> {
 
   void resetSession() {
     _reconnectTimer?.cancel();
+    _rejoinAttempts = 0;
     state = GameSessionState(connectionStatus: state.connectionStatus);
   }
 
@@ -357,7 +366,7 @@ class GameController extends StateNotifier<GameSessionState> {
     return completed;
   }
 
-  Future<bool> handleTurnTimeout() async {
+  Future<bool> handleTurnTimeout({String? selectedCardId}) async {
     if (!state.isCurrentPlayersTurn || state.gameId == null) return true;
 
     state = state.copyWith(activity: 'TIME OVER');
@@ -384,12 +393,19 @@ class GameController extends StateNotifier<GameSessionState> {
         final discardActions = actions
             .where((item) => item.type == GameActionType.discard)
             .toList(growable: false);
-        final action = discardActions.isEmpty
-            ? actions.first
-            : discardActions.reduce((lowest, candidate) =>
-                _cardRank(candidate.cardId) < _cardRank(lowest.cardId)
-                    ? candidate
-                    : lowest);
+        final selectedDiscard = selectedCardId == null
+            ? null
+            : discardActions.cast<GameAction?>().firstWhere(
+                  (item) => item?.cardId == selectedCardId,
+                  orElse: () => null,
+                );
+        final action = selectedDiscard ??
+            (discardActions.isEmpty
+                ? actions.first
+                : discardActions.reduce((lowest, candidate) =>
+                    _cardRank(candidate.cardId) < _cardRank(lowest.cardId)
+                        ? candidate
+                        : lowest));
         state = state.copyWith(
           activity: 'TIME OVER · AUTO ${_actionLabel(action)}',
         );
@@ -430,6 +446,16 @@ class GameController extends StateNotifier<GameSessionState> {
     state = state.copyWith(connectionStatus: GameConnectionStatus.connecting);
     await _socketService.connect();
     state = state.copyWith(connectionStatus: GameConnectionStatus.connected);
+  }
+
+  Future<String?> _validatedTokenForGame() async {
+    final token = await _tokenLoader();
+    if (token == null || token.isEmpty) return null;
+    final validator = _sessionValidator;
+    if (validator == null || await validator()) return token;
+    throw const GameApiException(
+      'Your account session could not be verified. Please log in again or check your connection.',
+    );
   }
 
   Future<bool> _runAction(
@@ -551,7 +577,7 @@ class GameController extends StateNotifier<GameSessionState> {
       final response = await _socketService.joinGame(
         gameId: gameId,
         playerName: playerName,
-        token: await _tokenLoader(),
+        token: await _validatedTokenForGame(),
       );
       state = state.copyWith(
         playerId: response['playerId']?.toString() ?? state.playerId,
@@ -560,13 +586,35 @@ class GameController extends StateNotifier<GameSessionState> {
         error: null,
         recoveryFailed: false,
       );
+      _rejoinAttempts = 0;
     } catch (error) {
-      _endUnrecoverableSession();
+      _rejoinAttempts += 1;
+      try {
+        final recoveredGame = await _restClient.getGame(gameId);
+        state = state.copyWith(
+          game: recoveredGame,
+          activity: 'Restoring connection to room $gameId…',
+          error: null,
+        );
+      } catch (_) {
+        _endUnrecoverableSession();
+        return;
+      }
+      if (_rejoinAttempts >= 3) {
+        _endUnrecoverableSession();
+        return;
+      }
+      _reconnectTimer?.cancel();
+      _reconnectTimer = Timer(
+        const Duration(seconds: 2),
+        () => unawaited(_attemptRejoin()),
+      );
     }
   }
 
   void _endUnrecoverableSession() {
     _reconnectTimer?.cancel();
+    _rejoinAttempts = 0;
     state = GameSessionState(
       connectionStatus: _socketService.isConnected
           ? GameConnectionStatus.connected

@@ -273,18 +273,7 @@ class _GameScreenState extends ConsumerState<GameScreen> {
                           style: TextStyle(fontSize: 9),
                         ),
                       )
-                    : SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            for (final card in cards) ...[
-                              _Card(card, 47, 67),
-                              const SizedBox(width: 8),
-                            ],
-                          ],
-                        ),
-                      ),
+                    : _CapturedCardsStrip(cards: cards),
               ),
             ],
           ),
@@ -334,11 +323,22 @@ class _GameScreenState extends ConsumerState<GameScreen> {
           break;
         case GameActionType.stealOpponent:
           GameSoundService.stealCard();
+          final targetAfterMove = action.targetPlayerId == null
+              ? null
+              : ref
+                  .read(gameControllerProvider)
+                  .game
+                  ?.playerById(action.targetPlayerId);
+          final stolenCount = targetBeforeMove == null
+              ? 1
+              : (targetBeforeMove.stackCount -
+                      (targetAfterMove?.stackCount ?? 0))
+                  .clamp(1, targetBeforeMove.stackCount);
           setState(() {
             stealAnimation = _StealAnimation(
               id: ++stealAnimationId,
               targetPlayerId: action.targetPlayerId ?? '',
-              cardCount: targetBeforeMove?.stackCount.clamp(1, 99) ?? 1,
+              cardCount: stolenCount,
               cards: targetBeforeMove == null
                   ? const []
                   : targetBeforeMove.stack.isNotEmpty
@@ -365,10 +365,15 @@ class _GameScreenState extends ConsumerState<GameScreen> {
     setState(() => isHandlingTimeout = true);
     GameSoundService.invalidMove();
     HapticFeedback.heavyImpact();
-    final ok =
-        await ref.read(gameControllerProvider.notifier).handleTurnTimeout();
+    final selectedAtTimeout = selectedCardId;
+    final ok = await ref
+        .read(gameControllerProvider.notifier)
+        .handleTurnTimeout(selectedCardId: selectedAtTimeout);
     if (!mounted) return;
-    setState(() => isHandlingTimeout = false);
+    setState(() {
+      isHandlingTimeout = false;
+      if (ok) selectedCardId = null;
+    });
     if (!ok) {
       _message(
         ref.read(gameControllerProvider).error ??
@@ -563,6 +568,50 @@ class _GameScreenState extends ConsumerState<GameScreen> {
       ),
     );
   }
+}
+
+class _CapturedCardsStrip extends StatefulWidget {
+  const _CapturedCardsStrip({required this.cards});
+
+  final List<GameCard> cards;
+
+  @override
+  State<_CapturedCardsStrip> createState() => _CapturedCardsStripState();
+}
+
+class _CapturedCardsStripState extends State<_CapturedCardsStrip> {
+  final ScrollController controller = ScrollController();
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (controller.hasClients) {
+        controller.jumpTo(controller.position.maxScrollExtent);
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => SingleChildScrollView(
+        controller: controller,
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (final card in widget.cards) ...[
+              _Card(card, 47, 67),
+              const SizedBox(width: 8),
+            ],
+          ],
+        ),
+      );
 }
 
 class _CompactNotice extends StatelessWidget {
@@ -1031,7 +1080,9 @@ class _DeckDrawOverlayState extends State<_DeckDrawOverlay>
     super.initState();
     controller = AnimationController(
       vsync: this,
-      duration: Duration(milliseconds: 180 + widget.deals.length * 470),
+      // Keep the draw readable without making AI turns feel paused. The
+      // backend remains authoritative about when the AI chooses its move.
+      duration: Duration(milliseconds: 120 + widget.deals.length * 340),
     )
       ..addListener(_playDealSound)
       ..addStatusListener((status) {
@@ -1687,18 +1738,21 @@ class _TableCardsState extends State<_TableCards> {
               right: 21,
               top: 7,
               child: Stack(children: [
-                const Padding(
-                  padding: EdgeInsets.only(left: 4, top: 4),
-                  child: _Card(
-                    GameCard(id: 'hidden', value: '', suit: ''),
-                    47,
-                    67,
+                ...List.generate(
+                  widget.deck.clamp(1, 4),
+                  (index) => Padding(
+                    padding: EdgeInsets.only(
+                      left: (((widget.deck.clamp(1, 4) - 1 - index) * 2))
+                          .toDouble(),
+                      top: (((widget.deck.clamp(1, 4) - 1 - index) * 2))
+                          .toDouble(),
+                    ),
+                    child: const _Card(
+                      GameCard(id: 'hidden', value: '', suit: ''),
+                      47,
+                      67,
+                    ),
                   ),
-                ),
-                const _Card(
-                  GameCard(id: 'hidden', value: '', suit: ''),
-                  47,
-                  67,
                 ),
                 Positioned(
                   right: -1,

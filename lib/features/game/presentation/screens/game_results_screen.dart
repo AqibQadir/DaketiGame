@@ -113,40 +113,87 @@ class _GameResultsScreenState extends ConsumerState<GameResultsScreen> {
                     final rank = rankedScore.$1 + 1;
                     final score = rankedScore.$2;
                     final isWinner = score['id']?.toString() == session.winner;
-                    return ListTile(
-                      dense: true,
-                      leading: CircleAvatar(
-                        radius: 16,
-                        backgroundColor: isWinner
-                            ? const Color(0xFFFF8A00)
-                            : const Color(0xFF30271F),
-                        child: Text(
-                          '$rank',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w900,
+                    final isLocalPlayer =
+                        score['id']?.toString() == session.playerId;
+                    return Container(
+                      margin: const EdgeInsets.symmetric(vertical: 2),
+                      decoration: BoxDecoration(
+                        color: isLocalPlayer
+                            ? const Color(0x4435C96F)
+                            : Colors.transparent,
+                        borderRadius: BorderRadius.circular(10),
+                        border: isLocalPlayer
+                            ? Border.all(color: const Color(0xFF35C96F))
+                            : null,
+                      ),
+                      child: ListTile(
+                        dense: true,
+                        leading: CircleAvatar(
+                          radius: 16,
+                          backgroundColor: isWinner
+                              ? const Color(0xFFFF8A00)
+                              : isLocalPlayer
+                                  ? const Color(0xFF237A4A)
+                                  : const Color(0xFF30271F),
+                          child: Text(
+                            '$rank',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w900,
+                            ),
                           ),
                         ),
-                      ),
-                      title: Text(
-                        aiDisplayNames[score['id']?.toString()] ??
-                            score['name']?.toString() ??
-                            'Player',
-                      ),
-                      subtitle: isWinner
-                          ? const Text(
-                              'WINNER',
-                              style: TextStyle(
-                                color: Color(0xFFFFB34D),
-                                fontWeight: FontWeight.w900,
+                        title: Row(
+                          children: [
+                            Flexible(
+                              child: Text(
+                                aiDisplayNames[score['id']?.toString()] ??
+                                    score['name']?.toString() ??
+                                    'Player',
                               ),
-                            )
-                          : null,
-                      trailing: Text(
-                        '${score['score'] ?? 0} PTS',
-                        style: TextStyle(
-                          color: isWinner ? const Color(0xFFFFB34D) : null,
-                          fontWeight: FontWeight.w900,
+                            ),
+                            if (isLocalPlayer) ...[
+                              const SizedBox(width: 8),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 7,
+                                  vertical: 2,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF35C96F),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: const Text(
+                                  'YOU',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 8,
+                                    fontWeight: FontWeight.w900,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                        subtitle: isWinner
+                            ? const Text(
+                                'WINNER',
+                                style: TextStyle(
+                                  color: Color(0xFFFFB34D),
+                                  fontWeight: FontWeight.w900,
+                                ),
+                              )
+                            : null,
+                        trailing: Text(
+                          '${score['score'] ?? 0} PTS',
+                          style: TextStyle(
+                            color: isWinner
+                                ? const Color(0xFFFFB34D)
+                                : isLocalPlayer
+                                    ? const Color(0xFF67E49B)
+                                    : null,
+                            fontWeight: FontWeight.w900,
+                          ),
                         ),
                       ),
                     );

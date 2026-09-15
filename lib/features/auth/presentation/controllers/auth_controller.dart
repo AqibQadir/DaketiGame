@@ -138,6 +138,7 @@ class AuthController extends StateNotifier<AuthState> {
   Future<bool> refreshSession() async {
     final token = state.token ?? await _storage.read();
     if (token == null || token.isEmpty) return false;
+    final previous = state;
     try {
       final result = await _client.getMe(token);
       state = AuthState(
@@ -149,8 +150,28 @@ class AuthController extends StateNotifier<AuthState> {
       );
       return true;
     } on GameApiException catch (error) {
-      if (error.statusCode == 401) await logout();
-      state = AuthState(isRestoring: false, error: error.message);
+      if (_endsSession(error)) {
+        await _expireSession(error.message);
+      } else {
+        state = AuthState(
+          isRestoring: false,
+          token: token,
+          user: previous.user,
+          stats: previous.stats,
+          history: previous.history,
+          error: error.message,
+        );
+      }
+      return false;
+    } catch (_) {
+      state = AuthState(
+        isRestoring: false,
+        token: token,
+        user: previous.user,
+        stats: previous.stats,
+        history: previous.history,
+        error: 'Unable to connect to the server.',
+      );
       return false;
     }
   }
@@ -210,6 +231,7 @@ class AuthController extends StateNotifier<AuthState> {
       _client.resetPassword(token: resetToken, newPassword: newPassword);
 
   Future<bool> verifyEmail(String verificationToken) async {
+    final previous = state;
     try {
       final user = await _client.verifyEmail(verificationToken);
       state = AuthState(
@@ -221,7 +243,14 @@ class AuthController extends StateNotifier<AuthState> {
       );
       return true;
     } on GameApiException catch (error) {
-      state = AuthState(isRestoring: false, error: error.message);
+      state = AuthState(
+        isRestoring: false,
+        token: previous.token,
+        user: previous.user,
+        stats: previous.stats,
+        history: previous.history,
+        error: error.message,
+      );
       return false;
     }
   }
@@ -232,12 +261,13 @@ class AuthController extends StateNotifier<AuthState> {
     try {
       return await request(token);
     } on GameApiException catch (error) {
-      if (error.statusCode == 401) await logout();
+      if (_endsSession(error)) await _expireSession(error.message);
       rethrow;
     }
   }
 
   Future<bool> _authenticated(Future<void> Function() request) async {
+    final previous = state;
     state = AuthState(
       isLoading: true,
       isRestoring: false,
@@ -250,9 +280,37 @@ class AuthController extends StateNotifier<AuthState> {
       await request();
       return true;
     } on GameApiException catch (error) {
-      if (error.statusCode == 401) await logout();
-      state = AuthState(isRestoring: false, error: error.message);
+      if (_endsSession(error)) {
+        await _expireSession(error.message);
+      } else {
+        state = AuthState(
+          isRestoring: false,
+          token: previous.token,
+          user: previous.user,
+          stats: previous.stats,
+          history: previous.history,
+          error: error.message,
+        );
+      }
+      return false;
+    } catch (_) {
+      state = AuthState(
+        isRestoring: false,
+        token: previous.token,
+        user: previous.user,
+        stats: previous.stats,
+        history: previous.history,
+        error: 'Unable to connect to the server.',
+      );
       return false;
     }
+  }
+
+  bool _endsSession(GameApiException error) =>
+      error.statusCode == 401 || error.statusCode == 404;
+
+  Future<void> _expireSession(String message) async {
+    await _storage.clear();
+    state = AuthState(isRestoring: false, error: message);
   }
 }

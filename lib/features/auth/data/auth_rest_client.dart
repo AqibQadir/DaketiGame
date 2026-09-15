@@ -161,7 +161,7 @@ class AuthRestClient {
       final message = data['error']?.toString() ?? 'Authentication failed.';
       throw GameApiException(
         response.statusCode == 429 && reset != null
-            ? '$message Try again after $reset.'
+            ? '$message ${_rateLimitWaitMessage(reset)}'
             : message,
         statusCode: response.statusCode,
       );
@@ -170,6 +170,21 @@ class AuthRestClient {
       throw GameApiException(data['error']?.toString() ?? 'Request failed.');
     }
     return data;
+  }
+
+  String _rateLimitWaitMessage(String rawReset) {
+    final parsed = int.tryParse(rawReset.trim());
+    if (parsed == null) return 'Please try again later.';
+    final nowSeconds = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+    final seconds = parsed > nowSeconds ? parsed - nowSeconds : parsed;
+    if (seconds <= 1) return 'Please try again shortly.';
+    if (seconds < 60) return 'Try again in $seconds seconds.';
+    final minutes = (seconds / 60).ceil();
+    if (minutes < 60) {
+      return 'Try again in $minutes ${minutes == 1 ? 'minute' : 'minutes'}.';
+    }
+    final hours = (minutes / 60).ceil();
+    return 'Try again in $hours ${hours == 1 ? 'hour' : 'hours'}.';
   }
 
   Map<String, dynamic> _map(Object? value, String name) {
