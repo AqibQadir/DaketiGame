@@ -1,230 +1,271 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../../core/constants/app_colors.dart';
+import '../../../../core/constants/app_assets.dart';
 import '../../../../core/routes/app_routes.dart';
 import '../../../../core/widgets/game_background.dart';
 import '../../../../core/widgets/game_alert.dart';
-import '../../../../core/widgets/game_close_button.dart';
+import '../../../../core/widgets/game_button.dart';
 import '../../../../core/widgets/game_icon_button.dart';
-import '../../../../core/widgets/glass_panel.dart';
+import '../../../../core/widgets/game_viewport.dart';
 import '../../../auth/presentation/controllers/auth_controller.dart';
 
-class ProfileScreen extends ConsumerWidget {
+class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({super.key});
 
-  Widget buildStatRow(String label, String value) {
-    return Container(
-      height: 29,
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.symmetric(horizontal: 13),
-      decoration: const BoxDecoration(color: Color(0xFFFF8000)),
-      child: Row(
-        children: [
+  @override
+  ConsumerState<ProfileScreen> createState() => _ProfileScreenState();
+}
+
+class _ProfileScreenState extends ConsumerState<ProfileScreen> {
+  bool editMenuOpen = false;
+
+  String _number(int value) => value.toString().replaceAllMapped(
+      RegExp(r'(\d)(?=(\d{3})+(?!\d))'), (match) => '${match[1]},');
+
+  Widget buildStatRow(String label, String value) => Container(
+        height: 28,
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 17),
+        decoration: BoxDecoration(
+          color: const Color(0xFFFF8000),
+          borderRadius: BorderRadius.circular(2),
+        ),
+        child: Row(children: [
           Expanded(
-            child: Text(
-              label,
+              child: Text(label,
+                  style: const TextStyle(
+                      color: Color(0xFF261A10),
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700))),
+          Text(value,
               style: const TextStyle(
-                color: Color(0xFF261A10),
-                fontSize: 11,
-                fontWeight: FontWeight.w900,
-              ),
-            ),
-          ),
-          Text(
-            value,
-            style: const TextStyle(
-              color: Color(0xFF261A10),
-              fontSize: 11,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+                  color: Color(0xFF261A10),
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700)),
+        ]),
+      );
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final auth = ref.watch(authControllerProvider);
     final user = auth.user;
+    void edit() {
+      setState(() => editMenuOpen = false);
+      if (user == null) {
+        _message(context, 'Sign in to edit your profile.');
+      } else {
+        _editProfile(context, ref);
+      }
+    }
+
+    Widget logout({bool red = false}) {
+      final button = GameButton(
+          backgroundAsset: AppAssets.actionButtonBrush,
+          text: 'LOGOUT',
+          width: red ? 119 : 95,
+          fontSize: 15,
+          onTap: () => _logout(context, ref));
+      if (!red) return button;
+      return Stack(alignment: Alignment.center, children: [
+        ColorFiltered(
+            colorFilter:
+                const ColorFilter.mode(Color(0xFFC71912), BlendMode.srcIn),
+            child: Image.asset(AppAssets.actionButtonBrush,
+                width: 119, height: 32, fit: BoxFit.fill)),
+        SizedBox(
+            width: 119,
+            height: 32,
+            child: TextButton(
+                onPressed: () => _logout(context, ref),
+                child: const Text('LOGOUT',
+                    style: TextStyle(
+                        color: Colors.white,
+                        fontFamily: 'Dirty Brush',
+                        fontSize: 16,
+                        height: 1)))),
+      ]);
+    }
+
     return Scaffold(
-      body: GameBackground(
-        child: SizedBox.expand(
-          child: FittedBox(
-            fit: BoxFit.cover,
-            alignment: Alignment.center,
-            child: SizedBox(
-              width: 844,
-              height: 390,
-              child: Stack(
-                children: [
-                  Positioned(
-                    left: 30,
-                    top: 28,
-                    child: GameCloseButton(
-                      size: 54,
-                      onTap: Navigator.of(context).pop,
-                    ),
+        body: GameBackground(
+      overlayOpacity: .20,
+      child: GameViewport(
+          child: Stack(children: [
+        Positioned(
+            left: 23,
+            top: 24,
+            child: Row(children: [
+              IconButton(
+                  onPressed: () => Navigator.maybePop(context),
+                  padding: EdgeInsets.zero,
+                  constraints:
+                      const BoxConstraints.tightFor(width: 32, height: 35),
+                  icon: const Icon(Icons.arrow_back_ios_new,
+                      color: Color(0xFF96948F), size: 30)),
+              const SizedBox(width: 5),
+              const Text('PROFILE',
+                  style: TextStyle(
+                      fontFamily: 'Dirty Brush',
+                      color: Color(0xFFD0CFCA),
+                      fontSize: 23)),
+            ])),
+        Positioned(
+            right: 32,
+            top: 32,
+            child: GameIconButton(
+                icon: Icons.menu,
+                onTap: () => Navigator.pushNamed(context, AppRoutes.menu))),
+        Positioned(
+            left: 32,
+            bottom: 32,
+            child: Column(children: [
+              GameIconButton(
+                  icon: Icons.headset_mic,
+                  onTap: () => Navigator.pushNamed(context, AppRoutes.support)),
+              const SizedBox(height: 11),
+              GameIconButton(
+                  icon: Icons.settings,
+                  onTap: () =>
+                      Navigator.pushNamed(context, AppRoutes.settings)),
+            ])),
+        Positioned(
+            left: 192,
+            top: 57,
+            width: 467,
+            height: 272,
+            child: ClipRRect(
+                borderRadius: BorderRadius.circular(23),
+                child: BackdropFilter(
+                    filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+                    child: DecoratedBox(
+                        decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(23),
+                      border:
+                          Border.all(color: const Color(0xFF77746A), width: .8),
+                      gradient: const LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [
+                            Color(0x882B2923),
+                            Color(0xA6100B05),
+                            Color(0xB3140803)
+                          ]),
+                    ))))),
+        Positioned(
+            left: 237,
+            top: 90,
+            width: 112,
+            height: 112,
+            child: Container(
+                padding: const EdgeInsets.all(5),
+                decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: const Color(0xFF58483C),
+                    border: Border.all(color: const Color(0xFF8E8173))),
+                child: ClipOval(
+                    child: ColoredBox(
+                        color: const Color(0xFFC8C8C8),
+                        child: Image.asset(AppAssets.playerAvatar,
+                            fit: BoxFit.cover))))),
+        Positioned(
+            left: 218,
+            top: 214,
+            width: 154,
+            child: Column(children: [
+              SizedBox(
+                  height: 20,
+                  child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(user?.name.toUpperCase() ?? 'GUEST PLAYER',
+                          style: const TextStyle(
+                              color: Color(0xFFFF8000),
+                              fontFamily: 'Dirty Brush',
+                              fontSize: 20,
+                              height: 1)))),
+              const SizedBox(height: 2),
+              Text(user?.email ?? 'Not signed in',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style:
+                      const TextStyle(color: Color(0xFFAAA59E), fontSize: 10)),
+              const SizedBox(height: 8),
+              GameButton(
+                  backgroundAsset: AppAssets.actionButtonBrush,
+                  text: 'EDIT',
+                  width: 95,
+                  fontSize: 15,
+                  onTap: edit),
+            ])),
+        Positioned(
+            left: 393,
+            top: 111,
+            width: 223,
+            child: Column(children: [
+              buildStatRow('Total Wins', _number(auth.stats.gamesWon)),
+              buildStatRow('Matches Played', _number(auth.stats.gamesPlayed)),
+              buildStatRow('Level', '—'),
+              buildStatRow('Position', '—'),
+              const SizedBox(height: 6),
+              if (editMenuOpen)
+                logout(red: true)
+              else
+                Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      GameButton(
+                          backgroundAsset: AppAssets.actionButtonBrush,
+                          text: 'HISTORY',
+                          width: 95,
+                          fontSize: 14,
+                          onTap: () => Navigator.pushNamed(
+                              context, AppRoutes.gameHistory)),
+                      logout(),
+                    ]),
+            ])),
+        Positioned(
+            left: 602,
+            top: 65,
+            width: 38,
+            height: 32,
+            child: IconButton(
+                tooltip: 'Profile options',
+                padding: EdgeInsets.zero,
+                icon: const Icon(Icons.more_horiz,
+                    color: Color(0xFFD77505), size: 29),
+                onPressed: () => setState(() => editMenuOpen = !editMenuOpen))),
+        if (editMenuOpen)
+          Positioned(
+              left: 618,
+              top: 89,
+              width: 78,
+              height: 40,
+              child: Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(11),
+                    border: Border.all(color: const Color(0xFF8B766B)),
+                    gradient: const LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Color(0xFF84412C),
+                          Color(0xFF200A05),
+                          Color(0xFF090909)
+                        ]),
+                    boxShadow: const [
+                      BoxShadow(color: Colors.black54, blurRadius: 9)
+                    ],
                   ),
-                  Positioned(
-                    right: 30,
-                    top: 30,
-                    child: GameIconButton(
-                      icon: Icons.menu,
-                      onTap: () {
-                        Navigator.pushNamed(context, AppRoutes.settings);
-                      },
-                    ),
-                  ),
-                  Positioned(
-                    left: 30,
-                    bottom: 31,
-                    child: Column(
-                      children: [
-                        GameIconButton(
-                          icon: Icons.support_agent,
-                          onTap: () {
-                            Navigator.pushNamed(context, AppRoutes.support);
-                          },
-                        ),
-                        const SizedBox(height: 10),
-                        GameIconButton(
-                          icon: Icons.settings,
-                          onTap: () {
-                            Navigator.pushNamed(context, AppRoutes.settings);
-                          },
-                        ),
-                      ],
-                    ),
-                  ),
-                  Positioned(
-                    left: 199,
-                    top: 59,
-                    child: GlassPanel(
-                      width: 483,
-                      height: 281,
-                      padding: const EdgeInsets.fromLTRB(38, 34, 42, 28),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        children: [
-                          SizedBox(
-                            width: 145,
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const CircleAvatar(
-                                  radius: 50,
-                                  backgroundColor: Color(0xFFD9D9D9),
-                                  child: Icon(
-                                    Icons.person,
-                                    size: 66,
-                                    color: Color(0xFF3C352C),
-                                  ),
-                                ),
-                                const SizedBox(height: 11),
-                                Text(
-                                  user?.name.toUpperCase() ?? 'GUEST PLAYER',
-                                  textAlign: TextAlign.center,
-                                  style: const TextStyle(
-                                    color: AppColors.orange,
-                                    fontFamily: 'Dirty Brush',
-                                    fontSize: 15,
-                                    fontWeight: FontWeight.w400,
-                                    height: 1,
-                                  ),
-                                ),
-                                const SizedBox(height: 3),
-                                Text(
-                                  user?.email ?? 'Not signed in',
-                                  style: const TextStyle(
-                                    color: Colors.white60,
-                                    fontSize: 10,
-                                  ),
-                                ),
-                                const SizedBox(height: 15),
-                                Text(
-                                  user == null
-                                      ? 'GUEST'
-                                      : (user.emailVerified
-                                          ? 'VERIFIED'
-                                          : 'UNVERIFIED'),
-                                  style: const TextStyle(
-                                    color: AppColors.orange,
-                                    fontFamily: 'Dirty Brush',
-                                    fontSize: 17,
-                                    fontWeight: FontWeight.w400,
-                                    height: 1,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(width: 22),
-                          Expanded(
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                buildStatRow(
-                                    'Total Score', '${auth.stats.totalScore}'),
-                                buildStatRow(
-                                    'Total Wins', '${auth.stats.gamesWon}'),
-                                buildStatRow('Matches Played',
-                                    '${auth.stats.gamesPlayed}'),
-                                if (user != null)
-                                  Row(
-                                    mainAxisAlignment:
-                                        MainAxisAlignment.spaceEvenly,
-                                    children: [
-                                      TextButton(
-                                          style: _compactButtonStyle,
-                                          onPressed: () =>
-                                              _editProfile(context, ref),
-                                          child: const Text('EDIT')),
-                                      TextButton(
-                                          style: _compactButtonStyle,
-                                          onPressed: () => Navigator.pushNamed(
-                                              context, AppRoutes.gameHistory),
-                                          child: const Text('HISTORY')),
-                                      TextButton(
-                                        style: _compactButtonStyle,
-                                        onPressed: () => _logout(context, ref),
-                                        child: const Text('LOG OUT'),
-                                      ),
-                                      PopupMenuButton<String>(
-                                        padding: EdgeInsets.zero,
-                                        constraints: const BoxConstraints(
-                                          minWidth: 28,
-                                          minHeight: 28,
-                                        ),
-                                        onSelected: (value) =>
-                                            _accountAction(context, ref, value),
-                                        itemBuilder: (_) => const [
-                                          PopupMenuItem(
-                                              value: 'password',
-                                              child: Text('Change password')),
-                                          PopupMenuItem(
-                                              value: 'verify',
-                                              child:
-                                                  Text('Resend verification')),
-                                        ],
-                                      ),
-                                    ],
-                                  ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
+                  child: TextButton(
+                      onPressed: edit,
+                      child: const Text('EDIT',
+                          style: TextStyle(
+                              color: Colors.white,
+                              fontFamily: 'Dirty Brush',
+                              fontSize: 18))))),
+      ])),
+    ));
   }
 
   Future<void> _editProfile(BuildContext context, WidgetRef ref) async {
@@ -235,6 +276,7 @@ class ProfileScreen extends ConsumerWidget {
     final save = await showDialog<bool>(
         context: context,
         builder: (context) => AlertDialog(
+              scrollable: true,
               title: const Text('EDIT PROFILE'),
               content: Column(mainAxisSize: MainAxisSize.min, children: [
                 TextField(
@@ -246,6 +288,12 @@ class ProfileScreen extends ConsumerWidget {
                         labelText: 'Date of birth (YYYY-MM-DD)')),
               ]),
               actions: [
+                TextButton(
+                    onPressed: () => _accountAction(context, ref, 'password'),
+                    child: const Text('Change password')),
+                TextButton(
+                    onPressed: () => _accountAction(context, ref, 'verify'),
+                    child: const Text('Resend verification')),
                 TextButton(
                     onPressed: () => Navigator.pop(context, false),
                     child: const Text('Cancel')),
@@ -287,6 +335,7 @@ class ProfileScreen extends ConsumerWidget {
     final save = await showDialog<bool>(
         context: context,
         builder: (context) => AlertDialog(
+              scrollable: true,
               title: const Text('CHANGE PASSWORD'),
               content: Column(mainAxisSize: MainAxisSize.min, children: [
                 TextField(
@@ -333,13 +382,6 @@ class ProfileScreen extends ConsumerWidget {
       (_) => false,
     );
   }
-
-  static final ButtonStyle _compactButtonStyle = TextButton.styleFrom(
-    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 4),
-    minimumSize: Size.zero,
-    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-    textStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800),
-  );
 
   void _message(BuildContext context, String value) =>
       showGameAlert(context, value);

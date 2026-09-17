@@ -84,9 +84,15 @@ class FannedCardHand extends StatelessWidget {
             bottom: 4 + centerLift + (selected ? selectedLift : 0),
             width: cardWidth,
             height: cardHeight,
-            child: Transform.rotate(
-              angle: angle,
-              alignment: Alignment.bottomCenter,
+            child: TweenAnimationBuilder<double>(
+              tween: Tween(begin: 0, end: angle),
+              duration: const Duration(milliseconds: 280),
+              curve: Curves.easeOutCubic,
+              builder: (context, rotation, child) => Transform.rotate(
+                angle: rotation,
+                alignment: Alignment.bottomCenter,
+                child: child,
+              ),
               child: Semantics(
                 button: enabled,
                 selected: selected,

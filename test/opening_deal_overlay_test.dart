@@ -30,4 +30,33 @@ void main() {
     expect(tester.takeException(), isNull);
     await tester.binding.setSurfaceSize(null);
   });
+  testWidgets('staggered deal finishes once and cancels safely when removed',
+      (tester) async {
+    var completions = 0;
+    Widget overlay() => MaterialApp(
+          home: Stack(children: [
+            OpeningDealOverlay(
+              playerCount: 4,
+              cardsPerPlayer: 5,
+              onComplete: () => completions++,
+            )
+          ]),
+        );
+    await tester.pumpWidget(overlay());
+    await tester.pump(const Duration(milliseconds: 600));
+    expect(completions, 0);
+    // Three stationary deck layers plus multiple overlapping card flights.
+    expect(find.byType(Image).evaluate().length, greaterThan(4));
+    await tester.pump(const Duration(seconds: 2));
+    expect(completions, 1);
+    await tester.pump(const Duration(seconds: 1));
+    expect(completions, 1);
+    await tester.pumpWidget(const SizedBox());
+    await tester.pumpWidget(overlay());
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump(const Duration(seconds: 3));
+    expect(completions, 1);
+    expect(tester.takeException(), isNull);
+  });
 }

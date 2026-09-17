@@ -57,37 +57,51 @@ class _OpeningDealOverlayState extends State<OpeningDealOverlay>
     super.dispose();
   }
 
+  Widget _flyingCard(int index, double time) {
+    final progress = Curves.easeInOutCubic.transform(time.clamp(0.0, 1.0));
+    final destination = destinations[index % destinations.length];
+    final position =
+        Offset.lerp(const Offset(735, 175), destination, progress)! +
+            Offset(0, -math.sin(progress * math.pi) * 24);
+    return Positioned(
+      left: position.dx - 20,
+      top: position.dy - 28,
+      child: Transform.rotate(
+        angle: (1 - progress) * .14,
+        child: const _DealCard(width: 40, height: 57),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) => Positioned.fill(
         child: IgnorePointer(
           child: AnimatedBuilder(
             animation: controller,
             builder: (context, child) {
-              final scaled = controller.value * dealCount;
-              final cardIndex = scaled.floor().clamp(0, dealCount - 1);
-              final cardProgress = Curves.easeOutCubic.transform(
-                (scaled - cardIndex).clamp(0.0, 1.0),
-              );
-              final destination = destinations[cardIndex % destinations.length];
+              // Short, restrained shuffle followed by overlapping flights.
+              // Keep the existing card backs and warm table palette.
+              final elapsed = controller.value * (650 + dealCount * 82);
               const source = Offset(735, 175);
-              final arcHeight = 42 + (cardIndex % 3) * 8;
-              final position = Offset.lerp(source, destination, cardProgress)! +
-                  Offset(0, -math.sin(cardProgress * math.pi) * arcHeight);
+              final shuffle = (elapsed / 240).clamp(0.0, 1.0);
               return Stack(
                 children: [
-                  Positioned(
-                    left: source.dx - 25,
-                    top: source.dy - 35,
-                    child: const _DealCard(width: 50, height: 70),
-                  ),
-                  Positioned(
-                    left: position.dx - 20,
-                    top: position.dy - 28,
-                    child: Transform.rotate(
-                      angle: (1 - cardProgress) * .18,
-                      child: const _DealCard(width: 40, height: 57),
+                  for (var layer = 0; layer < 3; layer++)
+                    Positioned(
+                      left: source.dx -
+                          25 +
+                          layer * 2 +
+                          math.sin(shuffle * math.pi * 2) * (layer - 1) * 12,
+                      top: source.dy - 35 + layer * 2,
+                      child: Transform.rotate(
+                        angle: math.sin(shuffle * math.pi) * (layer - 1) * .08,
+                        child: const _DealCard(width: 50, height: 70),
+                      ),
                     ),
-                  ),
+                  for (var index = 0; index < dealCount; index++)
+                    if (elapsed >= 240 + index * 82 &&
+                        elapsed < 650 + index * 82)
+                      _flyingCard(index, (elapsed - 240 - index * 82) / 410),
                   Positioned(
                     left: 350,
                     top: 170,

@@ -9,6 +9,7 @@ import '../../../../core/routes/app_routes.dart';
 import '../../../../core/constants/app_assets.dart';
 import '../../../../core/services/game_sound_service.dart';
 import '../../../../core/widgets/game_close_button.dart';
+import '../../../../core/widgets/game_viewport.dart';
 import '../../domain/models/daketi_game.dart';
 import '../../domain/models/game_action.dart';
 import '../../domain/models/game_card.dart';
@@ -102,6 +103,7 @@ class _GameScreenState extends ConsumerState<GameScreen> {
   _DrawAnimation? drawAnimation;
   int drawAnimationId = 0;
   int openingDealPhase = 0;
+  Offset playedCardOrigin = const Offset(560, 330);
 
   List<_DrawDeal> _drawDealsFor(
     GameSessionState previous,
@@ -458,6 +460,28 @@ class _GameScreenState extends ConsumerState<GameScreen> {
       if (previous?.recoveryFailed != true && next.recoveryFailed) {
         returnToOverviewAfterConnectionFailure();
       }
+      final oldGame = previous?.game;
+      final newGame = next.game;
+      if (oldGame != null &&
+          newGame != null &&
+          newGame.table
+              .any((card) => !oldGame.table.any((old) => old.id == card.id))) {
+        final localIndex =
+            oldGame.players.indexWhere((p) => p.id == next.playerId);
+        final actorIndex =
+            oldGame.players.indexWhere((p) => p.id == oldGame.currentPlayerId);
+        if (localIndex >= 0 && actorIndex >= 0) {
+          final seat = (actorIndex - localIndex + oldGame.players.length) %
+              oldGame.players.length;
+          playedCardOrigin = seat == 0
+              ? const Offset(560, 330)
+              : oldGame.players.length == 2 || seat == 2
+                  ? const Offset(515, 89)
+                  : seat == 1
+                      ? const Offset(126, 212)
+                      : const Offset(700, 212);
+        }
+      }
       final wasMyTurn = previous?.isCurrentPlayersTurn ?? false;
       final playerTurnChanged = previous?.game?.currentPlayerId != null &&
           previous?.game?.currentPlayerId != next.game?.currentPlayerId;
@@ -514,46 +538,41 @@ class _GameScreenState extends ConsumerState<GameScreen> {
           ),
           const ColoredBox(color: Color(0x18000000)),
           Positioned.fill(
-            child: FittedBox(
-              fit: BoxFit.cover,
-              alignment: Alignment.center,
-              child: SizedBox(
-                width: 844,
-                height: 390,
-                child: game == null
-                    ? const Center(child: CircularProgressIndicator())
-                    : _Board(
-                        session: session,
-                        game: game,
-                        player: player,
-                        selected: selectedCardId,
-                        actions: actions,
-                        submitting: isSubmitting || drawAnimation != null,
-                        chatMessage: chatMessage,
-                        onCard: selectCard,
-                        onAction: perform,
-                        onChat: sendChatMessage,
-                        onOpenChat: openChatHistory,
-                        onViewCapturedCards: showCapturedCards,
-                        onTurnTimeout: handleTurnTimeout,
-                        openingDealPhase: openingDealPhase,
-                        onHandsDealt: () {
-                          if (mounted) setState(() => openingDealPhase = 1);
-                        },
-                        onTableDealt: () {
-                          if (mounted) setState(() => openingDealPhase = 2);
-                        },
-                        stealAnimation: stealAnimation,
-                        onStealAnimationComplete: () {
-                          if (mounted) setState(() => stealAnimation = null);
-                        },
-                        drawAnimation: drawAnimation,
-                        onDrawAnimationComplete: () {
-                          if (mounted) setState(() => drawAnimation = null);
-                        },
-                        onExit: leaveMatch,
-                      ),
-              ),
+            child: GameViewport(
+              child: game == null
+                  ? const Center(child: CircularProgressIndicator())
+                  : _Board(
+                      playedCardOrigin: playedCardOrigin,
+                      session: session,
+                      game: game,
+                      player: player,
+                      selected: selectedCardId,
+                      actions: actions,
+                      submitting: isSubmitting || drawAnimation != null,
+                      chatMessage: chatMessage,
+                      onCard: selectCard,
+                      onAction: perform,
+                      onChat: sendChatMessage,
+                      onOpenChat: openChatHistory,
+                      onViewCapturedCards: showCapturedCards,
+                      onTurnTimeout: handleTurnTimeout,
+                      openingDealPhase: openingDealPhase,
+                      onHandsDealt: () {
+                        if (mounted) setState(() => openingDealPhase = 1);
+                      },
+                      onTableDealt: () {
+                        if (mounted) setState(() => openingDealPhase = 2);
+                      },
+                      stealAnimation: stealAnimation,
+                      onStealAnimationComplete: () {
+                        if (mounted) setState(() => stealAnimation = null);
+                      },
+                      drawAnimation: drawAnimation,
+                      onDrawAnimationComplete: () {
+                        if (mounted) setState(() => drawAnimation = null);
+                      },
+                      onExit: leaveMatch,
+                    ),
             ),
           ),
           if (noticeMessage != null)
@@ -647,7 +666,8 @@ class _CompactNotice extends StatelessWidget {
 
 class _Board extends StatelessWidget {
   const _Board(
-      {required this.session,
+      {required this.playedCardOrigin,
+      required this.session,
       required this.game,
       required this.player,
       required this.selected,
@@ -668,6 +688,7 @@ class _Board extends StatelessWidget {
       required this.drawAnimation,
       required this.onDrawAnimationComplete,
       required this.onExit});
+  final Offset playedCardOrigin;
   final GameSessionState session;
   final DaketiGame game;
   final GamePlayer? player;
@@ -933,6 +954,10 @@ class _Board extends StatelessWidget {
             child: Transform.scale(
               scale: isTwoPlayerMatch ? 1.12 : 1,
               child: _TableCards(
+                playedCardOrigin: isTwoPlayerMatch
+                    ? const Offset(422, 195) +
+                        (playedCardOrigin - const Offset(422, 195)) / 1.12
+                    : playedCardOrigin,
                 cards: game.table,
                 deck: game.deckCount,
                 captureAction: captureTableAction,
@@ -1452,29 +1477,48 @@ class _MedallionState extends State<_Medallion> {
                     ),
                   ),
                 ),
-              Container(
-                width: 54,
-                height: 54,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: const RadialGradient(
-                    colors: [Color(0xFF695B35), _panelBlack],
+              TweenAnimationBuilder<double>(
+                key: ValueKey(widget.isActive),
+                tween: Tween(begin: widget.isActive ? 1.0 : 0.0, end: 0.0),
+                duration: const Duration(milliseconds: 900),
+                curve: Curves.easeOutCubic,
+                builder: (context, emphasis, child) => DecoratedBox(
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: _gold.withValues(alpha: emphasis * .55),
+                        blurRadius: 8 + emphasis * 10,
+                        spreadRadius: emphasis * 3,
+                      )
+                    ],
                   ),
-                  border: Border.all(color: _gold, width: 1.4),
-                  boxShadow: [
-                    BoxShadow(
-                      color: widget.isActive
-                          ? ringColor.withValues(alpha: .5)
-                          : Colors.black87,
-                      blurRadius: widget.isActive ? 10 : 7,
-                    ),
-                  ],
+                  child: child,
                 ),
-                child: ClipOval(
-                  child: Image.asset(
-                    widget.avatarAsset ?? AppAssets.playerAvatar,
-                    fit: BoxFit.cover,
-                    filterQuality: FilterQuality.high,
+                child: Container(
+                  width: 54,
+                  height: 54,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: const RadialGradient(
+                      colors: [Color(0xFF695B35), _panelBlack],
+                    ),
+                    border: Border.all(color: _gold, width: 1.4),
+                    boxShadow: [
+                      BoxShadow(
+                        color: widget.isActive
+                            ? ringColor.withValues(alpha: .5)
+                            : Colors.black87,
+                        blurRadius: widget.isActive ? 10 : 7,
+                      ),
+                    ],
+                  ),
+                  child: ClipOval(
+                    child: Image.asset(
+                      widget.avatarAsset ?? AppAssets.playerAvatar,
+                      fit: BoxFit.cover,
+                      filterQuality: FilterQuality.high,
+                    ),
                   ),
                 ),
               ),
@@ -1615,12 +1659,14 @@ class _TableCards extends StatefulWidget {
   const _TableCards({
     required this.cards,
     required this.deck,
+    required this.playedCardOrigin,
     this.captureAction,
     this.onCapture,
     this.onOpeningComplete,
   });
   final List<GameCard> cards;
   final int deck;
+  final Offset playedCardOrigin;
   final GameAction? captureAction;
   final ValueChanged<GameAction>? onCapture;
   final VoidCallback? onOpeningComplete;
@@ -1658,6 +1704,7 @@ class _TableCardsState extends State<_TableCards> {
 
   @override
   Widget build(BuildContext context) => Stack(
+        clipBehavior: Clip.none,
         fit: StackFit.expand,
         children: [
           Positioned(
@@ -1719,6 +1766,15 @@ class _TableCardsState extends State<_TableCards> {
                             card: card,
                             index: index,
                             travelX: 220 - column * horizontalStep,
+                            playOffset: widget.playedCardOrigin -
+                                Offset(
+                                  220 +
+                                      baseLeft +
+                                      column * horizontalStep +
+                                      stagger +
+                                      cardWidth / 2,
+                                  139 + row * verticalStep + cardHeight / 2,
+                                ),
                             animate: openingDeal,
                             width: cardWidth,
                             height: cardHeight,
@@ -1773,6 +1829,7 @@ class _OpeningTableCard extends StatefulWidget {
     required this.card,
     required this.index,
     required this.travelX,
+    required this.playOffset,
     required this.animate,
     required this.width,
     required this.height,
@@ -1781,6 +1838,7 @@ class _OpeningTableCard extends StatefulWidget {
   final GameCard card;
   final int index;
   final double travelX;
+  final Offset playOffset;
   final bool animate;
   final double width;
   final double height;
@@ -1798,7 +1856,7 @@ class _OpeningTableCardState extends State<_OpeningTableCard>
     super.initState();
     controller = AnimationController(
       vsync: this,
-      duration: Duration(milliseconds: widget.animate ? 500 : 230),
+      duration: Duration(milliseconds: widget.animate ? 500 : 380),
     );
     if (widget.animate) {
       Future<void>.delayed(
@@ -1831,16 +1889,17 @@ class _OpeningTableCardState extends State<_OpeningTableCard>
         animation: controller,
         builder: (context, child) {
           if (!widget.animate) {
-            final arrival = Curves.easeOutBack.transform(controller.value);
-            return Opacity(
-              opacity: controller.value.clamp(0.0, 1.0),
-              child: Transform.scale(
-                scale: .84 + .16 * arrival,
-                alignment: Alignment.center,
+            final progress = Curves.easeOutCubic.transform(controller.value);
+            return Transform.translate(
+              offset: widget.playOffset * (1 - progress) +
+                  Offset(0, -18 * math.sin(progress * math.pi)),
+              child: Transform.rotate(
+                angle: .12 * (1 - progress),
                 child: _Card(widget.card, widget.width, widget.height),
               ),
             );
           }
+
           final progress = Curves.easeOutCubic.transform(controller.value);
           final flipProgress = Curves.easeInOut.transform(
             ((controller.value - .18) / .82).clamp(0.0, 1.0),
