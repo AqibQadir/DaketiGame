@@ -9,6 +9,7 @@ class GameButton extends StatelessWidget {
     required this.onTap,
     this.width = 155,
     this.icon,
+    this.backgroundTint,
     this.backgroundAsset = AppAssets.buttonBrush,
     this.splatterColor = const Color(0xFFFF8500),
     this.fontSize = 18,
@@ -18,6 +19,7 @@ class GameButton extends StatelessWidget {
   final VoidCallback? onTap;
   final double width;
   final IconData? icon;
+  final Color? backgroundTint;
   final String backgroundAsset;
   final Color splatterColor;
   final double fontSize;
@@ -44,8 +46,12 @@ class GameButton extends StatelessWidget {
                   backgroundAsset,
                   fit: BoxFit.fill,
                   filterQuality: FilterQuality.high,
-                  color: onTap == null ? Colors.grey : null,
-                  colorBlendMode: onTap == null ? BlendMode.saturation : null,
+                  color: onTap == null ? Colors.grey : backgroundTint,
+                  colorBlendMode: onTap == null
+                      ? BlendMode.saturation
+                      : backgroundTint != null
+                          ? BlendMode.srcIn
+                          : null,
                 ),
                 Center(
                   child: Padding(

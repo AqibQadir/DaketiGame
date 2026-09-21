@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import '../../../auth/presentation/controllers/auth_controller.dart';
+import '../../../auth/presentation/controllers/guest_name_provider.dart';
+import '../widgets/room_code_input.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/routes/app_routes.dart';
@@ -12,7 +15,7 @@ import '../controllers/game_controller.dart';
 class MultiplayerScreen extends ConsumerStatefulWidget {
   const MultiplayerScreen({
     super.key,
-    this.initialPlayerName = 'Player',
+    this.initialPlayerName = '',
   });
 
   final String initialPlayerName;
@@ -22,26 +25,32 @@ class MultiplayerScreen extends ConsumerStatefulWidget {
 }
 
 class _MultiplayerScreenState extends ConsumerState<MultiplayerScreen> {
-  late final TextEditingController nameController;
   final codeController = TextEditingController();
   int maxPlayers = 4;
 
-  @override
-  void initState() {
-    super.initState();
-    nameController = TextEditingController(text: widget.initialPlayerName);
+  String get playerName => (ref.read(authControllerProvider).user?.name ??
+          (widget.initialPlayerName.trim().isNotEmpty
+              ? widget.initialPlayerName
+              : null) ??
+          ref.read(guestNameProvider) ??
+          '')
+      .trim();
+
+  bool ensureIdentity() {
+    if (playerName.isNotEmpty) return true;
+    Navigator.pushNamed(context, AppRoutes.guestName);
+    return false;
   }
 
   @override
   void dispose() {
-    nameController.dispose();
     codeController.dispose();
     super.dispose();
   }
 
   Future<void> createRoom() async {
-    final name = nameController.text.trim();
-    if (name.isEmpty) return;
+    if (!ensureIdentity()) return;
+    final name = playerName;
     final success = await ref
         .read(gameControllerProvider.notifier)
         .createMultiplayerRoom(playerName: name, maxPlayers: maxPlayers);
@@ -49,10 +58,11 @@ class _MultiplayerScreenState extends ConsumerState<MultiplayerScreen> {
   }
 
   Future<void> joinRoom() async {
-    final name = nameController.text.trim();
+    if (!ensureIdentity()) return;
+    final name = playerName;
     final code = codeController.text.trim();
     if (name.isEmpty || !RegExp(r'^\d{4}$').hasMatch(code)) {
-      _message('Enter your name and a four-digit room code.');
+      _message('Enter a four-digit room code.');
       return;
     }
     final success = await ref
@@ -88,83 +98,120 @@ class _MultiplayerScreenState extends ConsumerState<MultiplayerScreen> {
               child: GameCloseButton(onTap: Navigator.of(context).pop),
             ),
             Center(
-              child: GlassPanel(
-                width: 520,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Text(
-                      'PRIVATE TEAM ROOM',
-                      style: TextStyle(
-                        fontFamily: 'Dirty Brush',
-                        fontSize: 28,
+              child: SingleChildScrollView(
+                padding:
+                    const EdgeInsets.symmetric(vertical: 18, horizontal: 70),
+                child: GlassPanel(
+                  width: 520,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Text(
+                        'PRIVATE TEAM ROOM',
+                        style: TextStyle(
+                          fontFamily: 'Dirty Brush',
+                          fontSize: 28,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 15),
-                    const Text(
-                      'Create a private table and share its 4-digit code, or join a teammate’s room.',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(color: Colors.white60, fontSize: 11),
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: nameController,
-                      maxLength: 24,
-                      decoration:
-                          const InputDecoration(labelText: 'Player name'),
-                    ),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: DropdownButtonFormField<int>(
-                            initialValue: maxPlayers,
-                            decoration:
-                                const InputDecoration(labelText: 'Room size'),
-                            items: const [
-                              DropdownMenuItem(
-                                  value: 2, child: Text('2 team members')),
-                              DropdownMenuItem(
-                                  value: 3, child: Text('3 team members')),
-                              DropdownMenuItem(
-                                  value: 4, child: Text('4 team members')),
-                            ],
-                            onChanged: (value) {
-                              setState(() => maxPlayers = value ?? 4);
-                            },
+                      const SizedBox(height: 15),
+                      const Text(
+                        'Create a private table and share its 4-digit code, or join a teammate’s room.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: Colors.white60, fontSize: 11),
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                for (final count in [2, 3, 4])
+                                  Semantics(
+                                    label: '$count players',
+                                    button: true,
+                                    selected: maxPlayers == count,
+                                    child: InkWell(
+                                      onTap: loading
+                                          ? null
+                                          : () => setState(
+                                              () => maxPlayers = count),
+                                      borderRadius: BorderRadius.circular(10),
+                                      child: Container(
+                                        width: 84,
+                                        height: 68,
+                                        decoration: BoxDecoration(
+                                          color: maxPlayers == count
+                                              ? const Color(0x332D1905)
+                                              : Colors.black26,
+                                          borderRadius:
+                                              BorderRadius.circular(10),
+                                          border: Border.all(
+                                              color: maxPlayers == count
+                                                  ? const Color(0xFFFF8500)
+                                                  : Colors.white24,
+                                              width:
+                                                  maxPlayers == count ? 2 : 1),
+                                        ),
+                                        child: Column(
+                                            mainAxisAlignment:
+                                                MainAxisAlignment.center,
+                                            children: [
+                                              Row(
+                                                  mainAxisAlignment:
+                                                      MainAxisAlignment.center,
+                                                  children: List.generate(
+                                                      count,
+                                                      (_) => Icon(Icons.person,
+                                                          size: 16,
+                                                          color: maxPlayers ==
+                                                                  count
+                                                              ? const Color(
+                                                                  0xFFFFAC50)
+                                                              : Colors
+                                                                  .white60))),
+                                              const SizedBox(height: 6),
+                                              Text('$count PLAYERS',
+                                                  style: const TextStyle(
+                                                      fontSize: 10,
+                                                      color: Colors.white)),
+                                            ]),
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            ),
                           ),
-                        ),
-                        const SizedBox(width: 12),
-                        GameButton(
-                          text: loading ? 'Please wait' : 'Create room',
-                          width: 170,
-                          onTap: loading ? () {} : createRoom,
-                        ),
-                      ],
-                    ),
-                    const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 12),
-                      child: Text('OR JOIN YOUR TEAM WITH A CODE'),
-                    ),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: TextField(
-                            controller: codeController,
-                            keyboardType: TextInputType.number,
-                            maxLength: 4,
-                            decoration: const InputDecoration(
-                                labelText: '4-digit code'),
+                          const SizedBox(width: 12),
+                          GameButton(
+                            text: loading ? 'Please wait' : 'Create room',
+                            width: 170,
+                            onTap: loading ? null : createRoom,
                           ),
-                        ),
-                        const SizedBox(width: 12),
-                        GameButton(
-                          text: loading ? 'Please wait' : 'Join room',
-                          width: 170,
-                          onTap: loading ? () {} : joinRoom,
-                        ),
-                      ],
-                    ),
-                  ],
+                        ],
+                      ),
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 12),
+                        child: Text('OR JOIN YOUR TEAM WITH A CODE'),
+                      ),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: RoomCodeInput(
+                                controller: codeController,
+                                enabled: !loading,
+                                onSubmitted: (_) => joinRoom()),
+                          ),
+                          const SizedBox(width: 12),
+                          GameButton(
+                            text: loading ? 'Please wait' : 'Join room',
+                            width: 170,
+                            onTap: loading ? null : joinRoom,
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),

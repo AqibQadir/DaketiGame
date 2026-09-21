@@ -1,46 +1,52 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../auth/presentation/controllers/auth_controller.dart';
 
 import '../../../../core/routes/app_routes.dart';
 import '../../../../core/widgets/game_button.dart';
 import '../../../support/presentation/widgets/support_page_shell.dart';
 
-class GeneralSettingsScreen extends StatelessWidget {
+class GeneralSettingsScreen extends ConsumerWidget {
   const GeneralSettingsScreen({super.key});
 
   @override
-  Widget build(BuildContext context) => SupportPageShell(
-        title: 'General Settings',
+  Widget build(BuildContext context, WidgetRef ref) => SupportPageShell(
+        title: 'Account Settings',
         width: 470,
         height: 245,
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const _AccountRow('Username', 'Dakait 420'),
-            const _AccountRow('Email', 'dakait-420@gmail.com'),
-            const _AccountRow('Phone', '+92 300 000 000'),
+            _AccountRow('Username',
+                ref.watch(authControllerProvider).user?.name ?? 'Guest'),
+            _AccountRow(
+                'Email',
+                ref.watch(authControllerProvider).user?.email ??
+                    'Not signed in'),
             const _AccountRow('Password', '••••••••'),
             const SizedBox(height: 15),
             GameButton(
               text: 'Logout',
               width: 120,
-              onTap: () => Navigator.pushNamedAndRemoveUntil(
-                context,
-                AppRoutes.welcome,
-                (_) => false,
-              ),
+              onTap: () async {
+                await ref.read(authControllerProvider.notifier).logout();
+                if (!context.mounted) return;
+                Navigator.pushNamedAndRemoveUntil(
+                    context, AppRoutes.welcome, (_) => false);
+              },
             ),
           ],
         ),
       );
 }
 
-class _AccountRow extends StatelessWidget {
+class _AccountRow extends ConsumerWidget {
   const _AccountRow(this.label, this.value);
   final String label;
   final String value;
 
   @override
-  Widget build(BuildContext context) => Padding(
+  Widget build(BuildContext context, WidgetRef ref) => Padding(
         padding: const EdgeInsets.symmetric(vertical: 5),
         child: Row(children: [
           SizedBox(

@@ -9,7 +9,7 @@ class GlobalPlayersScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => BaithakPageShell(
-        title: 'Global',
+        title: 'Global Players',
         child: GridView.builder(
           padding: EdgeInsets.zero,
           gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(

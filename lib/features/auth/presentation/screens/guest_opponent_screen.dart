@@ -39,7 +39,9 @@ class _GuestOpponentScreenState extends ConsumerState<GuestOpponentScreen> {
       Navigator.pushNamedAndRemoveUntil(
         context,
         AppRoutes.game,
-        (route) => route.settings.name == AppRoutes.welcome,
+        (route) =>
+            route.settings.name == AppRoutes.tables ||
+            route.settings.name == AppRoutes.home,
       );
       return;
     }

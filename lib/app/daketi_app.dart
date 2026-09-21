@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/routes/app_router.dart';
+import '../core/widgets/looping_video_background.dart';
 import '../core/routes/app_routes.dart';
 import '../core/theme/app_theme.dart';
 import '../features/auth/presentation/controllers/auth_controller.dart';
@@ -51,6 +52,12 @@ class _DaketiAppState extends ConsumerState<DaketiApp>
       }
     });
     return MaterialApp(
+      builder: (context, child) => PersistentBackgroundScope(
+        child: Stack(fit: StackFit.expand, children: [
+          const LoopingVideoBackground(),
+          if (child != null) child,
+        ]),
+      ),
       navigatorKey: navigatorKey,
       debugShowCheckedModeBanner: false,
       title: 'Daketi',

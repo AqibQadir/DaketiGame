@@ -8,6 +8,11 @@ class AppAssets {
   static const String chaiHotelBackground =
       'assets/images/chai_hotel_background.png';
 
+  static const String chaiHotelVideo =
+      'assets/videos/chai_hotel_background.mp4';
+  static const String chaiHotelVideoPoster =
+      'assets/images/chai_hotel_video_poster.jpg';
+
   /// Client-supplied gameplay table with its rainy street environment.
   static const String tableBackground = 'assets/images/table_bg.png';
   static const String cardBack = 'assets/images/card_back.png';

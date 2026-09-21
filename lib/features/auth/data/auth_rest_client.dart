@@ -30,11 +30,14 @@ class AuthRestClient {
     required String email,
     required String password,
   }) async {
-    final response = await _client.post(
-      Uri.parse('$baseUrl/api/auth/signup'),
-      headers: const {'Content-Type': 'application/json'},
-      body: jsonEncode({'name': name, 'email': email, 'password': password}),
-    );
+    final response = await _client
+        .post(
+          Uri.parse('$baseUrl/api/auth/signup'),
+          headers: const {'Content-Type': 'application/json'},
+          body:
+              jsonEncode({'name': name, 'email': email, 'password': password}),
+        )
+        .timeout(const Duration(seconds: 15));
     return _authResult(response);
   }
 
@@ -42,11 +45,13 @@ class AuthRestClient {
     required String email,
     required String password,
   }) async {
-    final response = await _client.post(
-      Uri.parse('$baseUrl/api/auth/login'),
-      headers: const {'Content-Type': 'application/json'},
-      body: jsonEncode({'email': email, 'password': password}),
-    );
+    final response = await _client
+        .post(
+          Uri.parse('$baseUrl/api/auth/login'),
+          headers: const {'Content-Type': 'application/json'},
+          body: jsonEncode({'email': email, 'password': password}),
+        )
+        .timeout(const Duration(seconds: 15));
     return _authResult(response);
   }
 

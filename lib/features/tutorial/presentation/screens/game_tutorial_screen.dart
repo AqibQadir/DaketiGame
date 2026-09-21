@@ -1,8 +1,10 @@
+import '../../../../core/widgets/game_styled_dialog.dart';
 import 'package:flutter/material.dart';
 
 import '../../../../core/constants/app_assets.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/routes/app_routes.dart';
+import '../../../../core/widgets/game_dialog_title.dart';
 import '../../../../core/widgets/game_button.dart';
 import '../../../game/domain/models/game_card.dart';
 import '../../../game/presentation/widgets/fanned_card_hand.dart';
@@ -56,16 +58,13 @@ class _GameTutorialScreenState extends State<GameTutorialScreen> {
     final skip = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
-      builder: (dialogContext) => AlertDialog(
+      builder: (dialogContext) => GameStyledDialog(
         backgroundColor: const Color(0xF2181411),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
           side: const BorderSide(color: AppColors.orange),
         ),
-        title: const Text(
-          'SKIP TUTORIAL?',
-          style: TextStyle(fontFamily: 'Dirty Brush'),
-        ),
+        title: const GameDialogTitle('SKIP TUTORIAL?'),
         content: const Text('Are you sure you want to skip the tutorial?'),
         actions: [
           TextButton(

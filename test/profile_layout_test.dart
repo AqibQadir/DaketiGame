@@ -55,19 +55,22 @@ void main() {
     });
     await tester.pumpAndSettle();
     expect(find.text('125,000'), findsOneWidget);
-    expect(find.text('HISTORY'), findsOneWidget);
+    expect(find.text('REGIONAL'), findsOneWidget);
+    expect(find.text('Worth'), findsOneWidget);
     expect(tester.takeException(), isNull);
     await tester.tap(find.byTooltip('Profile options'));
     await tester.pumpAndSettle();
     expect(find.text('HISTORY'), findsNothing);
-    expect(find.text('EDIT'), findsNWidgets(2));
+    expect(find.text('EDIT'), findsOneWidget);
     expect(tester.takeException(), isNull);
     await tester.tap(find.text('EDIT').last);
     await tester.pumpAndSettle();
     expect(find.text('EDIT PROFILE'), findsOneWidget);
-    await tester.tap(find.text('Cancel'));
+    await tester.ensureVisible(find.text('CANCEL'));
+    await tester.tap(find.text('CANCEL'));
     await tester.pumpAndSettle();
     await tester.pump(const Duration(milliseconds: 500));
-    expect(find.text('HISTORY'), findsOneWidget);
+    expect(find.text('REGIONAL'), findsOneWidget);
+    expect(find.text('Worth'), findsOneWidget);
   });
 }

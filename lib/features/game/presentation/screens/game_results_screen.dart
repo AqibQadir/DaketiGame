@@ -82,9 +82,6 @@ class _GameResultsScreenState extends ConsumerState<GameResultsScreen> {
             const <Map<String, dynamic>>[]);
     final scores = List<Map<String, dynamic>>.of(rawScores)
       ..sort((a, b) {
-        final aIsWinner = a['id']?.toString() == session.winner;
-        final bIsWinner = b['id']?.toString() == session.winner;
-        if (aIsWinner != bIsWinner) return aIsWinner ? -1 : 1;
         final aScore = (a['score'] as num?)?.toInt() ?? 0;
         final bScore = (b['score'] as num?)?.toInt() ?? 0;
         final scoreOrder = bScore.compareTo(aScore);
@@ -92,146 +89,168 @@ class _GameResultsScreenState extends ConsumerState<GameResultsScreen> {
         return (a['name']?.toString() ?? '')
             .compareTo(b['name']?.toString() ?? '');
       });
+    final topScore = scores.isEmpty ? null : scores.first['score'] as num?;
+    final tiedAtTop = topScore != null &&
+        scores.where((score) => score['score'] == topScore).length > 1;
+    final sharedFirst = session.winner == 'draw' && tiedAtTop;
     return Scaffold(
       body: GameBackground(
         child: Center(
-          child: GlassPanel(
-            width: 520,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  winnerText,
-                  style: const TextStyle(
-                    fontFamily: 'Dirty Brush',
-                    fontSize: 34,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                ...scores.indexed.map(
-                  (rankedScore) {
-                    final rank = rankedScore.$1 + 1;
-                    final score = rankedScore.$2;
-                    final isWinner = score['id']?.toString() == session.winner;
-                    final isLocalPlayer =
-                        score['id']?.toString() == session.playerId;
-                    return Container(
-                      margin: const EdgeInsets.symmetric(vertical: 2),
-                      decoration: BoxDecoration(
-                        color: isLocalPlayer
-                            ? const Color(0x4435C96F)
-                            : Colors.transparent,
-                        borderRadius: BorderRadius.circular(10),
-                        border: isLocalPlayer
-                            ? Border.all(color: const Color(0xFF35C96F))
-                            : null,
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: GlassPanel(
+                width: 520,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      sharedFirst ? 'DRAW — JOINT FIRST' : winnerText,
+                      style: const TextStyle(
+                        fontFamily: 'Dirty Brush',
+                        fontSize: 34,
                       ),
-                      child: ListTile(
-                        dense: true,
-                        leading: CircleAvatar(
-                          radius: 16,
-                          backgroundColor: isWinner
-                              ? const Color(0xFFFF8A00)
-                              : isLocalPlayer
-                                  ? const Color(0xFF237A4A)
-                                  : const Color(0xFF30271F),
-                          child: Text(
-                            '$rank',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w900,
-                            ),
+                    ),
+                    const SizedBox(height: 16),
+                    ...scores.indexed.map(
+                      (rankedScore) {
+                        final score = rankedScore.$2;
+                        final points = (score['score'] as num?)?.toInt() ?? 0;
+                        final rank = 1 +
+                            scores
+                                .where((other) =>
+                                    ((other['score'] as num?)?.toInt() ?? 0) >
+                                    points)
+                                .length;
+                        final isJointFirst = sharedFirst && rank == 1;
+                        final isWinner =
+                            score['id']?.toString() == session.winner;
+                        final isLocalPlayer =
+                            score['id']?.toString() == session.playerId;
+                        return Container(
+                          margin: const EdgeInsets.symmetric(vertical: 2),
+                          decoration: BoxDecoration(
+                            color: isLocalPlayer
+                                ? const Color(0x4435C96F)
+                                : Colors.transparent,
+                            borderRadius: BorderRadius.circular(10),
+                            border: isLocalPlayer
+                                ? Border.all(color: const Color(0xFF35C96F))
+                                : null,
                           ),
-                        ),
-                        title: Row(
-                          children: [
-                            Flexible(
+                          child: ListTile(
+                            dense: true,
+                            leading: CircleAvatar(
+                              radius: 16,
+                              backgroundColor: isWinner || isJointFirst
+                                  ? const Color(0xFFFF8A00)
+                                  : isLocalPlayer
+                                      ? const Color(0xFF237A4A)
+                                      : const Color(0xFF30271F),
                               child: Text(
-                                aiDisplayNames[score['id']?.toString()] ??
-                                    score['name']?.toString() ??
-                                    'Player',
-                              ),
-                            ),
-                            if (isLocalPlayer) ...[
-                              const SizedBox(width: 8),
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 7,
-                                  vertical: 2,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFF35C96F),
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: const Text(
-                                  'YOU',
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 8,
-                                    fontWeight: FontWeight.w900,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ],
-                        ),
-                        subtitle: isWinner
-                            ? const Text(
-                                'WINNER',
-                                style: TextStyle(
-                                  color: Color(0xFFFFB34D),
+                                '$rank',
+                                style: const TextStyle(
+                                  color: Colors.white,
                                   fontWeight: FontWeight.w900,
                                 ),
-                              )
-                            : null,
-                        trailing: Text(
-                          '${score['score'] ?? 0} PTS',
-                          style: TextStyle(
-                            color: isWinner
-                                ? const Color(0xFFFFB34D)
-                                : isLocalPlayer
-                                    ? const Color(0xFF67E49B)
-                                    : null,
-                            fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                            title: Row(
+                              children: [
+                                Flexible(
+                                  child: Text(
+                                    aiDisplayNames[score['id']?.toString()] ??
+                                        score['name']?.toString() ??
+                                        'Player',
+                                  ),
+                                ),
+                                if (isLocalPlayer) ...[
+                                  const SizedBox(width: 8),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 7,
+                                      vertical: 2,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFF35C96F),
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: const Text(
+                                      'YOU',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 8,
+                                        fontWeight: FontWeight.w900,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                            subtitle: isWinner || isJointFirst
+                                ? Text(
+                                    isJointFirst ? 'JOINT FIRST' : 'WINNER',
+                                    style: const TextStyle(
+                                      color: Color(0xFFFFB34D),
+                                      fontWeight: FontWeight.w900,
+                                    ),
+                                  )
+                                : null,
+                            trailing: Text(
+                              '${score['score'] ?? 0} PTS',
+                              style: TextStyle(
+                                color: isWinner || isJointFirst
+                                    ? const Color(0xFFFFB34D)
+                                    : isLocalPlayer
+                                        ? const Color(0xFF67E49B)
+                                        : null,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
                           ),
-                        ),
-                      ),
-                    );
-                  },
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    GameButton(
-                      text: 'Replay',
-                      onTap: () async {
-                        final success = await ref
-                            .read(gameControllerProvider.notifier)
-                            .replaySolo();
-                        if (success && context.mounted) {
-                          Navigator.pushReplacementNamed(
-                              context, AppRoutes.game);
-                        }
-                      },
-                    ),
-                    const SizedBox(width: 16),
-                    GameButton(
-                      text: 'Home',
-                      onTap: () {
-                        ref
-                            .read(gameControllerProvider.notifier)
-                            .resetSession();
-                        Navigator.pushNamedAndRemoveUntil(
-                          context,
-                          AppRoutes.home,
-                          (_) => false,
                         );
                       },
                     ),
+                    const SizedBox(height: 12),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        GameButton(
+                          text: 'Replay',
+                          onTap: () async {
+                            final success = await ref
+                                .read(gameControllerProvider.notifier)
+                                .replaySolo();
+                            if (success && context.mounted) {
+                              Navigator.pushNamedAndRemoveUntil(
+                                  context,
+                                  AppRoutes.game,
+                                  (route) =>
+                                      route.settings.name == AppRoutes.tables ||
+                                      route.settings.name == AppRoutes.home);
+                            }
+                          },
+                        ),
+                        const SizedBox(width: 16),
+                        GameButton(
+                          text: 'Home',
+                          onTap: () {
+                            ref
+                                .read(gameControllerProvider.notifier)
+                                .resetSession();
+                            Navigator.pushNamedAndRemoveUntil(
+                              context,
+                              AppRoutes.home,
+                              (_) => false,
+                            );
+                          },
+                        ),
+                      ],
+                    ),
                   ],
                 ),
-              ],
+              ),
             ),
           ),
         ),

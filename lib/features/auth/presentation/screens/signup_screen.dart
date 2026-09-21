@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/routes/app_routes.dart';
-import '../../../../core/widgets/daketi_logo.dart';
 import '../../../../core/widgets/game_background.dart';
 import '../../../../core/widgets/game_alert.dart';
 import '../../../../core/widgets/game_button.dart';
@@ -35,6 +34,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
   }
 
   Future<void> submit() async {
+    if (ref.read(authControllerProvider).isLoading) return;
     FocusScope.of(context).unfocus();
     final email = emailController.text.trim().toLowerCase();
     if (passwordController.text != confirmPasswordController.text) {
@@ -48,7 +48,8 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
         );
     if (!mounted) return;
     if (success) {
-      Navigator.pushNamedAndRemoveUntil(context, AppRoutes.home, (_) => false);
+      Navigator.pushNamedAndRemoveUntil(context, AppRoutes.home,
+          (route) => route.settings.name == AppRoutes.welcome);
       return;
     }
     showGameAlert(
@@ -90,10 +91,9 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const DaketiLogo(
-                    type: DaketiLogoType.whiteOrange,
-                    width: 300,
-                  ),
+                  const Text('SIGN UP',
+                      style:
+                          TextStyle(fontFamily: 'Dirty Brush', fontSize: 30)),
                   const SizedBox(height: 14),
                   AnimatedSlide(
                     offset: Offset(0, keyboardOpen ? -.55 : 0),
@@ -136,9 +136,17 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                         ],
                       ),
                       const SizedBox(height: 14),
+                      if (loading)
+                        const Padding(
+                          padding: EdgeInsets.only(bottom: 8),
+                          child: SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2)),
+                        ),
                       GameButton(
-                        text: 'Signup',
-                        onTap: loading ? () {} : submit,
+                        text: loading ? 'Please wait…' : 'Signup',
+                        onTap: loading ? null : submit,
                       ),
                     ]),
                   ),

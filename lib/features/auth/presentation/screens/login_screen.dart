@@ -1,14 +1,15 @@
+import '../../../../core/widgets/game_styled_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/routes/app_routes.dart';
-import '../../../../core/widgets/daketi_logo.dart';
+import '../../../../core/widgets/game_dialog_title.dart';
 import '../../../../core/widgets/game_background.dart';
 import '../../../../core/widgets/game_alert.dart';
 import '../../../../core/widgets/game_button.dart';
 import '../../../../core/widgets/game_close_button.dart';
 import '../../../../core/widgets/game_icon_button.dart';
-import '../../../../core/widgets/game_text_field.dart';
+import '../../../../core/widgets/daketi_logo.dart';
 import '../controllers/auth_controller.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
@@ -30,6 +31,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 
   Future<void> submit() async {
+    if (ref.read(authControllerProvider).isLoading) return;
     FocusScope.of(context).unfocus();
     final email = usernameController.text.trim().toLowerCase();
     if (email.isEmpty || passwordController.text.isEmpty) {
@@ -42,7 +44,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         );
     if (!mounted) return;
     if (success) {
-      Navigator.pushNamedAndRemoveUntil(context, AppRoutes.home, (_) => false);
+      Navigator.pushNamedAndRemoveUntil(context, AppRoutes.home,
+          (route) => route.settings.name == AppRoutes.welcome);
       return;
     }
     showGameAlert(
@@ -58,140 +61,193 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     return Scaffold(
       resizeToAvoidBottomInset: false,
       body: GameBackground(
-        child: Stack(
-          children: [
-            Positioned(
-              left: 18,
-              top: 18,
-              child: GameCloseButton(
-                onTap: Navigator.of(context).pop,
-              ),
-            ),
-            Positioned(
-              right: 18,
-              top: 18,
-              child: GameIconButton(
-                icon: Icons.menu,
-                onTap: () {
-                  Navigator.pushNamed(
-                    context,
-                    AppRoutes.menu,
-                  );
-                },
-              ),
-            ),
-            Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const DaketiLogo(
-                    type: DaketiLogoType.whiteOrange,
-                    width: 300,
-                  ),
-                  const SizedBox(height: 18),
-                  AnimatedSlide(
-                    offset: Offset(0, keyboardOpen ? -.55 : 0),
-                    duration: const Duration(milliseconds: 220),
-                    curve: Curves.easeOutCubic,
-                    child: Column(children: [
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          GameTextField(
-                            hint: 'Email',
-                            controller: usernameController,
-                            keyboardType: TextInputType.emailAddress,
-                            autofillHints: const [AutofillHints.email],
+        child: Center(
+            child: FittedBox(
+                fit: BoxFit.contain,
+                child: SizedBox(
+                    width: 844,
+                    height: 390,
+                    child: Stack(
+                      children: [
+                        Positioned(
+                          left: 18,
+                          top: 18,
+                          child: GameCloseButton(
+                            onTap: Navigator.of(context).pop,
                           ),
-                          const SizedBox(width: 14),
-                          GameTextField(
-                            hint: 'Password',
-                            obscureText: true,
-                            controller: passwordController,
-                            autofillHints: const [AutofillHints.password],
+                        ),
+                        Positioned(
+                          right: 18,
+                          top: 18,
+                          child: GameIconButton(
+                            icon: Icons.menu,
+                            onTap: () {
+                              Navigator.pushNamed(
+                                context,
+                                AppRoutes.menu,
+                              );
+                            },
                           ),
-                        ],
-                      ),
-                      const SizedBox(height: 15),
-                      GameButton(
-                        text: 'Login',
-                        onTap: loading ? () {} : submit,
-                      ),
-                      TextButton(
-                        onPressed: loading ? null : _forgotPassword,
-                        child: const Text('Forgot password?'),
-                      ),
-                    ]),
-                  ),
-                ],
-              ),
-            ),
-            Positioned(
-              left: 18,
-              bottom: 18,
-              child: Row(
-                children: [
-                  GameIconButton(
-                    icon: Icons.settings,
-                    onTap: () {
-                      Navigator.pushNamed(
-                        context,
-                        AppRoutes.settings,
-                      );
-                    },
-                  ),
-                  const SizedBox(width: 8),
-                  GameIconButton(
-                    icon: Icons.support_agent,
-                    onTap: () {
-                      Navigator.pushNamed(
-                        context,
-                        AppRoutes.support,
-                      );
-                    },
-                  ),
-                ],
-              ),
-            ),
-            const Positioned(
-              right: 18,
-              bottom: 18,
-              child: Row(
-                children: [
-                  GameIconButton(
-                    icon: Icons.facebook,
-                    onTap: null,
-                  ),
-                  SizedBox(width: 8),
-                  GameIconButton(
-                    icon: Icons.camera_alt,
-                    onTap: null,
-                  ),
-                  SizedBox(width: 8),
-                  GameIconButton(
-                    icon: Icons.play_arrow,
-                    onTap: null,
-                  ),
-                  SizedBox(width: 8),
-                  GameIconButton(
-                    icon: Icons.music_note,
-                    onTap: null,
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
+                        ),
+                        Positioned(
+                          top: 82,
+                          left: 0,
+                          right: 0,
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const DaketiLogo(width: 320, height: 120),
+                              const SizedBox(height: 32),
+                              AnimatedSlide(
+                                offset: Offset(0, keyboardOpen ? -.55 : 0),
+                                duration: const Duration(milliseconds: 220),
+                                curve: Curves.easeOutCubic,
+                                child: Column(children: [
+                                  Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      _loginField(
+                                        hint: 'Email',
+                                        controller: usernameController,
+                                        keyboardType:
+                                            TextInputType.emailAddress,
+                                        autofillHints: const [
+                                          AutofillHints.email
+                                        ],
+                                      ),
+                                      const SizedBox(width: 36),
+                                      _loginField(
+                                        hint: 'Password',
+                                        obscureText: true,
+                                        controller: passwordController,
+                                        autofillHints: const [
+                                          AutofillHints.password
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 25),
+                                  if (loading)
+                                    const Padding(
+                                      padding: EdgeInsets.only(bottom: 8),
+                                      child: SizedBox(
+                                          width: 18,
+                                          height: 18,
+                                          child: CircularProgressIndicator(
+                                              strokeWidth: 2)),
+                                    ),
+                                  GameButton(
+                                    text: loading ? 'Please wait…' : 'Login',
+                                    onTap: loading ? null : submit,
+                                  ),
+                                  TextButton(
+                                    onPressed: loading ? null : _forgotPassword,
+                                    child: const Text('Forgot password?'),
+                                  ),
+                                ]),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Positioned(
+                          left: 18,
+                          bottom: 18,
+                          child: Row(
+                            children: [
+                              GameIconButton(
+                                icon: Icons.settings,
+                                onTap: () {
+                                  Navigator.pushNamed(
+                                    context,
+                                    AppRoutes.settings,
+                                  );
+                                },
+                              ),
+                              const SizedBox(width: 8),
+                              GameIconButton(
+                                icon: Icons.support_agent,
+                                onTap: () {
+                                  Navigator.pushNamed(
+                                    context,
+                                    AppRoutes.support,
+                                  );
+                                },
+                              ),
+                            ],
+                          ),
+                        ),
+                        const Positioned(
+                          right: 18,
+                          bottom: 18,
+                          child: Row(
+                            children: [
+                              GameIconButton(
+                                icon: Icons.facebook,
+                                onTap: null,
+                              ),
+                              SizedBox(width: 8),
+                              GameIconButton(
+                                icon: Icons.camera_alt,
+                                onTap: null,
+                              ),
+                              SizedBox(width: 8),
+                              GameIconButton(
+                                icon: Icons.play_arrow,
+                                onTap: null,
+                              ),
+                              SizedBox(width: 8),
+                              GameIconButton(
+                                icon: Icons.music_note,
+                                onTap: null,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    )))),
       ),
     );
   }
+
+  Widget _loginField({
+    required String hint,
+    required TextEditingController controller,
+    bool obscureText = false,
+    TextInputType? keyboardType,
+    Iterable<String>? autofillHints,
+  }) =>
+      SizedBox(
+        width: 198,
+        height: 34,
+        child: TextField(
+          controller: controller,
+          obscureText: obscureText,
+          keyboardType: keyboardType,
+          autofillHints: autofillHints,
+          autocorrect: false,
+          style: const TextStyle(fontSize: 14),
+          decoration: InputDecoration(
+            hintText: hint,
+            hintStyle: const TextStyle(color: Colors.white38),
+            filled: true,
+            fillColor: const Color(0x773C3A36),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 20),
+            enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(30),
+                borderSide: const BorderSide(color: Colors.white30)),
+            focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(30),
+                borderSide: const BorderSide(color: Color(0xFFFF8500))),
+          ),
+        ),
+      );
 
   Future<void> _forgotPassword() async {
     final controller = TextEditingController(text: usernameController.text);
     final email = await showDialog<String>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('RESET PASSWORD'),
+      builder: (context) => GameStyledDialog(
+        title: const GameDialogTitle('RESET PASSWORD'),
         content: TextField(
             controller: controller,
             decoration: const InputDecoration(labelText: 'Email')),

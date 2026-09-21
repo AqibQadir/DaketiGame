@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'package:flutter/services.dart';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/config/backend_config.dart';
@@ -58,16 +61,20 @@ class AuthController extends StateNotifier<AuthState> {
 
   final AuthRestClient _client;
   final AuthTokenStorage _storage;
+  int _authRevision = 0;
 
   Future<void> restoreSession() async {
+    final revision = _authRevision;
     String? token;
     try {
       token = await _storage.read();
+      if (!mounted || revision != _authRevision) return;
       if (token == null || token.isEmpty) {
         state = const AuthState(isRestoring: false);
         return;
       }
       final result = await _client.getMe(token);
+      if (!mounted || revision != _authRevision) return;
       state = AuthState(
         isRestoring: false,
         token: token,
@@ -75,6 +82,7 @@ class AuthController extends StateNotifier<AuthState> {
         stats: result.stats,
       );
     } on GameApiException catch (error) {
+      if (!mounted || revision != _authRevision) return;
       if (error.statusCode == 401 || error.statusCode == 404) {
         await _storage.clear();
         state = const AuthState(isRestoring: false);
@@ -88,6 +96,7 @@ class AuthController extends StateNotifier<AuthState> {
         );
       }
     } catch (_) {
+      if (!mounted || revision != _authRevision) return;
       state = const AuthState(isRestoring: false);
     }
   }
@@ -104,6 +113,8 @@ class AuthController extends StateNotifier<AuthState> {
           () => _client.signup(name: name, email: email, password: password));
 
   Future<bool> _authenticate(Future<AuthResult> Function() request) async {
+    if (state.isLoading) return false;
+    _authRevision++;
     state = AuthState(
       isLoading: true,
       isRestoring: false,
@@ -124,13 +135,18 @@ class AuthController extends StateNotifier<AuthState> {
         isRestoring: false,
         error: error is GameApiException
             ? error.message
-            : 'Unable to connect to the server.',
+            : error is TimeoutException
+                ? 'The server did not respond within 15 seconds. Please try again.'
+                : error is PlatformException
+                    ? 'Your account was accepted, but this device could not save the secure session. Please restart the app and try again.'
+                    : 'Unable to reach the login server. Check your connection and try again.',
       );
       return false;
     }
   }
 
   Future<void> logout() async {
+    _authRevision++;
     await _storage.clear();
     state = const AuthState(isRestoring: false);
   }

@@ -34,15 +34,23 @@ class WelcomeScreen extends StatelessWidget {
                 children: [
                   const DaketiLogo(),
                   const SizedBox(height: 28),
-                  GameButton(
-                    text: 'Play',
-                    onTap: () {
-                      Navigator.pushReplacementNamed(
-                        context,
-                        AppRoutes.authChoice,
-                      );
-                    },
-                  ),
+                  Row(mainAxisSize: MainAxisSize.min, children: [
+                    GameButton(
+                        text: 'Login',
+                        width: 140,
+                        onTap: () =>
+                            Navigator.pushNamed(context, AppRoutes.login)),
+                    const Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 10),
+                        child: Text('/',
+                            style: TextStyle(
+                                color: Colors.white70, fontSize: 20))),
+                    GameButton(
+                        text: 'Sign Up',
+                        width: 140,
+                        onTap: () =>
+                            Navigator.pushNamed(context, AppRoutes.signup)),
+                  ]),
                   const SizedBox(height: 12),
                   GameButton(
                     text: 'Play as guest',

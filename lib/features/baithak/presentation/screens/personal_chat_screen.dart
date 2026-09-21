@@ -29,7 +29,7 @@ class _PersonalChatScreenState extends State<PersonalChatScreen> {
 
   @override
   Widget build(BuildContext context) => BaithakPageShell(
-        title: 'A Person Chat',
+        title: 'Private Chat',
         showTopBar: false,
         child: Center(
           child: Container(

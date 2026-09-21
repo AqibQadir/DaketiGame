@@ -239,7 +239,7 @@ class HomeScreen extends ConsumerWidget {
                       Navigator.pushNamed(
                         context,
                         AppRoutes.multiplayer,
-                        arguments: user?.name ?? 'Player',
+                        arguments: user?.name ?? '',
                       );
                     },
                   ),
@@ -280,7 +280,7 @@ class HomeScreen extends ConsumerWidget {
                     }
                     Navigator.pushNamed(
                       context,
-                      AppRoutes.guestOpponents,
+                      AppRoutes.tables,
                       arguments: user.name,
                     );
                   },

@@ -1,11 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../../core/routes/app_routes.dart';
+import '../../../auth/presentation/controllers/auth_controller.dart';
+import '../../../auth/presentation/controllers/guest_name_provider.dart';
 
 import '../../domain/table_room.dart';
 import '../widgets/table_card.dart';
 import '../widgets/table_categories.dart';
 import '../widgets/table_page_shell.dart';
 
-class TableRoomScreen extends StatelessWidget {
+class TableRoomScreen extends ConsumerWidget {
   const TableRoomScreen({super.key, required this.room});
 
   final TableRoom room;
@@ -13,7 +17,7 @@ class TableRoomScreen extends StatelessWidget {
   bool get purple => room == TableRoom.dubaiRise;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     const stakes = [
       ('SILVER', 'LOW STAKES', '100', '100', 'STARTER'),
       ('GOLD', 'MID STAKES', '500', '700', 'POPULAR'),
@@ -36,7 +40,16 @@ class TableRoomScreen extends StatelessWidget {
                 locked: index == stakes.length - 1,
                 purple: purple,
                 imageAsset: room.imageAsset,
-                onTap: () {},
+                onTap: () {
+                  final name = ref.read(authControllerProvider).user?.name ??
+                      ref.read(guestNameProvider);
+                  Navigator.pushNamed(
+                      context,
+                      name == null
+                          ? AppRoutes.guestName
+                          : AppRoutes.guestOpponents,
+                      arguments: name);
+                },
               ),
             ),
             if (index != stakes.length - 1) const SizedBox(width: 12),

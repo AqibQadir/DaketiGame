@@ -1,23 +1,28 @@
 import 'package:flutter/material.dart';
-
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../controllers/guest_name_provider.dart';
 import '../../../../core/routes/app_routes.dart';
-import '../../../../core/widgets/daketi_logo.dart';
 import '../../../../core/widgets/game_background.dart';
-import '../../../../core/widgets/game_alert.dart';
 import '../../../../core/widgets/game_button.dart';
-import '../../../../core/widgets/game_close_button.dart';
-import '../../../../core/widgets/game_icon_button.dart';
-import '../../../../core/widgets/game_text_field.dart';
 
-class GuestNameScreen extends StatefulWidget {
+class GuestNameScreen extends ConsumerStatefulWidget {
   const GuestNameScreen({super.key});
-
   @override
-  State<GuestNameScreen> createState() => _GuestNameScreenState();
+  ConsumerState<GuestNameScreen> createState() => _GuestNameScreenState();
 }
 
-class _GuestNameScreenState extends State<GuestNameScreen> {
+class _GuestNameScreenState extends ConsumerState<GuestNameScreen> {
+  final form = GlobalKey<FormState>();
   final controller = TextEditingController();
+  int? age;
+  String? gender;
+  @override
+  void initState() {
+    super.initState();
+    controller.text = ref.read(guestNameProvider) ?? '';
+    age = ref.read(guestAgeProvider);
+    gender = ref.read(guestGenderProvider);
+  }
 
   @override
   void dispose() {
@@ -25,113 +30,94 @@ class _GuestNameScreenState extends State<GuestNameScreen> {
     super.dispose();
   }
 
-  void continueToOpponents() {
-    final name = controller.text.trim();
-    if (name.isEmpty) {
-      showGameAlert(context, 'Enter a temporary username.');
-      return;
-    }
-    Navigator.pushNamed(
-      context,
-      AppRoutes.guestOpponents,
-      arguments: name,
-    );
+  void continueToRooms() {
+    if (!form.currentState!.validate()) return;
+    ref.read(guestNameProvider.notifier).state = controller.text.trim();
+    ref.read(guestAgeProvider.notifier).state = age;
+    ref.read(guestGenderProvider.notifier).state = gender;
+    Navigator.pushNamedAndRemoveUntil(context, AppRoutes.home,
+        (route) => route.settings.name == AppRoutes.welcome);
   }
 
   @override
-  Widget build(BuildContext context) {
-    final keyboardOpen = MediaQuery.viewInsetsOf(context).bottom > 0;
-    return Scaffold(
-      resizeToAvoidBottomInset: false,
-      body: GameBackground(
-        child: SizedBox.expand(
-          child: FittedBox(
-            fit: BoxFit.cover,
-            alignment: Alignment.center,
-            child: SizedBox(
-              width: 844,
-              height: 390,
-              child: Stack(children: [
-                Positioned(
-                  left: 18,
-                  top: 18,
-                  child: GameCloseButton(
-                    size: 54,
-                    onTap: Navigator.of(context).pop,
-                  ),
-                ),
-                Positioned(
-                  right: 18,
-                  top: 18,
-                  child: GameIconButton(
-                    icon: Icons.menu,
-                    onTap: () => Navigator.pushNamed(context, AppRoutes.menu),
-                  ),
-                ),
-                Center(
+  Widget build(BuildContext context) => Scaffold(
+        body: GameBackground(
+            child: Center(
+                child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 30),
+          child: SizedBox(
+              width: 440,
+              child: Form(
+                  key: form,
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const DaketiLogo(
-                        type: DaketiLogoType.whiteOrange,
-                        width: 315,
-                      ),
-                      const SizedBox(height: 21),
-                      AnimatedSlide(
-                        offset: Offset(0, keyboardOpen ? -.55 : 0),
-                        duration: const Duration(milliseconds: 220),
-                        curve: Curves.easeOutCubic,
-                        child: Column(children: [
-                          GameTextField(
-                            hint: 'Temporary username',
-                            controller: controller,
-                          ),
-                          const SizedBox(height: 23),
-                          GameButton(
-                            text: 'Play',
-                            width: 180,
-                            onTap: continueToOpponents,
-                          ),
-                        ]),
-                      ),
+                      const Text('PLAY AS GUEST',
+                          style: TextStyle(
+                              fontFamily: 'Dirty Brush',
+                              fontSize: 28,
+                              color: Colors.white)),
+                      const SizedBox(height: 16),
+                      TextFormField(
+                          controller: controller,
+                          maxLength: 24,
+                          textCapitalization: TextCapitalization.words,
+                          decoration: const InputDecoration(
+                              labelText: 'Name', counterText: ''),
+                          validator: (value) =>
+                              value == null || value.trim().isEmpty
+                                  ? 'Enter your name'
+                                  : null),
+                      const SizedBox(height: 12),
+                      Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                                child: DropdownButtonFormField<int>(
+                                    initialValue: age,
+                                    isExpanded: true,
+                                    decoration:
+                                        const InputDecoration(labelText: 'Age'),
+                                    menuMaxHeight: 200,
+                                    items: List.generate(
+                                        120,
+                                        (index) => DropdownMenuItem(
+                                            value: index + 1,
+                                            child: Text('${index + 1}'))),
+                                    onChanged: (value) =>
+                                        setState(() => age = value),
+                                    validator: (value) =>
+                                        value == null ? 'Select age' : null)),
+                            const SizedBox(width: 18),
+                            Expanded(
+                                child: DropdownButtonFormField<String>(
+                                    initialValue: gender,
+                                    isExpanded: true,
+                                    decoration: const InputDecoration(
+                                        labelText: 'Gender'),
+                                    items: [
+                                      'Male',
+                                      'Female',
+                                      'Other',
+                                      'Prefer not to say'
+                                    ]
+                                        .map((value) => DropdownMenuItem(
+                                            value: value,
+                                            child: Text(value,
+                                                style: const TextStyle(
+                                                    fontSize: 13))))
+                                        .toList(),
+                                    onChanged: (value) =>
+                                        setState(() => gender = value),
+                                    validator: (value) => value == null
+                                        ? 'Select gender'
+                                        : null)),
+                          ]),
+                      const SizedBox(height: 22),
+                      GameButton(
+                          text: 'Continue', width: 170, onTap: continueToRooms),
                     ],
-                  ),
-                ),
-                Positioned(
-                  left: 18,
-                  bottom: 18,
-                  child: Row(children: [
-                    GameIconButton(
-                      icon: Icons.settings,
-                      onTap: () =>
-                          Navigator.pushNamed(context, AppRoutes.settings),
-                    ),
-                    const SizedBox(width: 8),
-                    GameIconButton(
-                      icon: Icons.support_agent,
-                      onTap: () =>
-                          Navigator.pushNamed(context, AppRoutes.support),
-                    ),
-                  ]),
-                ),
-                const Positioned(
-                  right: 18,
-                  bottom: 18,
-                  child: Row(children: [
-                    GameIconButton(icon: Icons.facebook, onTap: null),
-                    SizedBox(width: 8),
-                    GameIconButton(icon: Icons.camera_alt, onTap: null),
-                    SizedBox(width: 8),
-                    GameIconButton(icon: Icons.play_arrow, onTap: null),
-                    SizedBox(width: 8),
-                    GameIconButton(icon: Icons.music_note, onTap: null),
-                  ]),
-                ),
-              ]),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
+                  ))),
+        ))),
+      );
 }

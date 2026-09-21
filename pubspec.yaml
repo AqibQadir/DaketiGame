@@ -17,6 +17,7 @@ dependencies:
   audioplayers: 6.4.0
   shared_preferences: ^2.5.3
   flutter_secure_storage: ^9.2.4
+  video_player: ^2.14.0
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -26,6 +27,7 @@ flutter:
   uses-material-design: true
 
   assets:
+    - assets/videos/
     - assets/audio/game/
     - assets/images/
     - assets/images/players/

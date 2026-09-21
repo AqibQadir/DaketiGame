@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../constants/app_colors.dart';
+import '../routes/game_popup_route.dart';
 
 class GameIconButton extends StatelessWidget {
   const GameIconButton({
@@ -18,6 +19,11 @@ class GameIconButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Page-level shortcuts belong to the main page beneath the popup.
+    // Keeping them out of the panel also leaves its right-side close clear.
+    if (ModalRoute.of(context) is GamePopupRoute) {
+      return const SizedBox.shrink();
+    }
     final enabled = onTap != null;
     return Column(
       mainAxisSize: MainAxisSize.min,

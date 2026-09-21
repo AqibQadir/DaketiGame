@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../routes/game_popup_route.dart';
 
 class GameCloseButton extends StatelessWidget {
   const GameCloseButton({super.key, required this.onTap, this.size = 52});
@@ -8,6 +9,9 @@ class GameCloseButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (ModalRoute.of(context) is GamePopupRoute) {
+      return const SizedBox.shrink();
+    }
     return Semantics(
       button: true,
       label: 'Close',

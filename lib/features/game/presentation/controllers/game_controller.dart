@@ -370,7 +370,6 @@ class GameController extends StateNotifier<GameSessionState> {
     if (!state.isCurrentPlayersTurn || state.gameId == null) return true;
 
     state = state.copyWith(activity: 'TIME OVER');
-    await Future<void>.delayed(const Duration(milliseconds: 650));
 
     // The API has no timeout event. Use only server-approved actions and keep
     // the room authoritative. When a discard is available, always put the
@@ -409,7 +408,6 @@ class GameController extends StateNotifier<GameSessionState> {
         state = state.copyWith(
           activity: 'TIME OVER · AUTO ${_actionLabel(action)}',
         );
-        await Future<void>.delayed(const Duration(milliseconds: 650));
         final ended = action.type == GameActionType.discard;
         if (!await performAction(action)) return false;
         if (ended) return true;

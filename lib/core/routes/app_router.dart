@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 
 import '../../features/auth/presentation/screens/auth_choice_screen.dart';
+import '../../features/home/presentation/screens/home_screen.dart';
 import '../../features/auth/presentation/screens/login_screen.dart';
 import '../../features/auth/presentation/screens/signup_screen.dart';
 import '../../features/auth/presentation/screens/guest_name_screen.dart';
 import '../../features/auth/presentation/screens/guest_opponent_screen.dart';
-import '../../features/home/presentation/screens/home_screen.dart';
 import '../../features/game/presentation/screens/game_screen.dart';
 import '../../features/tutorial/presentation/screens/game_tutorial_screen.dart';
 import '../../features/legal/presentation/screens/privacy_policy_screen.dart';
@@ -36,100 +36,118 @@ import '../../features/game/presentation/screens/multiplayer_screen.dart';
 import '../../features/game/presentation/screens/waiting_room_screen.dart';
 import '../../features/game/presentation/screens/game_results_screen.dart';
 import 'app_routes.dart';
+import 'fixed_background_page_route.dart';
+import 'game_popup_route.dart';
 
 class AppRouter {
   AppRouter._();
 
   static Route<dynamic> onGenerateRoute(RouteSettings settings) {
+    Route<dynamic> page(Widget child) {
+      final mainPage = {
+            AppRoutes.splash,
+            AppRoutes.welcome,
+            AppRoutes.login,
+            AppRoutes.home,
+            AppRoutes.tables,
+            AppRoutes.game,
+            AppRoutes.terms,
+            AppRoutes.privacy
+          }.contains(settings.name) ||
+          (settings.name == AppRoutes.gameTutorial &&
+              (settings.arguments == null ||
+                  settings.arguments == AppRoutes.welcome));
+      return mainPage
+          ? FixedBackgroundPageRoute<dynamic>(
+              settings: settings, builder: (_) => child)
+          : GamePopupRoute<dynamic>(
+              settings: settings,
+              child: child,
+              videoBackground: settings.name == AppRoutes.guestOpponents);
+    }
+
     switch (settings.name) {
       case AppRoutes.splash:
-        return _page(const SplashScreen());
+        return page(const SplashScreen());
       case AppRoutes.terms:
-        return _page(const TermsConditionsScreen());
+        return page(const TermsConditionsScreen());
       case AppRoutes.privacy:
-        return _page(const PrivacyPolicyScreen());
+        return page(const PrivacyPolicyScreen());
       case AppRoutes.welcome:
-        return _page(const WelcomeScreen());
+        return page(const WelcomeScreen());
       case AppRoutes.authChoice:
-        return _page(const AuthChoiceScreen());
+        return page(const AuthChoiceScreen());
       case AppRoutes.guestName:
-        return _page(const GuestNameScreen());
+        return page(const GuestNameScreen());
       case AppRoutes.guestOpponents:
         final guestName = settings.arguments is String
             ? settings.arguments! as String
             : 'Guest';
-        return _page(GuestOpponentScreen(playerName: guestName));
+        return page(GuestOpponentScreen(playerName: guestName));
       case AppRoutes.login:
-        return _page(const LoginScreen());
+        return page(const LoginScreen());
       case AppRoutes.signup:
-        return _page(const SignupScreen());
+        return page(const SignupScreen());
       case AppRoutes.settings:
-        return _page(const SettingsScreen());
+        return page(const SettingsScreen());
       case AppRoutes.profile:
-        return _page(const ProfileScreen());
+        return page(const ProfileScreen());
       case AppRoutes.gameHistory:
-        return _page(const GameHistoryScreen());
+        return page(const GameHistoryScreen());
       case AppRoutes.support:
-        return _page(const SupportScreen());
+        return page(const SupportScreen());
       case AppRoutes.menu:
-        return _page(const MenuScreen());
+        return page(const MenuScreen());
       case AppRoutes.leaderboard:
-        return _page(const LeaderboardScreen());
+        return page(const LeaderboardScreen());
       case AppRoutes.generalSettings:
-        return _page(const GeneralSettingsScreen());
+        return page(const GeneralSettingsScreen());
       case AppRoutes.contactUs:
-        return _page(const ContactUsScreen());
+        return page(const ContactUsScreen());
       case AppRoutes.reportIssue:
-        return _page(const ReportIssueScreen());
+        return page(const ReportIssueScreen());
       case AppRoutes.faqs:
-        return _page(const FaqScreen());
+        return page(const FaqScreen());
       case AppRoutes.home:
-        return _page(const HomeScreen());
+        return page(const HomeScreen());
       case AppRoutes.game:
-        return _page(const GameScreen());
+        return page(const GameScreen());
       case AppRoutes.gameTutorial:
         final arguments = settings.arguments;
-        return _page(GameTutorialScreen(
+        return page(GameTutorialScreen(
           returnRoute: arguments is String ? arguments : AppRoutes.welcome,
         ));
       case AppRoutes.baithak:
-        return _page(const BaithakScreen());
+        return page(const BaithakScreen());
       case AppRoutes.myClan:
-        return _page(const MyClanScreen());
+        return page(const MyClanScreen());
       case AppRoutes.globalPlayers:
-        return _page(const GlobalPlayersScreen());
+        return page(const GlobalPlayersScreen());
       case AppRoutes.chatLobby:
-        return _page(const ChatLobbyScreen());
+        return page(const ChatLobbyScreen());
       case AppRoutes.personalChat:
-        return _page(const PersonalChatScreen());
+        return page(const PersonalChatScreen());
       case AppRoutes.dukan:
-        return _page(const DukanScreen());
+        return page(const DukanScreen());
       case AppRoutes.sideQuests:
-        return _page(const SideQuestsScreen());
+        return page(const SideQuestsScreen());
       case AppRoutes.tables:
-        return _page(const TablesScreen());
+        return page(const TablesScreen());
       case AppRoutes.tableRoom:
         final room = settings.arguments is TableRoom
             ? settings.arguments! as TableRoom
             : TableRoom.oldLahore;
-        return _page(TableRoomScreen(room: room));
+        return page(TableRoomScreen(room: room));
       case AppRoutes.multiplayer:
-        final playerName = settings.arguments is String
-            ? settings.arguments! as String
-            : 'Player';
-        return _page(MultiplayerScreen(initialPlayerName: playerName));
+        final playerName =
+            settings.arguments is String ? settings.arguments! as String : '';
+        return page(MultiplayerScreen(initialPlayerName: playerName));
       case AppRoutes.waitingRoom:
-        return _page(const WaitingRoomScreen());
+        return page(const WaitingRoomScreen());
       case AppRoutes.results:
-        return _page(const GameResultsScreen());
+        return page(const GameResultsScreen());
       default:
-        return _page(const SplashScreen());
+        return page(const SplashScreen());
     }
-  }
-
-  static MaterialPageRoute<dynamic> _page(Widget child) {
-    return MaterialPageRoute<dynamic>(
-      builder: (_) => child,
-    );
   }
 }

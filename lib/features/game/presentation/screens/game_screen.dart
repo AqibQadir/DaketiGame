@@ -1,3 +1,4 @@
+import '../../../../core/widgets/game_styled_dialog.dart';
 import 'dart:async';
 import 'dart:math' as math;
 
@@ -6,8 +7,10 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/routes/app_routes.dart';
+import '../../../../core/widgets/game_dialog_title.dart';
 import '../../../../core/constants/app_assets.dart';
 import '../../../../core/services/game_sound_service.dart';
+import '../../domain/models/turn_steal_counter.dart';
 import '../../../../core/widgets/game_close_button.dart';
 import '../../../../core/widgets/game_viewport.dart';
 import '../../domain/models/daketi_game.dart';
@@ -18,6 +21,7 @@ import '../controllers/game_controller.dart';
 import '../widgets/bike_daketi_overlay.dart';
 import '../widgets/fanned_card_hand.dart';
 import '../widgets/opening_deal_overlay.dart';
+import '../widgets/table_card_slots.dart';
 
 // Gameplay palette sampled from the approved table reference.
 const _gold = Color(0xFFC58B43);
@@ -54,12 +58,14 @@ class _StealAnimation {
   const _StealAnimation({
     required this.id,
     required this.targetPlayerId,
+    required this.actorPlayerId,
     required this.cardCount,
     required this.cards,
   });
 
   final int id;
   final String targetPlayerId;
+  final String actorPlayerId;
   final int cardCount;
   final List<GameCard> cards;
 }
@@ -103,7 +109,128 @@ class _GameScreenState extends ConsumerState<GameScreen> {
   _DrawAnimation? drawAnimation;
   int drawAnimationId = 0;
   int openingDealPhase = 0;
+  final stealCounter = TurnStealCounter();
   Offset playedCardOrigin = const Offset(560, 330);
+
+  GameSessionState? presentedSession;
+  final List<GameSessionState> pendingPresentations = [];
+  Timer? presentationTimer;
+
+  void _enqueuePresentation(GameSessionState? previous, GameSessionState next) {
+    if (openingDealPhase < 2 ||
+        previous?.game == null ||
+        previous?.game?.gameId != next.game?.gameId) {
+      presentationTimer?.cancel();
+      presentationTimer = null;
+      pendingPresentations.clear();
+      stealCounter.reset();
+      presentedSession = next;
+      return;
+    }
+    presentedSession ??= previous;
+    pendingPresentations.add(next);
+    if (presentationTimer == null) _presentNext();
+  }
+
+  void _presentNext() {
+    if (!mounted || pendingPresentations.isEmpty) return;
+    final previous = presentedSession!;
+    final next = pendingPresentations.removeAt(0);
+    final oldGame = previous.game;
+    final newGame = next.game;
+    if (oldGame != null &&
+        newGame != null &&
+        newGame.table
+            .any((card) => !oldGame.table.any((old) => old.id == card.id))) {
+      final localIndex =
+          oldGame.players.indexWhere((p) => p.id == next.playerId);
+      final actorIndex =
+          oldGame.players.indexWhere((p) => p.id == oldGame.currentPlayerId);
+      if (localIndex >= 0 && actorIndex >= 0) {
+        final seat = (actorIndex - localIndex + oldGame.players.length) %
+            oldGame.players.length;
+        playedCardOrigin = seat == 0
+            ? const Offset(560, 330)
+            : oldGame.players.length == 2 || seat == 2
+                ? const Offset(515, 89)
+                : seat == 1
+                    ? const Offset(126, 212)
+                    : const Offset(700, 212);
+      }
+    }
+
+    final deals = _drawDealsFor(previous, next);
+    final actor = previous.game?.playerById(previous.game?.currentPlayerId);
+    final changed = previous.game!.deckCount != next.game!.deckCount ||
+        previous.game!.table.map((c) => c.id).join(',') !=
+            next.game!.table.map((c) => c.id).join(',') ||
+        previous.game!.players.any((p) {
+          final updated = next.game!.playerById(p.id);
+          return updated?.handCount != p.handCount ||
+              updated?.stackCount != p.stackCount;
+        });
+    if (oldGame != null && newGame != null) {
+      final actorId = oldGame.currentPlayerId;
+      final actorBefore = oldGame.playerById(actorId);
+      final actorAfter = newGame.playerById(actorId);
+      GamePlayer? victim;
+      var stolen = 0;
+      if ((actorAfter?.stackCount ?? 0) > (actorBefore?.stackCount ?? 0)) {
+        for (final player in oldGame.players) {
+          if (player.id == actorId) continue;
+          final lost = player.stackCount -
+              (newGame.playerById(player.id)?.stackCount ?? player.stackCount);
+          if (lost > 0) {
+            victim = player;
+            stolen += lost;
+          }
+        }
+      }
+      if (victim != null && actorId != null) {
+        final third = stealCounter.add(stolen);
+        GameSoundService.stealCard(third: third);
+        if (third) {
+          stealAnimation = _StealAnimation(
+            id: ++stealAnimationId,
+            targetPlayerId: victim.id,
+            actorPlayerId: actorId,
+            cardCount: stolen,
+            cards: victim.stack,
+          );
+        }
+      } else if (changed &&
+          (deals.isEmpty ||
+              oldGame.table.map((c) => c.id).join(',') !=
+                  newGame.table.map((c) => c.id).join(','))) {
+        GameSoundService.cardMove();
+      }
+      if (oldGame.currentPlayerId != newGame.currentPlayerId ||
+          oldGame.round != newGame.round) {
+        stealCounter.reset();
+        if (newGame.currentPlayerId == next.playerId) {
+          GameSoundService.nextPlayerMove();
+        }
+      }
+    }
+    presentedSession = next;
+    if (deals.isNotEmpty) {
+      drawAnimation = _DrawAnimation(id: ++drawAnimationId, deals: deals);
+    }
+    // Keep every received AI state visible long enough to read. The server
+    // remains authoritative; only presentation is queued, never game actions.
+    final hold = deals.isNotEmpty
+        ? 80 + deals.length * 320 + 40
+        : actor?.isAi == true && changed
+            ? 520
+            : 0;
+    presentationTimer = Timer(Duration(milliseconds: hold), () {
+      if (!mounted) return;
+      setState(() {
+        presentationTimer = null;
+        _presentNext();
+      });
+    });
+  }
 
   List<_DrawDeal> _drawDealsFor(
     GameSessionState previous,
@@ -184,6 +311,7 @@ class _GameScreenState extends ConsumerState<GameScreen> {
 
   @override
   void dispose() {
+    presentationTimer?.cancel();
     chatTimer?.cancel();
     noticeTimer?.cancel();
     super.dispose();
@@ -286,7 +414,11 @@ class _GameScreenState extends ConsumerState<GameScreen> {
 
   Future<void> selectCard(GameCard card) async {
     final state = ref.read(gameControllerProvider);
-    if (!state.isCurrentPlayersTurn || isSubmitting) return;
+    if (!state.isCurrentPlayersTurn ||
+        isSubmitting ||
+        presentationTimer != null) {
+      return;
+    }
     HapticFeedback.selectionClick();
     GameSoundService.cardSelected();
     final isAlreadySelected = selectedCardId == card.id;
@@ -299,12 +431,11 @@ class _GameScreenState extends ConsumerState<GameScreen> {
   }
 
   Future<void> perform(GameAction action) async {
-    final targetBeforeMove = action.targetPlayerId == null
-        ? null
-        : ref
-            .read(gameControllerProvider)
-            .game
-            ?.playerById(action.targetPlayerId);
+    if (presentationTimer != null ||
+        isSubmitting ||
+        !ref.read(gameControllerProvider).isCurrentPlayersTurn) {
+      return;
+    }
     setState(() => isSubmitting = true);
     final ok =
         await ref.read(gameControllerProvider.notifier).performAction(action);
@@ -318,46 +449,6 @@ class _GameScreenState extends ConsumerState<GameScreen> {
       _message(
           ref.read(gameControllerProvider).error ?? 'The move was rejected.');
     } else {
-      switch (action.type) {
-        case GameActionType.captureTable:
-        case GameActionType.extendStack:
-          GameSoundService.specialCard();
-          break;
-        case GameActionType.stealOpponent:
-          GameSoundService.stealCard();
-          final targetAfterMove = action.targetPlayerId == null
-              ? null
-              : ref
-                  .read(gameControllerProvider)
-                  .game
-                  ?.playerById(action.targetPlayerId);
-          final stolenCount = targetBeforeMove == null
-              ? 1
-              : (targetBeforeMove.stackCount -
-                      (targetAfterMove?.stackCount ?? 0))
-                  .clamp(1, targetBeforeMove.stackCount);
-          setState(() {
-            stealAnimation = _StealAnimation(
-              id: ++stealAnimationId,
-              targetPlayerId: action.targetPlayerId ?? '',
-              cardCount: stolenCount,
-              cards: targetBeforeMove == null
-                  ? const []
-                  : targetBeforeMove.stack.isNotEmpty
-                      ? List<GameCard>.of(targetBeforeMove.stack)
-                      : targetBeforeMove.topCard == null
-                          ? const []
-                          : [targetBeforeMove.topCard!],
-            );
-          });
-          break;
-        case GameActionType.discard:
-          GameSoundService.cardSlap();
-          break;
-        case GameActionType.unknown:
-          GameSoundService.goodMove();
-          break;
-      }
       HapticFeedback.mediumImpact();
     }
   }
@@ -365,7 +456,7 @@ class _GameScreenState extends ConsumerState<GameScreen> {
   Future<void> handleTurnTimeout() async {
     if (isHandlingTimeout || isSubmitting) return;
     setState(() => isHandlingTimeout = true);
-    GameSoundService.invalidMove();
+    GameSoundService.timerEnd();
     HapticFeedback.heavyImpact();
     final selectedAtTimeout = selectedCardId;
     final ok = await ref
@@ -406,21 +497,13 @@ class _GameScreenState extends ConsumerState<GameScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
-      builder: (dialogContext) => AlertDialog(
+      builder: (dialogContext) => GameStyledDialog(
         backgroundColor: const Color(0xF2181411),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(18),
           side: const BorderSide(color: _gold),
         ),
-        title: const Text(
-          'LEAVE MATCH?',
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            fontFamily: 'Dirty Brush',
-            color: _cream,
-            fontSize: 23,
-          ),
-        ),
+        title: const GameDialogTitle('LEAVE MATCH?'),
         content: const Text(
           'Are you sure you want to leave the match?',
           textAlign: TextAlign.center,
@@ -455,56 +538,23 @@ class _GameScreenState extends ConsumerState<GameScreen> {
   Widget build(BuildContext context) {
     ref.listen(gameControllerProvider, (previous, next) {
       if (previous?.winner == null && next.winner != null) {
-        Navigator.pushReplacementNamed(context, AppRoutes.results);
+        Navigator.pushNamed(context, AppRoutes.results);
       }
       if (previous?.recoveryFailed != true && next.recoveryFailed) {
         returnToOverviewAfterConnectionFailure();
       }
-      final oldGame = previous?.game;
-      final newGame = next.game;
-      if (oldGame != null &&
-          newGame != null &&
-          newGame.table
-              .any((card) => !oldGame.table.any((old) => old.id == card.id))) {
-        final localIndex =
-            oldGame.players.indexWhere((p) => p.id == next.playerId);
-        final actorIndex =
-            oldGame.players.indexWhere((p) => p.id == oldGame.currentPlayerId);
-        if (localIndex >= 0 && actorIndex >= 0) {
-          final seat = (actorIndex - localIndex + oldGame.players.length) %
-              oldGame.players.length;
-          playedCardOrigin = seat == 0
-              ? const Offset(560, 330)
-              : oldGame.players.length == 2 || seat == 2
-                  ? const Offset(515, 89)
-                  : seat == 1
-                      ? const Offset(126, 212)
-                      : const Offset(700, 212);
-        }
-      }
       final wasMyTurn = previous?.isCurrentPlayersTurn ?? false;
-      final playerTurnChanged = previous?.game?.currentPlayerId != null &&
-          previous?.game?.currentPlayerId != next.game?.currentPlayerId;
-      if (playerTurnChanged) {
-        GameSoundService.nextPlayerMove();
-      }
       if (!wasMyTurn && next.isCurrentPlayersTurn) {
         HapticFeedback.mediumImpact();
       }
-      if (previous != null && drawAnimation == null) {
-        final deals = _drawDealsFor(previous, next);
-        if (deals.isNotEmpty) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (!mounted || drawAnimation != null) return;
-            setState(() => drawAnimation = _DrawAnimation(
-                  id: ++drawAnimationId,
-                  deals: deals,
-                ));
-          });
-        }
+      if (previous?.game != next.game && next.game != null) {
+        _enqueuePresentation(previous, next);
       }
     });
-    final session = ref.watch(gameControllerProvider);
+    final liveSession = ref.watch(gameControllerProvider);
+    final session = presentedSession == null
+        ? liveSession
+        : liveSession.copyWith(game: presentedSession!.game);
     ref.listen(gameControllerProvider.select((value) => value.chatMessages),
         (previous, next) {
       if (next.isEmpty || next.length == previous?.length) return;
@@ -548,7 +598,9 @@ class _GameScreenState extends ConsumerState<GameScreen> {
                       player: player,
                       selected: selectedCardId,
                       actions: actions,
-                      submitting: isSubmitting || drawAnimation != null,
+                      submitting: isSubmitting ||
+                          drawAnimation != null ||
+                          presentationTimer != null,
                       chatMessage: chatMessage,
                       onCard: selectCard,
                       onAction: perform,
@@ -561,7 +613,11 @@ class _GameScreenState extends ConsumerState<GameScreen> {
                         if (mounted) setState(() => openingDealPhase = 1);
                       },
                       onTableDealt: () {
-                        if (mounted) setState(() => openingDealPhase = 2);
+                        if (!mounted || openingDealPhase == 2) return;
+                        setState(() => openingDealPhase = 2);
+                        if (session.isCurrentPlayersTurn) {
+                          GameSoundService.nextPlayerMove();
+                        }
                       },
                       stealAnimation: stealAnimation,
                       onStealAnimationComplete: () {
@@ -787,6 +843,7 @@ class _Board extends StatelessWidget {
     final leftStealAction = stealActionFor(leftOpponent);
     final rightStealAction = stealActionFor(rightOpponent);
     Offset? stealSourceFor(String targetPlayerId) {
+      if (session.playerId == targetPlayerId) return const Offset(400, 330);
       if (topOpponent?.id == targetPlayerId) {
         return Offset(
           isFourPlayerMatch ? 430 : 515,
@@ -809,6 +866,12 @@ class _Board extends StatelessWidget {
       return null;
     }
 
+    final discardAction = actionOfType(GameActionType.discard);
+    final canPlayOnTable = openingDealPhase >= 2 &&
+        session.isCurrentPlayersTurn &&
+        !submitting &&
+        selected != null &&
+        discardAction != null;
     final captureTableAction = actionOfType(GameActionType.captureTable);
     final extendOwnStackAction = actionOfType(GameActionType.extendStack);
     final reducedPlayerScale = isTwoPlayerMatch
@@ -824,6 +887,21 @@ class _Board extends StatelessWidget {
                       radius: 1.05,
                       colors: [Colors.transparent, Color(0xB0000000)],
                       stops: [.42, 1])))),
+      // Behind cards and controls: occupied areas keep their existing taps.
+      Positioned(
+        left: 36,
+        right: 36,
+        top: 82,
+        bottom: 20,
+        child: ClipOval(
+          child: GestureDetector(
+            key: const ValueKey('empty-table-play'),
+            behavior: HitTestBehavior.opaque,
+            onTap: canPlayOnTable ? () => onAction(discardAction) : null,
+            child: const SizedBox.expand(),
+          ),
+        ),
+      ),
       Positioned(
           left: 8, top: 5, child: GameCloseButton(size: 58, onTap: onExit)),
       Positioned(
@@ -947,6 +1025,7 @@ class _Board extends StatelessWidget {
             )),
       if (openingDealPhase >= 1)
         Positioned(
+            key: const ValueKey('persistent-table-cards'),
             left: 220,
             right: 220,
             top: 137,
@@ -1048,7 +1127,10 @@ class _Board extends StatelessWidget {
           key: ValueKey(animation.id),
           source: stealSourceFor(animation.targetPlayerId) ??
               const Offset(700, 185),
-          destination: const Offset(400, 330),
+          destination: animation.actorPlayerId == session.playerId
+              ? const Offset(400, 330)
+              : stealSourceFor(animation.actorPlayerId) ??
+                  const Offset(515, 89),
           cardCount: animation.cardCount,
           cards: animation.cards,
           onComplete: onStealAnimationComplete,
@@ -1107,7 +1189,7 @@ class _DeckDrawOverlayState extends State<_DeckDrawOverlay>
       vsync: this,
       // Keep the draw readable without making AI turns feel paused. The
       // backend remains authoritative about when the AI chooses its move.
-      duration: Duration(milliseconds: 120 + widget.deals.length * 340),
+      duration: Duration(milliseconds: 80 + widget.deals.length * 320),
     )
       ..addListener(_playDealSound)
       ..addStatusListener((status) {
@@ -1122,7 +1204,11 @@ class _DeckDrawOverlayState extends State<_DeckDrawOverlay>
         .clamp(0, widget.deals.length - 1);
     if (index == lastSoundIndex) return;
     lastSoundIndex = index;
-    GameSoundService.cardSelected();
+    if (widget.deals[index].card.value == 'A') {
+      GameSoundService.aceDrawn();
+    } else {
+      GameSoundService.cardMove();
+    }
   }
 
   @override
@@ -1369,10 +1455,12 @@ class _Medallion extends StatefulWidget {
   State<_Medallion> createState() => _MedallionState();
 }
 
-class _MedallionState extends State<_Medallion> {
+class _MedallionState extends State<_Medallion> with WidgetsBindingObserver {
+  bool appActive = true;
   Timer? timer;
   late int fallbackStart;
   late int remaining;
+  double ringProgress = 1;
   int? lastAlert;
   bool timeoutSent = false;
   bool useFallbackStart = false;
@@ -1380,12 +1468,27 @@ class _MedallionState extends State<_Medallion> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     fallbackStart = DateTime.now().millisecondsSinceEpoch;
     remaining = calculateRemaining();
+    ringProgress = calculateProgress();
     timer = Timer.periodic(
-      const Duration(milliseconds: 200),
+      const Duration(milliseconds: 33),
       (_) => updateCountdown(),
     );
+  }
+
+  double calculateProgress() {
+    final raw = widget.game.turnStartTime;
+    final started = raw == null || useFallbackStart
+        ? fallbackStart
+        : raw < 100000000000
+            ? raw * 1000
+            : raw;
+    return (1 -
+            (DateTime.now().millisecondsSinceEpoch - started) /
+                (_turnDurationSeconds * 1000))
+        .clamp(0.0, 1.0);
   }
 
   int calculateRemaining() {
@@ -1401,7 +1504,13 @@ class _MedallionState extends State<_Medallion> {
   }
 
   void updateCountdown() {
+    if (!appActive || !widget.isActive) return;
     final next = calculateRemaining();
+    final progress = calculateProgress();
+    if (mounted && progress != ringProgress) {
+      setState(() => ringProgress = progress);
+    }
+    _syncWarning(next);
     if (next == remaining) return;
     if (mounted) setState(() => remaining = next);
     if (widget.isActive && widget.isLocal && next == 0 && !timeoutSent) {
@@ -1412,13 +1521,8 @@ class _MedallionState extends State<_Medallion> {
     if (!widget.isActive || !widget.isLocal || next <= 0) {
       return;
     }
-    if (next == 10 && lastAlert != 10) {
-      lastAlert = 10;
-      GameSoundService.timerWarning10Seconds();
-      HapticFeedback.lightImpact();
-    } else if (next == 5 && lastAlert != 5) {
-      lastAlert = 5;
-      GameSoundService.timerCountdown();
+    if (next == 3 && lastAlert != 3) {
+      lastAlert = 3;
       HapticFeedback.lightImpact();
     }
   }
@@ -1441,11 +1545,29 @@ class _MedallionState extends State<_Medallion> {
       lastAlert = null;
       timeoutSent = false;
       remaining = calculateRemaining();
+      ringProgress = calculateProgress();
+    }
+    _syncWarning(remaining);
+  }
+
+  void _syncWarning(int seconds) {
+    if (widget.isLocal) {
+      GameSoundService.setCountdownWarning(
+        appActive && widget.isActive && seconds > 0 && seconds <= 3,
+      );
     }
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    appActive = state == AppLifecycleState.resumed;
+    _syncWarning(calculateRemaining());
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    if (widget.isLocal) GameSoundService.setCountdownWarning(false);
     timer?.cancel();
     super.dispose();
   }
@@ -1453,13 +1575,12 @@ class _MedallionState extends State<_Medallion> {
   @override
   Widget build(BuildContext context) {
     final player = widget.player;
-    const limit = _turnDurationSeconds;
-    final progress = (remaining / limit).clamp(0.0, 1.0);
-    final ringColor = remaining <= 5
+    final progress = ringProgress;
+    final ringColor = remaining <= 3
         ? const Color(0xFFE53E36)
         : remaining <= 10
             ? const Color(0xFFF2C94C)
-            : const Color(0xFF35C96F);
+            : const Color(0xFF27F59A);
     return SizedBox(
         width: 96,
         height: 110,
@@ -1565,12 +1686,12 @@ class _TurnTimerRingPainter extends CustomPainter {
         ..strokeWidth = strokeWidth,
     );
 
-    // Zero radians is the avatar's right edge. A negative sweep makes the
-    // countdown travel from right to left around the profile.
+    // The consumed edge travels clockwise from six o'clock.
+    // The remaining arc ends at the bottom until it runs out.
     canvas.drawArc(
       bounds,
-      0,
-      -2 * math.pi * progress,
+      math.pi / 2 + 2 * math.pi * (1 - progress),
+      2 * math.pi * progress,
       false,
       Paint()
         ..color = color
@@ -1676,13 +1797,21 @@ class _TableCards extends StatefulWidget {
 }
 
 class _TableCardsState extends State<_TableCards> {
+  final slots = TableCardSlots();
   Timer? openingDealTimer;
   bool openingDeal = true;
 
   @override
   void initState() {
     super.initState();
+    slots.update(widget.cards.map((card) => card.id));
     _startOpeningDeal();
+  }
+
+  @override
+  void didUpdateWidget(covariant _TableCards oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    slots.update(widget.cards.map((card) => card.id));
   }
 
   void _startOpeningDeal() {
@@ -1718,35 +1847,24 @@ class _TableCardsState extends State<_TableCards> {
                 const cardWidth = 47.0;
                 const cardHeight = 67.0;
                 const horizontalStep = 54.0;
-                final rowCount = (widget.cards.length / cardsPerRow).ceil();
-                final verticalStep = rowCount <= 1
-                    ? 0.0
-                    : ((constraints.maxHeight - cardHeight) / (rowCount - 1))
-                        .clamp(14.0, 28.0);
-                final firstRowCount = widget.cards.length.clamp(0, cardsPerRow);
-                final firstRowWidth = firstRowCount == 0
-                    ? 0.0
-                    : cardWidth + (firstRowCount - 1) * horizontalStep;
-                final baseLeft = (constraints.maxWidth - firstRowWidth) / 2;
-                final paintOrder = List<int>.generate(
-                    widget.cards.length, (i) => i)
-                  ..sort((a, b) {
-                    final rowA = a ~/ cardsPerRow;
-                    final rowB = b ~/ cardsPerRow;
-                    final rowComparison = rowA.compareTo(rowB);
-                    return rowComparison != 0 ? rowComparison : a.compareTo(b);
-                  });
+                // Fixed geometry: neither removal nor a newly occupied row
+                // can shift cards that are already on the table.
+                const verticalStep = 14.0;
+                const rowWidth = cardWidth + (cardsPerRow - 1) * horizontalStep;
+                final baseLeft = (constraints.maxWidth - rowWidth) / 2;
+                final paintOrder = List<GameCard>.of(widget.cards)
+                  ..sort((a, b) => slots[a.id].compareTo(slots[b.id]));
 
                 return Stack(
                   clipBehavior: Clip.none,
-                  children: paintOrder.map((index) {
+                  children: paintOrder.map((card) {
+                    final index = slots[card.id];
                     final row = index ~/ cardsPerRow;
                     final column = index % cardsPerRow;
                     // Each additional row sits above the row before it.
                     // Its first card begins halfway between the first two
                     // cards, matching the requested overlapping pile.
                     final stagger = row.isOdd ? horizontalStep / 2 : 0.0;
-                    final card = widget.cards[index];
                     return Positioned(
                       key: ValueKey('table-${card.id}'),
                       left: baseLeft + column * horizontalStep + stagger,

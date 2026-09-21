@@ -19,6 +19,13 @@ class TableTopBar extends StatelessWidget {
         const _Counter(icon: Icons.stars_rounded, text: '125,000', add: true),
         const SizedBox(width: 12),
         const _Counter(icon: Icons.handshake, text: '25,000', add: true),
+        const SizedBox(width: 8),
+        IconButton(
+            tooltip: 'Menu',
+            onPressed: () => Navigator.pushNamed(context, AppRoutes.menu),
+            icon: const Icon(Icons.menu, color: AppColors.cream),
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints.tightFor(width: 30, height: 30)),
       ],
     );
   }

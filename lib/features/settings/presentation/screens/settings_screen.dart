@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/constants/app_colors.dart';
-import '../../../../core/routes/app_routes.dart';
 import '../../../../core/widgets/game_background.dart';
-import '../../../../core/widgets/game_button.dart';
 import '../../../../core/widgets/game_close_button.dart';
 import '../../../../core/widgets/glass_panel.dart';
 
@@ -66,15 +64,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    GameButton(
-                      text: 'Tutorial',
-                      width: 190,
-                      onTap: () => Navigator.pushNamed(
-                        context,
-                        AppRoutes.gameTutorial,
-                        arguments: AppRoutes.settings,
-                      ),
-                    ),
+                    const Text('SETTINGS',
+                        style: TextStyle(
+                            fontFamily: 'Dirty Brush',
+                            fontSize: 27,
+                            color: Colors.white)),
                     const SizedBox(height: 12),
                     Row(
                       children: [

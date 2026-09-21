@@ -27,7 +27,12 @@ class WaitingRoomScreen extends ConsumerWidget {
       if (previous?.game?.status != DaketiGameStatus.playing &&
           next.game?.status == DaketiGameStatus.playing) {
         GameSoundService.matchFound();
-        Navigator.pushReplacementNamed(context, AppRoutes.game);
+        Navigator.pushNamedAndRemoveUntil(
+            context,
+            AppRoutes.game,
+            (route) =>
+                route.settings.name == AppRoutes.tables ||
+                route.settings.name == AppRoutes.home);
       }
     });
     final session = ref.watch(gameControllerProvider);

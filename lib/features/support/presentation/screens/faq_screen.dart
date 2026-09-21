@@ -28,7 +28,7 @@ class FaqScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => SupportPageShell(
-        title: "FAQ's",
+        title: "FAQs",
         width: 620,
         height: 245,
         topRight: const TableTopBar(),

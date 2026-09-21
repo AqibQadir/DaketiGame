@@ -1,9 +1,11 @@
+import '../../../../core/widgets/game_styled_dialog.dart';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/constants/app_assets.dart';
 import '../../../../core/routes/app_routes.dart';
+import '../../../../core/widgets/game_dialog_title.dart';
 import '../../../../core/widgets/game_background.dart';
 import '../../../../core/widgets/game_alert.dart';
 import '../../../../core/widgets/game_button.dart';
@@ -93,19 +95,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       overlayOpacity: .20,
       child: GameViewport(
           child: Stack(children: [
-        Positioned(
+        const Positioned(
             left: 23,
             top: 24,
             child: Row(children: [
-              IconButton(
-                  onPressed: () => Navigator.maybePop(context),
-                  padding: EdgeInsets.zero,
-                  constraints:
-                      const BoxConstraints.tightFor(width: 32, height: 35),
-                  icon: const Icon(Icons.arrow_back_ios_new,
-                      color: Color(0xFF96948F), size: 30)),
-              const SizedBox(width: 5),
-              const Text('PROFILE',
+              Text('PROFILE',
                   style: TextStyle(
                       fontFamily: 'Dirty Brush',
                       color: Color(0xFFD0CFCA),
@@ -191,38 +185,24 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   style:
                       const TextStyle(color: Color(0xFFAAA59E), fontSize: 10)),
               const SizedBox(height: 8),
-              GameButton(
-                  backgroundAsset: AppAssets.actionButtonBrush,
-                  text: 'EDIT',
-                  width: 95,
-                  fontSize: 15,
-                  onTap: edit),
+              const Text('REGIONAL',
+                  style: TextStyle(
+                      fontFamily: 'Dirty Brush',
+                      fontSize: 22,
+                      color: Color(0xFFFF8000))),
             ])),
         Positioned(
             left: 393,
-            top: 111,
+            top: 108,
             width: 223,
             child: Column(children: [
+              buildStatRow('Worth', '—'),
               buildStatRow('Total Wins', _number(auth.stats.gamesWon)),
               buildStatRow('Matches Played', _number(auth.stats.gamesPlayed)),
               buildStatRow('Level', '—'),
               buildStatRow('Position', '—'),
               const SizedBox(height: 6),
-              if (editMenuOpen)
-                logout(red: true)
-              else
-                Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: [
-                      GameButton(
-                          backgroundAsset: AppAssets.actionButtonBrush,
-                          text: 'HISTORY',
-                          width: 95,
-                          fontSize: 14,
-                          onTap: () => Navigator.pushNamed(
-                              context, AppRoutes.gameHistory)),
-                      logout(),
-                    ]),
+              if (editMenuOpen) logout(red: true)
             ])),
         Positioned(
             left: 602,
@@ -275,9 +255,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     final dob = TextEditingController(text: user.dateOfBirth ?? '');
     final save = await showDialog<bool>(
         context: context,
-        builder: (context) => AlertDialog(
+        builder: (context) => GameStyledDialog(
               scrollable: true,
-              title: const Text('EDIT PROFILE'),
+              title: const GameDialogTitle('EDIT PROFILE'),
               content: Column(mainAxisSize: MainAxisSize.min, children: [
                 TextField(
                     controller: name,
@@ -334,9 +314,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     final next = TextEditingController();
     final save = await showDialog<bool>(
         context: context,
-        builder: (context) => AlertDialog(
+        builder: (context) => GameStyledDialog(
               scrollable: true,
-              title: const Text('CHANGE PASSWORD'),
+              title: const GameDialogTitle('CHANGE PASSWORD'),
               content: Column(mainAxisSize: MainAxisSize.min, children: [
                 TextField(
                     controller: current,

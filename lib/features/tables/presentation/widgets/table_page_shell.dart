@@ -38,7 +38,9 @@ class TablePageShell extends StatelessWidget {
                     child: Row(children: [
                       GameCloseButton(
                         size: 38,
-                        onTap: Navigator.of(context).pop,
+                        onTap: () => Navigator.of(context)
+                            .pushNamedAndRemoveUntil(
+                                AppRoutes.home, (_) => false),
                       ),
                       const SizedBox(width: 2),
                       Text(
@@ -85,7 +87,13 @@ class TablePageShell extends StatelessWidget {
                     ),
                   ),
                   Positioned(
-                      left: 205, right: 30, bottom: 31, child: categories),
+                      left: 205,
+                      right: 30,
+                      bottom: 31,
+                      child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          alignment: Alignment.centerRight,
+                          child: categories)),
                 ],
               ),
             ),

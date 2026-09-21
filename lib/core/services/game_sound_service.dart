@@ -10,44 +10,53 @@ import 'package:flutter/foundation.dart';
 class GameSoundService {
   GameSoundService._();
 
-  static final _uiPlayer = AudioPlayer(playerId: 'daketi_ui_sounds');
   static final _gamePlayer = AudioPlayer(playerId: 'daketi_game_sounds');
+  static final _stealPlayer = AudioPlayer(playerId: 'daketi_steal_sounds');
   static final _alertPlayer = AudioPlayer(playerId: 'daketi_alert_sounds');
+  static final _countdownPlayer = AudioPlayer(playerId: 'daketi_countdown');
+  static bool _countdownEnabled = false;
+  static Future<void> _countdownQueue = Future<void>.value();
   static final Future<void> _configured = _configureAudioSession();
 
   static const _assetRoot = 'audio/game/';
   static const _masterVolumeBoost = 1.4;
 
-  static void uiClick() => _play(_uiPlayer, 'CardMove.wav', volume: .45);
+  static void uiClick() {}
+  static void cardSelected() {}
+  static void shuffle() => _play(_gamePlayer, 'cards.wav', volume: .72);
+  static void cardMove() => _play(_gamePlayer, 'anycard.wav', volume: .78);
+  static void aceDrawn() => _play(_gamePlayer, 'ifyougetA.wav', volume: .78);
+  static void stealCard({required bool third}) =>
+      _play(_stealPlayer, third ? 'steal3.wav' : 'steal1-2.mp3', volume: .82);
+  static void invalidMove() {}
+  static void nextPlayerMove() => _play(_alertPlayer, 'turn.wav', volume: .75);
+  static void timerEnd() {
+    setCountdownWarning(false);
+    _play(_alertPlayer, 'timerend.mp3', volume: .8);
+  }
 
-  static void cardSelected() => _play(_uiPlayer, 'SwipeCard.wav', volume: .65);
-
-  static void shuffle() =>
-      _play(_gamePlayer, 'cardshuffleatbeginning.wav', volume: .72);
-
-  static void cardSlap() =>
-      _play(_gamePlayer, 'throwcardontable.wav', volume: .78);
-
-  static void goodMove() => _play(_gamePlayer, 'good move.wav', volume: .72);
-
-  static void specialCard() =>
-      _play(_gamePlayer, 'Special card.wav', volume: .78);
-
-  static void challenge() => _play(_gamePlayer, 'Challenge.wav', volume: .82);
-
-  static void stealCard() => _play(_gamePlayer, 'stealcard.wav', volume: .82);
-
-  static void invalidMove() =>
-      _play(_alertPlayer, 'invalidmove.wav', volume: .8);
-
-  static void nextPlayerMove() =>
-      _play(_alertPlayer, 'nextplayermove.wav', volume: .75);
-
-  static void timerWarning10Seconds() =>
-      _play(_alertPlayer, 'timerwarning10secondsleft.wav', volume: .72);
-
-  static void timerCountdown() =>
-      _play(_alertPlayer, 'timerwarning5-0secondleft.wav', volume: .72);
+  /// A separate looping channel keeps other game effects from cutting off
+  /// the final-three-second warning. Serialize transitions so a late start
+  /// cannot race a turn-ending stop.
+  static void setCountdownWarning(bool enabled) {
+    if (_countdownEnabled == enabled) return;
+    _countdownEnabled = enabled;
+    _countdownQueue = _countdownQueue.then((_) async {
+      try {
+        await _configured;
+        await _countdownPlayer.stop();
+        if (!_countdownEnabled) return;
+        await _countdownPlayer.setReleaseMode(ReleaseMode.loop);
+        await _countdownPlayer.play(
+          AssetSource('${_assetRoot}timer3seconds.wav'),
+          volume: (.72 * _masterVolumeBoost).clamp(0.0, 1.0),
+          mode: PlayerMode.mediaPlayer,
+        );
+      } catch (error) {
+        debugPrint('Unable to update countdown warning: $error');
+      }
+    });
+  }
 
   static void playerJoined() {}
 
@@ -55,7 +64,7 @@ class GameSoundService {
 
   static void reaction() {}
 
-  static void roundWon() => _play(_gamePlayer, 'rOUNDwIN.wav', volume: .85);
+  static void roundWon() {}
 
   static void gameLost() {}
 

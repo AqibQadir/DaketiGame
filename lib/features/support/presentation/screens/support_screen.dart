@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/routes/app_routes.dart';
+import '../../../../core/constants/app_assets.dart';
 import '../../../../core/widgets/game_button.dart';
 import '../widgets/support_page_shell.dart';
 
@@ -10,27 +11,30 @@ class SupportScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) => SupportPageShell(
         title: 'Support',
-        width: 440,
-        height: 260,
+        width: 467,
+        height: 272,
         showMenu: true,
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             GameButton(
               text: 'Contact us',
-              width: 190,
+              width: 170,
+              backgroundAsset: AppAssets.actionButtonBrush,
               onTap: () => Navigator.pushNamed(context, AppRoutes.contactUs),
             ),
             const SizedBox(height: 18),
             GameButton(
-              text: 'Report an issue',
-              width: 190,
+              text: 'Report',
+              width: 170,
+              backgroundAsset: AppAssets.actionButtonBrush,
               onTap: () => Navigator.pushNamed(context, AppRoutes.reportIssue),
             ),
             const SizedBox(height: 18),
             GameButton(
               text: 'FAQs',
-              width: 190,
+              width: 170,
+              backgroundAsset: AppAssets.actionButtonBrush,
               onTap: () => Navigator.pushNamed(context, AppRoutes.faqs),
             ),
           ],

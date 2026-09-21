@@ -16,7 +16,7 @@ class MenuScreen extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             GameButton(
-              text: 'General settings',
+              text: 'Account settings',
               width: 225,
               onTap: () =>
                   Navigator.pushNamed(context, AppRoutes.generalSettings),
