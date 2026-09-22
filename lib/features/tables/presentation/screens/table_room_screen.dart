@@ -5,6 +5,7 @@ import '../../../auth/presentation/controllers/auth_controller.dart';
 import '../../../auth/presentation/controllers/guest_name_provider.dart';
 
 import '../../domain/table_room.dart';
+import '../../domain/table_match_selection.dart';
 import '../widgets/table_card.dart';
 import '../widgets/table_categories.dart';
 import '../widgets/table_page_shell.dart';
@@ -18,12 +19,7 @@ class TableRoomScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    const stakes = [
-      ('SILVER', 'LOW STAKES', '100', '100', 'STARTER'),
-      ('GOLD', 'MID STAKES', '500', '700', 'POPULAR'),
-      ('PLATINUM', 'HIGHEST STAKES', '2000', '2500', 'PREMIUM'),
-      ('DIAMOND', 'EXCLUSIVE STAKES', '10K', '10K', 'EXCLUSIVE'),
-    ];
+    const stakes = TableTier.values;
     return TablePageShell(
       title: room.title,
       categories: const TableCategories(),
@@ -32,12 +28,11 @@ class TableRoomScreen extends ConsumerWidget {
           for (var index = 0; index < stakes.length; index++) ...[
             Expanded(
               child: TableCard(
-                title: stakes[index].$1,
-                subtitle: stakes[index].$2,
-                buyIn: stakes[index].$3,
-                reward: stakes[index].$4,
-                badge: stakes[index].$5,
-                locked: index == stakes.length - 1,
+                title: stakes[index].title,
+                subtitle: stakes[index].subtitle,
+                buyIn: stakes[index].buyIn,
+                reward: stakes[index].reward,
+                badge: stakes[index].badge,
                 purple: purple,
                 imageAsset: room.imageAsset,
                 onTap: () {
@@ -48,7 +43,13 @@ class TableRoomScreen extends ConsumerWidget {
                       name == null
                           ? AppRoutes.guestName
                           : AppRoutes.guestOpponents,
-                      arguments: name);
+                      arguments: name == null
+                          ? TableMatchSelection(room: room, tier: stakes[index])
+                          : TableMatchArguments(
+                              playerName: name,
+                              selection: TableMatchSelection(
+                                  room: room, tier: stakes[index]),
+                            ));
                 },
               ),
             ),

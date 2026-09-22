@@ -9,14 +9,18 @@ import '../../../../core/widgets/game_button.dart';
 import '../../../../core/widgets/game_close_button.dart';
 import '../../../../core/widgets/glass_panel.dart';
 import '../../../game/presentation/controllers/game_controller.dart';
+import '../../../tables/domain/table_match_selection.dart';
+import '../../../tables/domain/table_room.dart';
 
 class GuestOpponentScreen extends ConsumerStatefulWidget {
   const GuestOpponentScreen({
     super.key,
     required this.playerName,
+    this.tableSelection,
   });
 
   final String playerName;
+  final TableMatchSelection? tableSelection;
 
   @override
   ConsumerState<GuestOpponentScreen> createState() =>
@@ -32,7 +36,7 @@ class _GuestOpponentScreenState extends ConsumerState<GuestOpponentScreen> {
         await ref.read(gameControllerProvider.notifier).createSoloGame(
               playerName: widget.playerName,
               aiCount: opponents,
-              difficulty: difficulty,
+              difficulty: widget.tableSelection?.difficulty ?? difficulty,
             );
     if (!mounted) return;
     if (success) {
@@ -99,9 +103,12 @@ class _GuestOpponentScreenState extends ConsumerState<GuestOpponentScreen> {
                       const Spacer(),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
-                        children: List.generate(3, (index) {
-                          final isCustom = index == 0;
-                          final count = index + 1;
+                        children: List.generate(
+                            widget.tableSelection == null ? 3 : 2, (index) {
+                          final isCustom =
+                              widget.tableSelection == null && index == 0;
+                          final count =
+                              index + (widget.tableSelection == null ? 1 : 2);
                           final selected = !isCustom && opponents == count;
                           return Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 8),
@@ -162,32 +169,40 @@ class _GuestOpponentScreenState extends ConsumerState<GuestOpponentScreen> {
                         }),
                       ),
                       const SizedBox(height: 12),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Text(
-                            'AI DIFFICULTY',
-                            style: TextStyle(
-                              color: Colors.white60,
-                              fontSize: 9,
-                              fontWeight: FontWeight.w800,
+                      if (widget.tableSelection != null)
+                        Text(
+                          '${widget.tableSelection!.room.title} • ${widget.tableSelection!.tier.title} • ${widget.tableSelection!.tier.buyIn} COINS',
+                          style: const TextStyle(
+                              color: Colors.white60, fontSize: 10),
+                        )
+                      else
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Text(
+                              'AI DIFFICULTY',
+                              style: TextStyle(
+                                color: Colors.white60,
+                                fontSize: 9,
+                                fontWeight: FontWeight.w800,
+                              ),
                             ),
-                          ),
-                          const SizedBox(width: 12),
-                          _DifficultyOption(
-                            label: 'BEGINNER',
-                            selected: difficulty == 'beginner',
-                            onTap: () =>
-                                setState(() => difficulty = 'beginner'),
-                          ),
-                          const SizedBox(width: 8),
-                          _DifficultyOption(
-                            label: 'MASTER',
-                            selected: difficulty == 'master',
-                            onTap: () => setState(() => difficulty = 'master'),
-                          ),
-                        ],
-                      ),
+                            const SizedBox(width: 12),
+                            _DifficultyOption(
+                              label: 'BEGINNER',
+                              selected: difficulty == 'beginner',
+                              onTap: () =>
+                                  setState(() => difficulty = 'beginner'),
+                            ),
+                            const SizedBox(width: 8),
+                            _DifficultyOption(
+                              label: 'MASTER',
+                              selected: difficulty == 'master',
+                              onTap: () =>
+                                  setState(() => difficulty = 'master'),
+                            ),
+                          ],
+                        ),
                       const Spacer(),
                       GameButton(
                         text: loading ? 'Starting' : 'Play',

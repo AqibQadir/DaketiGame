@@ -196,13 +196,23 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             top: 108,
             width: 223,
             child: Column(children: [
-              buildStatRow('Worth', '—'),
+              buildStatRow(
+                  'Worth', user == null ? '—' : _number(auth.stats.totalScore)),
               buildStatRow('Total Wins', _number(auth.stats.gamesWon)),
               buildStatRow('Matches Played', _number(auth.stats.gamesPlayed)),
               buildStatRow('Level', '—'),
               buildStatRow('Position', '—'),
               const SizedBox(height: 6),
-              if (editMenuOpen) logout(red: true)
+              Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
+                GameButton(
+                    text: 'History',
+                    width: 95,
+                    fontSize: 14,
+                    backgroundAsset: AppAssets.actionButtonBrush,
+                    onTap: () =>
+                        Navigator.pushNamed(context, AppRoutes.gameHistory)),
+                logout(red: true),
+              ])
             ])),
         Positioned(
             left: 602,
@@ -219,8 +229,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           Positioned(
               left: 618,
               top: 89,
-              width: 78,
-              height: 40,
+              width: 178,
+              height: 160,
               child: Container(
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(11),
@@ -237,13 +247,26 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       BoxShadow(color: Colors.black54, blurRadius: 9)
                     ],
                   ),
-                  child: TextButton(
-                      onPressed: edit,
-                      child: const Text('EDIT',
-                          style: TextStyle(
-                              color: Colors.white,
-                              fontFamily: 'Dirty Brush',
-                              fontSize: 18))))),
+                  child: Column(mainAxisSize: MainAxisSize.min, children: [
+                    TextButton(onPressed: edit, child: const Text('EDIT')),
+                    TextButton(
+                        onPressed: user == null
+                            ? null
+                            : () {
+                                setState(() => editMenuOpen = false);
+                                _accountAction(context, ref, 'password');
+                              },
+                        child: const Text('Change password')),
+                    if (user?.emailVerified != true)
+                      TextButton(
+                          onPressed: user == null
+                              ? null
+                              : () {
+                                  setState(() => editMenuOpen = false);
+                                  _accountAction(context, ref, 'verify');
+                                },
+                          child: const Text('Verify email')),
+                  ]))),
       ])),
     ));
   }

@@ -7,7 +7,12 @@ import '../constants/app_assets.dart';
 
 /// Video fills the background only; route transitions belong to the foreground.
 class LoopingVideoBackground extends StatefulWidget {
-  const LoopingVideoBackground({super.key});
+  const LoopingVideoBackground(
+      {super.key,
+      this.videoAsset = AppAssets.chaiHotelVideo,
+      this.posterAsset = AppAssets.chaiHotelVideoPoster});
+  final String videoAsset;
+  final String posterAsset;
 
   @override
   State<LoopingVideoBackground> createState() => _LoopingVideoBackgroundState();
@@ -25,7 +30,7 @@ class _LoopingVideoBackgroundState extends State<LoopingVideoBackground>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _controller = VideoPlayerController.asset(
-      AppAssets.chaiHotelVideo,
+      widget.videoAsset,
       videoPlayerOptions: VideoPlayerOptions(mixWithOthers: true),
     );
     unawaited(_initialize());
@@ -83,7 +88,7 @@ class _LoopingVideoBackgroundState extends State<LoopingVideoBackground>
         child: Stack(
           fit: StackFit.expand,
           children: [
-            Image.asset(AppAssets.chaiHotelVideoPoster, fit: BoxFit.cover),
+            Image.asset(widget.posterAsset, fit: BoxFit.cover),
             if (_ready)
               ValueListenableBuilder<VideoPlayerValue>(
                 valueListenable: _controller,

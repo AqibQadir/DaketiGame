@@ -14,6 +14,10 @@ class AppAssets {
       'assets/images/chai_hotel_video_poster.jpg';
 
   /// Client-supplied gameplay table with its rainy street environment.
+  static const String gameTableVideo =
+      'assets/videos/game_table_background.mp4';
+  static const String gameTableVideoPoster =
+      'assets/images/game_table_video_poster.jpg';
   static const String tableBackground = 'assets/images/table_bg.png';
   static const String cardBack = 'assets/images/card_back.png';
   static const String playerAvatar = 'assets/images/player_avatar.png';

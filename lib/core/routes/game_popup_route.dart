@@ -51,9 +51,20 @@ class GamePopupRoute<T> extends PopupRoute<T> {
                         right: 5,
                         child: IconButton(
                           tooltip: 'Close popup',
-                          onPressed: () => Navigator.of(context)
-                              .pushNamedAndRemoveUntil(
-                                  AppRoutes.home, (_) => false),
+                          onPressed: () {
+                            final navigator = Navigator.of(context);
+                            if (settings.name == AppRoutes.guestName) {
+                              if (navigator.canPop()) {
+                                navigator.pop();
+                              } else {
+                                navigator.pushNamedAndRemoveUntil(
+                                    AppRoutes.welcome, (_) => false);
+                              }
+                              return;
+                            }
+                            navigator.pushNamedAndRemoveUntil(
+                                AppRoutes.home, (_) => false);
+                          },
                           icon: const Icon(Icons.close_rounded,
                               color: Color(0xFFFFD699)),
                           style: IconButton.styleFrom(

@@ -1,13 +1,20 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../auth/presentation/controllers/auth_controller.dart';
 
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/routes/app_routes.dart';
 
-class TableTopBar extends StatelessWidget {
+class TableTopBar extends ConsumerWidget {
   const TableTopBar({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final auth = ref.watch(authControllerProvider);
+    final coins = auth.isAuthenticated
+        ? auth.stats.totalScore.toString().replaceAllMapped(
+            RegExp(r'(\d)(?=(\d{3})+(?!\d))'), (m) => '${m[1]},')
+        : '—';
     return Row(
       children: [
         _Counter(
@@ -16,9 +23,9 @@ class TableTopBar extends StatelessWidget {
           onTap: () => Navigator.pushNamed(context, AppRoutes.dukan),
         ),
         const SizedBox(width: 12),
-        const _Counter(icon: Icons.stars_rounded, text: '125,000', add: true),
+        _Counter(icon: Icons.stars_rounded, text: coins),
         const SizedBox(width: 12),
-        const _Counter(icon: Icons.handshake, text: '25,000', add: true),
+        const _Counter(icon: Icons.handshake, text: '—'),
         const SizedBox(width: 8),
         IconButton(
             tooltip: 'Menu',
@@ -35,13 +42,12 @@ class _Counter extends StatelessWidget {
   const _Counter({
     required this.icon,
     required this.text,
-    this.add = false,
     this.onTap,
   });
 
   final IconData icon;
   final String text;
-  final bool add;
+  final bool add = false;
   final VoidCallback? onTap;
 
   @override

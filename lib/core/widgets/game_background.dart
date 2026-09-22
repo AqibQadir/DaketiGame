@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 import '../constants/app_assets.dart';
 import 'looping_video_background.dart';
-import '../routes/fixed_background_page_route.dart';
 import '../routes/game_popup_route.dart';
 
 class GameBackground extends StatelessWidget {
@@ -27,21 +26,6 @@ class GameBackground extends StatelessWidget {
         : AppAssets.chaiHotelBackground;
 
     final double opacity = overlayOpacity ?? (useChaseBackground ? 0.32 : 0.12);
-
-    final route = ModalRoute.of(context);
-    final animation = route?.animation;
-    final foreground = route is FixedBackgroundPageRoute && animation != null
-        ? FadeTransition(
-            opacity: animation.drive(CurveTween(curve: Curves.easeOutCubic)),
-            child: SlideTransition(
-              position: animation.drive(Tween<Offset>(
-                begin: const Offset(.045, 0),
-                end: Offset.zero,
-              ).chain(CurveTween(curve: Curves.easeOutCubic))),
-              child: child,
-            ),
-          )
-        : child;
 
     return Stack(
       fit: StackFit.expand,
@@ -70,7 +54,7 @@ class GameBackground extends StatelessWidget {
         ColoredBox(
           color: Colors.black.withValues(alpha: opacity),
         ),
-        foreground,
+        child,
       ],
     );
   }

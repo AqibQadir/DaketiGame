@@ -32,6 +32,7 @@ import '../../features/quests/presentation/screens/side_quests_screen.dart';
 import '../../features/tables/presentation/screens/table_room_screen.dart';
 import '../../features/tables/presentation/screens/tables_screen.dart';
 import '../../features/tables/domain/table_room.dart';
+import '../../features/tables/domain/table_match_selection.dart';
 import '../../features/game/presentation/screens/multiplayer_screen.dart';
 import '../../features/game/presentation/screens/waiting_room_screen.dart';
 import '../../features/game/presentation/screens/game_results_screen.dart';
@@ -78,12 +79,22 @@ class AppRouter {
       case AppRoutes.authChoice:
         return page(const AuthChoiceScreen());
       case AppRoutes.guestName:
-        return page(const GuestNameScreen());
+        return page(GuestNameScreen(
+          tableSelection: settings.arguments is TableMatchSelection
+              ? settings.arguments! as TableMatchSelection
+              : null,
+        ));
       case AppRoutes.guestOpponents:
+        final tableMatch = settings.arguments is TableMatchArguments
+            ? settings.arguments! as TableMatchArguments
+            : null;
         final guestName = settings.arguments is String
             ? settings.arguments! as String
             : 'Guest';
-        return page(GuestOpponentScreen(playerName: guestName));
+        return page(GuestOpponentScreen(
+          playerName: tableMatch?.playerName ?? guestName,
+          tableSelection: tableMatch?.selection,
+        ));
       case AppRoutes.login:
         return page(const LoginScreen());
       case AppRoutes.signup:

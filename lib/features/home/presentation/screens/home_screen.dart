@@ -8,6 +8,8 @@ import '../../../../core/widgets/game_alert.dart';
 import '../../../../core/widgets/game_button.dart';
 import '../../../../core/widgets/game_icon_button.dart';
 import '../../../auth/presentation/controllers/auth_controller.dart';
+import '../../../auth/presentation/controllers/guest_name_provider.dart';
+import '../../../tables/presentation/widgets/city_table_cards.dart';
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
@@ -52,6 +54,8 @@ class HomeScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final auth = ref.watch(authControllerProvider);
     final user = auth.user;
+    final guestName = ref.watch(guestNameProvider)?.trim();
+    final hasGuestIdentity = guestName != null && guestName.isNotEmpty;
     return Scaffold(
       body: GameBackground(
         child: Stack(
@@ -80,7 +84,10 @@ class HomeScreen extends ConsumerWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            user?.name.toUpperCase() ?? 'GUEST PLAYER',
+                            user?.name.toUpperCase() ??
+                                (hasGuestIdentity
+                                    ? guestName.toUpperCase()
+                                    : 'GUEST PLAYER'),
                             style: const TextStyle(
                               color: AppColors.orange,
                               fontWeight: FontWeight.w900,
@@ -112,12 +119,16 @@ class HomeScreen extends ConsumerWidget {
                   const SizedBox(width: 10),
                   buildCounter(
                     icon: Icons.monetization_on,
-                    value: '125,000',
+                    value: auth.isAuthenticated
+                        ? auth.stats.totalScore.toString().replaceAllMapped(
+                            RegExp(r'(\d)(?=(\d{3})+(?!\d))'),
+                            (m) => '${m[1]},')
+                        : '—',
                   ),
                   const SizedBox(width: 10),
                   buildCounter(
                     icon: Icons.account_balance_wallet,
-                    value: '125,000',
+                    value: '—',
                   ),
                 ],
               ),
@@ -255,38 +266,41 @@ class HomeScreen extends ConsumerWidget {
                 ],
               ),
             ),
-            Positioned(
-              left: 0,
-              right: 0,
-              bottom: 8,
+            const Positioned(
+              left: 84,
+              right: 84,
+              top: 72,
+              bottom: 66,
               child: Center(
-                child: GameButton(
-                  text: 'Start game',
-                  width: 180,
-                  onTap: () {
-                    if (!auth.isAuthenticated) {
-                      Navigator.pushNamed(context, AppRoutes.guestName);
-                      return;
-                    }
-                    if (user == null) {
-                      ref
-                          .read(authControllerProvider.notifier)
-                          .refreshSession();
-                      showGameAlert(
-                        context,
-                        'Loading your profile. Try again.',
-                      );
-                      return;
-                    }
-                    Navigator.pushNamed(
-                      context,
-                      AppRoutes.tables,
-                      arguments: user.name,
-                    );
-                  },
+                child: FittedBox(
+                  fit: BoxFit.contain,
+                  child: SizedBox(
+                    width: 712,
+                    height: 245,
+                    child: CityTableCards(),
+                  ),
                 ),
               ),
             ),
+            if (!auth.isAuthenticated)
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 8,
+                child: Center(
+                  child: GameButton(
+                    text: 'Guest play',
+                    width: 150,
+                    onTap: () => Navigator.pushNamed(
+                      context,
+                      hasGuestIdentity
+                          ? AppRoutes.guestOpponents
+                          : AppRoutes.guestName,
+                      arguments: guestName,
+                    ),
+                  ),
+                ),
+              ),
           ],
         ),
       ),

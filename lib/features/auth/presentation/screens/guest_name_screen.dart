@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../controllers/guest_name_provider.dart';
+import '../../../tables/domain/table_match_selection.dart';
 import '../../../../core/routes/app_routes.dart';
 import '../../../../core/widgets/game_background.dart';
 import '../../../../core/widgets/game_button.dart';
 
 class GuestNameScreen extends ConsumerStatefulWidget {
-  const GuestNameScreen({super.key});
+  const GuestNameScreen({super.key, this.tableSelection});
+
+  final TableMatchSelection? tableSelection;
   @override
   ConsumerState<GuestNameScreen> createState() => _GuestNameScreenState();
 }
@@ -20,7 +23,9 @@ class _GuestNameScreenState extends ConsumerState<GuestNameScreen> {
   void initState() {
     super.initState();
     controller.text = ref.read(guestNameProvider) ?? '';
-    age = ref.read(guestAgeProvider);
+    final savedAge = ref.read(guestAgeProvider);
+    age =
+        savedAge != null && savedAge >= 14 && savedAge <= 120 ? savedAge : null;
     gender = ref.read(guestGenderProvider);
   }
 
@@ -35,6 +40,13 @@ class _GuestNameScreenState extends ConsumerState<GuestNameScreen> {
     ref.read(guestNameProvider.notifier).state = controller.text.trim();
     ref.read(guestAgeProvider.notifier).state = age;
     ref.read(guestGenderProvider.notifier).state = gender;
+    final selection = widget.tableSelection;
+    if (selection != null) {
+      Navigator.pushReplacementNamed(context, AppRoutes.guestOpponents,
+          arguments: TableMatchArguments(
+              playerName: controller.text.trim(), selection: selection));
+      return;
+    }
     Navigator.pushNamedAndRemoveUntil(context, AppRoutes.home,
         (route) => route.settings.name == AppRoutes.welcome);
   }
@@ -80,10 +92,10 @@ class _GuestNameScreenState extends ConsumerState<GuestNameScreen> {
                                         const InputDecoration(labelText: 'Age'),
                                     menuMaxHeight: 200,
                                     items: List.generate(
-                                        120,
+                                        107,
                                         (index) => DropdownMenuItem(
-                                            value: index + 1,
-                                            child: Text('${index + 1}'))),
+                                            value: index + 14,
+                                            child: Text('${index + 14}'))),
                                     onChanged: (value) =>
                                         setState(() => age = value),
                                     validator: (value) =>

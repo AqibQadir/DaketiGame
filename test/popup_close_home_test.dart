@@ -5,27 +5,56 @@ import 'package:daketi_phase1_modular/core/routes/fixed_background_page_route.da
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  testWidgets('cancel guest form returns to previous screen instead of Home',
+      (tester) async {
+    final nav = GlobalKey<NavigatorState>();
+    await tester.pumpWidget(MaterialApp(
+        navigatorKey: nav,
+        routes: {AppRoutes.home: (_) => const Text('Home destination')},
+        home: const Scaffold(body: Text('Start screen'))));
+    nav.currentState!.push(GamePopupRoute<void>(
+        settings: const RouteSettings(name: AppRoutes.guestName),
+        child: const SizedBox()));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Close popup'));
+    await tester.pumpAndSettle();
+    expect(find.text('Start screen'), findsOneWidget);
+    expect(find.text('Home destination'), findsNothing);
+    expect(nav.currentState!.canPop(), isFalse);
+  });
+
   test('dashboard and option routes have no foreground transition delay', () {
     final home = FixedBackgroundPageRoute<void>(
-      settings: const RouteSettings(name: AppRoutes.home),
-      builder: (_) => const SizedBox());
+        settings: const RouteSettings(name: AppRoutes.home),
+        builder: (_) => const SizedBox());
     expect(home.transitionDuration, Duration.zero);
-    for (final name in [AppRoutes.profile, AppRoutes.support, AppRoutes.settings,
-      AppRoutes.menu, AppRoutes.multiplayer, AppRoutes.results]) {
-      final popup = GamePopupRoute<void>(settings: RouteSettings(name: name), child: const SizedBox());
+    for (final name in [
+      AppRoutes.profile,
+      AppRoutes.support,
+      AppRoutes.settings,
+      AppRoutes.menu,
+      AppRoutes.multiplayer,
+      AppRoutes.results
+    ]) {
+      final popup = GamePopupRoute<void>(
+          settings: RouteSettings(name: name), child: const SizedBox());
       expect(popup.transitionDuration, Duration.zero);
       expect(popup.reverseTransitionDuration, Duration.zero);
     }
   });
   for (final route in [AppRoutes.menu, AppRoutes.settings, AppRoutes.results]) {
-    testWidgets('$route close returns Home and removes previous game/page', (tester) async {
+    testWidgets('$route close returns Home and removes previous game/page',
+        (tester) async {
       final nav = GlobalKey<NavigatorState>();
       await tester.pumpWidget(MaterialApp(
         navigatorKey: nav,
-        routes: {AppRoutes.home: (_) => const Scaffold(body: Text('Home destination'))},
+        routes: {
+          AppRoutes.home: (_) => const Scaffold(body: Text('Home destination'))
+        },
         home: const Scaffold(body: Text('Previous screen')),
       ));
-      nav.currentState!.push(GamePopupRoute<void>(settings: RouteSettings(name: route), child: const SizedBox()));
+      nav.currentState!.push(GamePopupRoute<void>(
+          settings: RouteSettings(name: route), child: const SizedBox()));
       await tester.pumpAndSettle();
       await tester.tap(find.byTooltip('Close popup'));
       await tester.pumpAndSettle();

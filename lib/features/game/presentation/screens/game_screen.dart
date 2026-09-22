@@ -1,3 +1,4 @@
+import '../../../../core/widgets/looping_video_background.dart';
 import '../../../../core/widgets/game_styled_dialog.dart';
 import 'dart:async';
 import 'dart:math' as math;
@@ -271,14 +272,14 @@ class _GameScreenState extends ConsumerState<GameScreen> {
       final oldPlayer = oldGame.playerById(newPlayer.id);
       if (oldPlayer == null) continue;
       final increase = newPlayer.handCount - oldPlayer.handCount;
-      if (increase <= 0) continue;
+      if (increase <= 0 && newPlayer.id != localId) continue;
       final destination = destinationFor(newPlayer.id);
       if (newPlayer.id == localId) {
         final oldIds = oldPlayer.hand.map((card) => card.id).toSet();
         final added = newPlayer.hand
             .where((card) => !oldIds.contains(card.id))
             .toList(growable: false);
-        for (var index = 0; index < increase; index++) {
+        for (var index = 0; index < added.length; index++) {
           deals.add(_DrawDeal(
             playerId: newPlayer.id,
             destination: destination,
@@ -581,10 +582,9 @@ class _GameScreenState extends ConsumerState<GameScreen> {
       body: Stack(
         fit: StackFit.expand,
         children: [
-          Image.asset(
-            AppAssets.tableBackground,
-            fit: BoxFit.cover,
-            filterQuality: FilterQuality.high,
+          const LoopingVideoBackground(
+            videoAsset: AppAssets.gameTableVideo,
+            posterAsset: AppAssets.gameTableVideoPoster,
           ),
           const ColoredBox(color: Color(0x18000000)),
           Positioned.fill(
@@ -1046,9 +1046,11 @@ class _Board extends StatelessWidget {
             )),
       if (openingDealPhase >= 2)
         Positioned(
-            left: 492,
-            top: 105,
-            child: _TurnLabel(isLocalTurn: session.isCurrentPlayersTurn)),
+            right: 108,
+            top: 12,
+            width: 96,
+            child: Center(
+                child: _TurnLabel(isLocalTurn: session.isCurrentPlayersTurn))),
       Positioned(
           // Keep the radial hand in its own lane to the right of the local
           // medallion. The shared fan pivot must never sit behind the avatar.
@@ -1119,7 +1121,7 @@ class _Board extends StatelessWidget {
       if (session.activity != null)
         Positioned(
             left: 152,
-            top: 18,
+            top: 44,
             width: 190,
             child: _Activity(session.activity!)),
       if (stealAnimation case final animation?)
@@ -1144,7 +1146,7 @@ class _Board extends StatelessWidget {
                 : isThreePlayerMatch
                     ? 603
                     : 593,
-            176,
+            171,
           ),
           deals: animation.deals,
           onComplete: onDrawAnimationComplete,
@@ -1534,14 +1536,18 @@ class _MedallionState extends State<_Medallion> with WidgetsBindingObserver {
         oldWidget.game.currentPlayerId != widget.game.currentPlayerId;
     final serverStartChanged =
         oldWidget.game.turnStartTime != widget.game.turnStartTime;
-    final moveAccepted = oldWidget.timerRevision != widget.timerRevision;
+    final capturedCards = widget.isActive &&
+        !playerChanged &&
+        (widget.player?.stackCount ?? 0) > (oldWidget.player?.stackCount ?? 0);
+    final moveAccepted =
+        oldWidget.timerRevision != widget.timerRevision || capturedCards;
     if (playerChanged || serverStartChanged || moveAccepted) {
       fallbackStart = DateTime.now().millisecondsSinceEpoch;
       // Captures, steals and stack extensions can keep the same player active.
       // A successful-move revision must therefore restart that player's timer
       // locally even when the response also contains a changed/stale server
       // timestamp. A real hand-off still follows the next player's server time.
-      useFallbackStart = moveAccepted && !playerChanged;
+      useFallbackStart = !playerChanged && (moveAccepted || useFallbackStart);
       lastAlert = null;
       timeoutSent = false;
       remaining = calculateRemaining();
@@ -1849,7 +1855,7 @@ class _TableCardsState extends State<_TableCards> {
                 const horizontalStep = 54.0;
                 // Fixed geometry: neither removal nor a newly occupied row
                 // can shift cards that are already on the table.
-                const verticalStep = 14.0;
+                const verticalStep = 28.0;
                 const rowWidth = cardWidth + (cardsPerRow - 1) * horizontalStep;
                 final baseLeft = (constraints.maxWidth - rowWidth) / 2;
                 final paintOrder = List<GameCard>.of(widget.cards)
@@ -1910,7 +1916,7 @@ class _TableCardsState extends State<_TableCards> {
               // Preserve the clear lane between the draw pile and the right
               // opponent's hidden hand shown in the approved frame.
               right: 21,
-              top: 7,
+              top: 2,
               child: Stack(children: [
                 ...List.generate(
                   widget.deck.clamp(1, 4),
@@ -2632,7 +2638,7 @@ class _TurnLabel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
         decoration: BoxDecoration(
           color: const Color(0xD9000000),
           borderRadius: BorderRadius.circular(12),
@@ -2640,8 +2646,11 @@ class _TurnLabel extends StatelessWidget {
         ),
         child: Text(
           isLocalTurn ? 'YOUR TURN' : 'OPPONENT TURN',
+          maxLines: 1,
+          softWrap: false,
+          textAlign: TextAlign.center,
           style: const TextStyle(
-            fontSize: 8,
+            fontSize: 7,
             fontWeight: FontWeight.w900,
             color: _cream,
           ),

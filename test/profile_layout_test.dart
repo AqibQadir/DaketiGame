@@ -60,7 +60,7 @@ void main() {
     expect(tester.takeException(), isNull);
     await tester.tap(find.byTooltip('Profile options'));
     await tester.pumpAndSettle();
-    expect(find.text('HISTORY'), findsNothing);
+    expect(find.text('HISTORY'), findsOneWidget);
     expect(find.text('EDIT'), findsOneWidget);
     expect(tester.takeException(), isNull);
     await tester.tap(find.text('EDIT').last);

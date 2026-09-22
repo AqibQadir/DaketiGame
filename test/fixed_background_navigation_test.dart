@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  testWidgets('navigation moves foreground while background stays fixed',
+  testWidgets('navigation switches immediately while background stays fixed',
       (tester) async {
     final navigator = GlobalKey<NavigatorState>();
     await tester.pumpWidget(MaterialApp(
@@ -25,7 +25,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 100));
     expect(tester.getRect(find.byType(Image).last), background);
     expect(tester.getRect(find.byKey(const ValueKey('foreground'))).left,
-        lessThan(foreground.left));
+        foreground.left);
     await tester.pumpAndSettle();
     navigator.currentState!.pop();
     await tester.pump();

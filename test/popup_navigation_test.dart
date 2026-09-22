@@ -1,3 +1,4 @@
+import 'package:daketi_phase1_modular/features/tables/presentation/screens/table_room_screen.dart';
 import 'package:daketi_phase1_modular/core/routes/app_router.dart';
 import 'package:daketi_phase1_modular/core/routes/app_routes.dart';
 import 'package:daketi_phase1_modular/core/routes/game_popup_route.dart';
@@ -55,7 +56,7 @@ void main() {
     expect(find.text('Select gender'), findsOneWidget);
     await tester.tap(find.byType(DropdownButtonFormField<int>));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('3').last);
+    await tester.tap(find.text('14').last);
     await tester.pumpAndSettle();
     await tester.tap(find.byType(DropdownButtonFormField<String>));
     await tester.pumpAndSettle();
@@ -64,7 +65,18 @@ void main() {
     await tester.tap(find.text('CONTINUE'));
     await tester.pumpAndSettle();
     expect(find.byType(HomeScreen), findsOneWidget);
-    expect(find.byTooltip('Close popup'), findsNothing);
+    expect(find.text('GUEST TESTER'), findsOneWidget);
+    expect(find.text('OLD LAHORE'), findsOneWidget);
+    expect(find.text('KARACHI CLAN'), findsOneWidget);
+    expect(find.text('DUBAI RISE'), findsOneWidget);
+    expect(find.text('THAI BLISS'), findsOneWidget);
+    expect(find.text('START GAME'), findsNothing);
+    await tester.tap(find.text('ENTER MATCH').first);
+    await tester.pumpAndSettle();
+    expect(find.byType(TableRoomScreen), findsOneWidget);
+    expect(find.text('SILVER'), findsOneWidget);
+    expect(find.text('DIAMOND'), findsOneWidget);
+    expect(find.text('PLAY AS GUEST'), findsNothing);
     expect(container.read(guestNameProvider), 'Guest tester');
     expect(tester.takeException(), isNull);
   });
