@@ -1,7 +1,7 @@
 name: daketi_phase1_modular
 description: Daketi Phase I modular Flutter UI.
 publish_to: "none"
-version: 2.1.0+11
+version: 2.6.0+16
 
 environment:
   sdk: ">=3.4.0 <4.0.0"
@@ -17,7 +17,7 @@ dependencies:
   audioplayers: 6.4.0
   shared_preferences: ^2.5.3
   flutter_secure_storage: ^9.2.4
-  video_player: ^2.14.0
+  video_player: ^2.11.1
 dev_dependencies:
   flutter_test:
     sdk: flutter
