@@ -173,6 +173,7 @@ class GameController extends StateNotifier<GameSessionState> {
   late final StreamSubscription<GameSocketEvent> _eventsSubscription;
   Timer? _reconnectTimer;
   int _rejoinAttempts = 0;
+  int _roomStateRevision = 0;
 
   static const _reconnectDeadline = Duration(seconds: 15);
 
@@ -184,6 +185,7 @@ class GameController extends StateNotifier<GameSessionState> {
     state = state.copyWith(
       isLoading: true,
       error: null,
+      playerId: null,
       playerName: playerName,
       lastAiCount: aiCount,
       lastDifficulty: difficulty,
@@ -223,6 +225,7 @@ class GameController extends StateNotifier<GameSessionState> {
     state = state.copyWith(
       isLoading: true,
       error: null,
+      playerId: null,
       playerName: playerName,
       winner: null,
       scores: const [],
@@ -257,6 +260,7 @@ class GameController extends StateNotifier<GameSessionState> {
       isLoading: true,
       error: null,
       gameId: gameId,
+      playerId: null,
       playerName: playerName,
       winner: null,
       scores: const [],
@@ -284,8 +288,31 @@ class GameController extends StateNotifier<GameSessionState> {
 
   Future<void> sendReady() async {
     final gameId = state.gameId;
-    if (gameId == null) return;
-    await _runAction(() => _socketService.playerReady(gameId));
+    final player = state.game?.playerById(state.playerId);
+    if (gameId == null ||
+        state.isLoading ||
+        player == null ||
+        player.isReady ||
+        state.game?.status != DaketiGameStatus.waiting) {
+      return;
+    }
+    final revision = _roomStateRevision;
+    state = state.copyWith(isLoading: true, error: null);
+    try {
+      final response = await _socketService.playerReady(gameId);
+      if (!mounted || state.gameId != gameId) return;
+      // Broadcasts can precede the acknowledgement, including game_started.
+      // Never replace their newer state with the request's waiting snapshot.
+      state = state.copyWith(
+        isLoading: false,
+        game: revision == _roomStateRevision
+            ? _gameFrom(response['gameState']) ?? state.game
+            : state.game,
+        error: null,
+      );
+    } catch (error) {
+      if (mounted && state.gameId == gameId) _setError(error);
+    }
   }
 
   Future<bool> sendChatMessage(String message) async {
@@ -480,7 +507,9 @@ class GameController extends StateNotifier<GameSessionState> {
         connectionStatus: GameConnectionStatus.connected,
         disconnectedPlayer: null,
       );
-      _attemptRejoin();
+      // The initial connection belongs to the explicit join/create request.
+      // Rejoining it concurrently can create/reset a player's room entry.
+      if (state.playerId != null) _attemptRejoin();
       return;
     }
     if (event.name == 'disconnected') {
@@ -562,7 +591,8 @@ class GameController extends StateNotifier<GameSessionState> {
       );
     }
     final game = _gameFrom(event.data['gameState']);
-    if (game != null) {
+    if (game != null && game.gameId == state.gameId) {
+      _roomStateRevision++;
       state = state.copyWith(game: game, availableActions: const []);
     }
   }

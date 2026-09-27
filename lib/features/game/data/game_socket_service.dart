@@ -32,6 +32,7 @@ class GameSocketService {
     final socket = io.io(serverUrl, <String, dynamic>{
       'transports': ['websocket'],
       'autoConnect': false,
+      'forceNew': true,
       'reconnection': true,
     });
     _socket = socket;
