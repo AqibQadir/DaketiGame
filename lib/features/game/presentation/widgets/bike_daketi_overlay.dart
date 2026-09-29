@@ -14,6 +14,7 @@ class BikeDaketiOverlay extends StatefulWidget {
     required this.cardCount,
     required this.cards,
     required this.onComplete,
+    this.isLocalVictim = false,
   });
 
   final Offset source;
@@ -21,6 +22,7 @@ class BikeDaketiOverlay extends StatefulWidget {
   final int cardCount;
   final List<GameCard> cards;
   final VoidCallback onComplete;
+  final bool isLocalVictim;
 
   @override
   State<BikeDaketiOverlay> createState() => _BikeDaketiOverlayState();
@@ -135,14 +137,18 @@ class _BikeDaketiOverlayState extends State<BikeDaketiOverlay>
                         ),
                       ),
                   Positioned(
-                    left: bikePosition.dx - 70,
-                    top: bikePosition.dy - 48,
+                    left: bikePosition.dx - 140,
+                    top: bikePosition.dy - 85,
                     child: Transform.rotate(
                       angle: math.sin(ride * math.pi) * -.07,
-                      child: const SizedBox(
-                        width: 145,
-                        height: 92,
-                        child: CustomPaint(painter: _BikePainter()),
+                      child: Image.asset(
+                        'assets/images/steal_bike_animation.gif',
+                        width: 280,
+                        height: 124,
+                        fit: BoxFit.contain,
+                        filterQuality: FilterQuality.medium,
+                        semanticLabel:
+                            'Opponents escaping on a motorcycle with stolen cards',
                       ),
                     ),
                   ),
@@ -176,9 +182,11 @@ class _BikeDaketiOverlayState extends State<BikeDaketiOverlay>
                               child: Column(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  const Text(
-                                    'DAKETI!',
-                                    style: TextStyle(
+                                  Text(
+                                    widget.isLocalVictim
+                                        ? 'YOU WERE ROBBED!'
+                                        : 'DAKETI!',
+                                    style: const TextStyle(
                                       color: Colors.white,
                                       fontFamily: 'Dirty Brush',
                                       fontSize: 38,
@@ -187,7 +195,9 @@ class _BikeDaketiOverlayState extends State<BikeDaketiOverlay>
                                   ),
                                   const SizedBox(height: 5),
                                   Text(
-                                    '${widget.cardCount} ${widget.cardCount == 1 ? 'CARD' : 'CARDS'} STOLEN · MAAL GAYA!',
+                                    widget.isLocalVictim
+                                        ? '${widget.cardCount} ${widget.cardCount == 1 ? 'CARD' : 'CARDS'} TAKEN FROM YOUR STACK'
+                                        : '${widget.cardCount} ${widget.cardCount == 1 ? 'CARD' : 'CARDS'} STOLEN · MAAL GAYA!',
                                     style: const TextStyle(
                                       color: AppColors.cream,
                                       fontSize: 9,
@@ -273,79 +283,4 @@ String _cardAsset(GameCard card) {
     _ => card.value,
   };
   return 'assets/images/cards/style01/$suit/$value.png';
-}
-
-class _BikePainter extends CustomPainter {
-  const _BikePainter();
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final outline = Paint()
-      ..color = const Color(0xFF111111)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 4
-      ..strokeCap = StrokeCap.round;
-    final chrome = Paint()
-      ..color = const Color(0xFFD8D8D8)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 3;
-    final red = Paint()..color = const Color(0xFFD92E21);
-    final dark = Paint()..color = const Color(0xFF171717);
-    final skin = Paint()..color = const Color(0xFFD69A65);
-
-    for (final center in [const Offset(34, 70), const Offset(112, 70)]) {
-      canvas.drawCircle(center, 19, dark);
-      canvas.drawCircle(center, 12, chrome);
-    }
-    canvas.drawLine(const Offset(34, 70), const Offset(69, 49), outline);
-    canvas.drawLine(const Offset(69, 49), const Offset(94, 70), outline);
-    canvas.drawLine(const Offset(69, 49), const Offset(112, 70), outline);
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        const Rect.fromLTWH(51, 43, 43, 19),
-        const Radius.circular(8),
-      ),
-      red,
-    );
-    canvas.drawRect(const Rect.fromLTWH(47, 34, 48, 7), dark);
-    canvas.drawLine(const Offset(92, 42), const Offset(105, 25), outline);
-    canvas.drawLine(const Offset(103, 25), const Offset(118, 25), chrome);
-
-    canvas.drawCircle(const Offset(80, 16), 9, skin);
-    canvas.drawCircle(const Offset(55, 17), 9, skin);
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        const Rect.fromLTWH(68, 23, 23, 28),
-        const Radius.circular(7),
-      ),
-      dark,
-    );
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        const Rect.fromLTWH(43, 24, 23, 27),
-        const Radius.circular(7),
-      ),
-      Paint()..color = const Color(0xFF285F3A),
-    );
-    canvas.drawLine(const Offset(52, 31), const Offset(22, 43), outline);
-    canvas.drawLine(const Offset(22, 43), const Offset(8, 36), outline);
-    canvas.drawCircle(const Offset(6, 35), 5, skin);
-    canvas.drawArc(
-      const Rect.fromLTWH(47, 7, 17, 13),
-      math.pi,
-      math.pi,
-      false,
-      Paint()..color = const Color(0xFF202020),
-    );
-    canvas.drawArc(
-      const Rect.fromLTWH(72, 6, 17, 13),
-      math.pi,
-      math.pi,
-      false,
-      Paint()..color = const Color(0xFF202020),
-    );
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

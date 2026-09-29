@@ -5,7 +5,9 @@ import '../../../../core/routes/app_routes.dart';
 import '../../../../core/services/game_sound_service.dart';
 import '../../../../core/widgets/game_background.dart';
 import '../../../../core/widgets/game_button.dart';
-import '../../../../core/widgets/glass_panel.dart';
+import '../../../../core/widgets/game_alert.dart';
+import '../../../../core/constants/app_assets.dart';
+import '../../../../core/widgets/game_icon_button.dart';
 import '../controllers/game_controller.dart';
 
 const _pakistaniBotNames = <String>[
@@ -95,160 +97,228 @@ class _GameResultsScreenState extends ConsumerState<GameResultsScreen> {
     final sharedFirst = session.winner == 'draw' && tiedAtTop;
     return Scaffold(
       body: GameBackground(
-        child: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(12),
-            child: FittedBox(
-              fit: BoxFit.scaleDown,
-              child: GlassPanel(
-                width: 520,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      sharedFirst ? 'DRAW — JOINT FIRST' : winnerText,
-                      style: const TextStyle(
-                        fontFamily: 'Dirty Brush',
-                        fontSize: 34,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    ...scores.indexed.map(
-                      (rankedScore) {
-                        final score = rankedScore.$2;
-                        final points = (score['score'] as num?)?.toInt() ?? 0;
-                        final rank = 1 +
-                            scores
-                                .where((other) =>
-                                    ((other['score'] as num?)?.toInt() ?? 0) >
-                                    points)
-                                .length;
-                        final isJointFirst = sharedFirst && rank == 1;
-                        final isWinner =
-                            score['id']?.toString() == session.winner;
-                        final isLocalPlayer =
-                            score['id']?.toString() == session.playerId;
-                        return Container(
-                          margin: const EdgeInsets.symmetric(vertical: 2),
+        overlayOpacity: 0.18,
+        child: SafeArea(
+          child: Center(
+            child: Padding(
+              padding: const EdgeInsets.all(8),
+              child: FittedBox(
+                fit: BoxFit.contain,
+                child: SizedBox(
+                  width: 760,
+                  height: 350,
+                  child: Stack(
+                    children: [
+                      const Positioned(
+                          left: 102,
+                          top: 115,
+                          child: _ResultCard(
+                              asset:
+                                  'assets/images/cards/style01/Spades/King.png',
+                              angle: -0.17)),
+                      const Positioned(
+                          right: 100,
+                          top: 108,
+                          child: _ResultCard(
+                              asset:
+                                  'assets/images/cards/style01/Spades/Queen.png',
+                              angle: 0.15)),
+                      Positioned(
+                        left: 158,
+                        right: 158,
+                        top: 18,
+                        child: Container(
+                          padding: const EdgeInsets.fromLTRB(32, 10, 32, 20),
                           decoration: BoxDecoration(
-                            color: isLocalPlayer
-                                ? const Color(0x4435C96F)
-                                : Colors.transparent,
-                            borderRadius: BorderRadius.circular(10),
-                            border: isLocalPlayer
-                                ? Border.all(color: const Color(0xFF35C96F))
-                                : null,
-                          ),
-                          child: ListTile(
-                            dense: true,
-                            leading: CircleAvatar(
-                              radius: 16,
-                              backgroundColor: isWinner || isJointFirst
-                                  ? const Color(0xFFFF8A00)
-                                  : isLocalPlayer
-                                      ? const Color(0xFF237A4A)
-                                      : const Color(0xFF30271F),
-                              child: Text(
-                                '$rank',
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w900,
-                                ),
-                              ),
-                            ),
-                            title: Row(
-                              children: [
-                                Flexible(
-                                  child: Text(
-                                    aiDisplayNames[score['id']?.toString()] ??
-                                        score['name']?.toString() ??
-                                        'Player',
-                                  ),
-                                ),
-                                if (isLocalPlayer) ...[
-                                  const SizedBox(width: 8),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 7,
-                                      vertical: 2,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFF35C96F),
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                    child: const Text(
-                                      'YOU',
-                                      style: TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 8,
-                                        fontWeight: FontWeight.w900,
-                                      ),
-                                    ),
-                                  ),
-                                ],
+                            borderRadius: BorderRadius.circular(22),
+                            gradient: const LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: [
+                                Color(0xF5232219),
+                                Color(0xFA080905),
+                                Color(0xF51D190C)
                               ],
                             ),
-                            subtitle: isWinner || isJointFirst
-                                ? Text(
-                                    isJointFirst ? 'JOINT FIRST' : 'WINNER',
-                                    style: const TextStyle(
-                                      color: Color(0xFFFFB34D),
-                                      fontWeight: FontWeight.w900,
-                                    ),
-                                  )
-                                : null,
-                            trailing: Text(
-                              '${score['score'] ?? 0} PTS',
-                              style: TextStyle(
-                                color: isWinner || isJointFirst
-                                    ? const Color(0xFFFFB34D)
-                                    : isLocalPlayer
-                                        ? const Color(0xFF67E49B)
-                                        : null,
-                                fontWeight: FontWeight.w900,
-                              ),
-                            ),
+                            border: Border.all(
+                                color: const Color(0xFF79705A), width: 1.2),
+                            boxShadow: const [
+                              BoxShadow(
+                                  color: Colors.black87,
+                                  blurRadius: 22,
+                                  offset: Offset(0, 10)),
+                              BoxShadow(
+                                  color: Color(0x337E7044),
+                                  blurRadius: 5,
+                                  spreadRadius: 1),
+                            ],
                           ),
-                        );
-                      },
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        GameButton(
-                          text: 'Replay',
-                          onTap: () async {
-                            final success = await ref
-                                .read(gameControllerProvider.notifier)
-                                .replaySolo();
-                            if (success && context.mounted) {
-                              Navigator.pushNamedAndRemoveUntil(
-                                  context,
-                                  AppRoutes.game,
-                                  (route) =>
-                                      route.settings.name == AppRoutes.tables ||
-                                      route.settings.name == AppRoutes.home);
-                            }
-                          },
+                          child:
+                              Column(mainAxisSize: MainAxisSize.min, children: [
+                            Semantics(
+                              label: sharedFirst
+                                  ? 'DRAW — JOINT FIRST'
+                                  : winnerText,
+                              child: ExcludeSemantics(
+                                  child: Text.rich(
+                                TextSpan(children: [
+                                  TextSpan(
+                                      text: sharedFirst
+                                          ? 'DRAW'
+                                          : winnerText == 'YOU WIN'
+                                              ? 'YOU '
+                                              : winnerText == 'DRAW'
+                                                  ? 'DRAW'
+                                                  : 'GAME ',
+                                      style:
+                                          const TextStyle(color: Colors.white)),
+                                  if (!sharedFirst && winnerText != 'DRAW')
+                                    TextSpan(
+                                        text: winnerText == 'YOU WIN'
+                                            ? 'WIN'
+                                            : 'OVER',
+                                        style: const TextStyle(
+                                            color: Color(0xFFFFAC12))),
+                                ]),
+                                style: const TextStyle(
+                                    fontFamily: 'Dirty Brush',
+                                    fontSize: 43,
+                                    height: 1.15),
+                              )),
+                            ),
+                            if (sharedFirst)
+                              const Text('JOINT FIRST',
+                                  style: TextStyle(
+                                      color: Color(0xFFFFCF74),
+                                      fontSize: 10,
+                                      letterSpacing: 2)),
+                            const SizedBox(height: 10),
+                            if (scores.isEmpty)
+                              const Padding(
+                                  padding: EdgeInsets.all(24),
+                                  child: Text('Waiting for final scores',
+                                      style: TextStyle(color: Colors.white70))),
+                            ...scores.indexed.map((entry) {
+                              final score = entry.$2;
+                              final points =
+                                  (score['score'] as num?)?.toInt() ?? 0;
+                              final rank = 1 +
+                                  scores
+                                      .where((other) =>
+                                          ((other['score'] as num?)?.toInt() ??
+                                              0) >
+                                          points)
+                                      .length;
+                              final id = score['id']?.toString();
+                              final winner = id == session.winner ||
+                                  (sharedFirst && rank == 1);
+                              return _ResultRow(
+                                name: aiDisplayNames[id] ??
+                                    score['name']?.toString() ??
+                                    'Player',
+                                points: points,
+                                rank: rank,
+                                winner: winner,
+                                local: id == session.playerId,
+                                last: entry.$1 == scores.length - 1 && !winner,
+                                compact: scores.length > 3,
+                              );
+                            }),
+                          ]),
                         ),
-                        const SizedBox(width: 16),
-                        GameButton(
-                          text: 'Home',
-                          onTap: () {
-                            ref
-                                .read(gameControllerProvider.notifier)
-                                .resetSession();
-                            Navigator.pushNamedAndRemoveUntil(
-                              context,
-                              AppRoutes.home,
-                              (_) => false,
-                            );
-                          },
-                        ),
-                      ],
-                    ),
-                  ],
+                      ),
+                      Positioned(
+                          left: 0,
+                          right: 0,
+                          bottom: 12,
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              GameButton(
+                                text: session.isLoading
+                                    ? 'Please wait'
+                                    : session.isMultiplayer
+                                        ? 'Play again'
+                                        : 'Replay',
+                                onTap: session.isLoading
+                                    ? null
+                                    : () async {
+                                        if (session.isMultiplayer) {
+                                          Navigator.pushNamedAndRemoveUntil(
+                                              context,
+                                              AppRoutes.multiplayer,
+                                              (route) =>
+                                                  route.settings.name ==
+                                                  AppRoutes.home,
+                                              arguments: session.playerName);
+                                          return;
+                                        }
+                                        final success = await ref
+                                            .read(
+                                                gameControllerProvider.notifier)
+                                            .replaySolo();
+                                        if (!context.mounted) return;
+                                        if (!success) {
+                                          showGameAlert(
+                                              context,
+                                              ref
+                                                      .read(
+                                                          gameControllerProvider)
+                                                      .error ??
+                                                  'Unable to start another game.');
+                                          return;
+                                        }
+                                        if (success) {
+                                          Navigator.pushNamedAndRemoveUntil(
+                                              context,
+                                              AppRoutes.game,
+                                              (route) =>
+                                                  route.settings.name ==
+                                                      AppRoutes.tables ||
+                                                  route.settings.name ==
+                                                      AppRoutes.home);
+                                        }
+                                      },
+                              ),
+                              const SizedBox(width: 16),
+                              GameButton(
+                                text: 'Home',
+                                onTap: () {
+                                  ref
+                                      .read(gameControllerProvider.notifier)
+                                      .resetSession();
+                                  Navigator.pushNamedAndRemoveUntil(
+                                    context,
+                                    AppRoutes.home,
+                                    (_) => false,
+                                  );
+                                },
+                              ),
+                            ],
+                          )),
+                      Positioned(
+                          right: 18,
+                          top: 14,
+                          child: GameIconButton(
+                              icon: Icons.menu,
+                              onTap: () => Navigator.pushNamed(
+                                  context, AppRoutes.menu))),
+                      Positioned(
+                          left: 18,
+                          bottom: 62,
+                          child: GameIconButton(
+                              icon: Icons.person,
+                              onTap: () => Navigator.pushNamed(
+                                  context, AppRoutes.profile))),
+                      Positioned(
+                          left: 18,
+                          bottom: 12,
+                          child: GameIconButton(
+                              icon: Icons.settings,
+                              onTap: () => Navigator.pushNamed(
+                                  context, AppRoutes.settings))),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -257,4 +327,146 @@ class _GameResultsScreenState extends ConsumerState<GameResultsScreen> {
       ),
     );
   }
+}
+
+class _ResultCard extends StatelessWidget {
+  const _ResultCard({required this.asset, required this.angle});
+  final String asset;
+  final double angle;
+  @override
+  Widget build(BuildContext context) => ExcludeSemantics(
+        child: Transform.rotate(
+            angle: angle,
+            child: Container(
+              width: 100,
+              height: 145,
+              decoration: const BoxDecoration(boxShadow: [
+                BoxShadow(
+                    color: Colors.black87, blurRadius: 16, offset: Offset(0, 8))
+              ]),
+              child: ClipRRect(
+                  borderRadius: BorderRadius.circular(6),
+                  child: Image.asset(asset, fit: BoxFit.fill)),
+            )),
+      );
+}
+
+class _ResultRow extends StatelessWidget {
+  const _ResultRow(
+      {required this.name,
+      required this.points,
+      required this.rank,
+      required this.winner,
+      required this.local,
+      required this.last,
+      required this.compact});
+  final String name;
+  final int points, rank;
+  final bool winner, local, last, compact;
+  @override
+  Widget build(BuildContext context) => Container(
+        height: compact ? 36 : 46,
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(8),
+          gradient: LinearGradient(
+              colors: winner
+                  ? const [Color(0xFF49340E), Color(0xFFBA730D)]
+                  : last
+                      ? const [Color(0xFF370D0A), Color(0xFF230506)]
+                      : const [Color(0xFF332C18), Color(0xFF211B0D)]),
+          border: Border.all(
+              color: winner ? const Color(0xFFEAA734) : const Color(0xFF655C43),
+              width: winner ? 1.4 : 1),
+          boxShadow: const [
+            BoxShadow(
+                color: Colors.black54, blurRadius: 5, offset: Offset(0, 3))
+          ],
+        ),
+        child: Row(children: [
+          SizedBox(
+              width: 38,
+              child: Stack(
+                  clipBehavior: Clip.none,
+                  alignment: Alignment.center,
+                  children: [
+                    const CircleAvatar(
+                        radius: 15,
+                        backgroundColor: Color(0xFFB7B5A1),
+                        backgroundImage: AssetImage(AppAssets.playerAvatar)),
+                    Positioned(
+                        right: -1,
+                        bottom: -1,
+                        child: Container(
+                            width: 13,
+                            height: 13,
+                            alignment: Alignment.center,
+                            decoration: BoxDecoration(
+                                color: winner
+                                    ? const Color(0xFFE7A129)
+                                    : const Color(0xFF5C4C32),
+                                shape: BoxShape.circle),
+                            child: Text('$rank',
+                                style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 8,
+                                    fontWeight: FontWeight.bold)))),
+                    if (winner)
+                      const Positioned(
+                          top: -11,
+                          child: CustomPaint(
+                              size: Size(21, 14), painter: _CrownPainter())),
+                  ])),
+          const SizedBox(width: 9),
+          Expanded(
+              child: Text(name.toUpperCase(),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                      fontFamily: 'Dirty Brush',
+                      color: Colors.white,
+                      fontSize: 17))),
+          if (local)
+            const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 7),
+                child: Text('YOU',
+                    style: TextStyle(
+                        color: Color(0xFFFFD790),
+                        fontSize: 8,
+                        fontWeight: FontWeight.w900))),
+          Text('$points PTS',
+              style: const TextStyle(
+                  fontWeight: FontWeight.w900,
+                  fontStyle: FontStyle.italic,
+                  color: Colors.white,
+                  fontSize: 14)),
+        ]),
+      );
+}
+
+class _CrownPainter extends CustomPainter {
+  const _CrownPainter();
+  @override
+  void paint(Canvas canvas, Size size) {
+    final path = Path()
+      ..moveTo(2, 12)
+      ..lineTo(0, 3)
+      ..lineTo(6, 6)
+      ..lineTo(10.5, 0)
+      ..lineTo(15, 6)
+      ..lineTo(21, 3)
+      ..lineTo(19, 12)
+      ..close();
+    canvas.drawPath(path, Paint()..color = const Color(0xFFFFC23C));
+    canvas.drawLine(
+        const Offset(3, 14),
+        const Offset(18, 14),
+        Paint()
+          ..color = const Color(0xFFFFDA72)
+          ..strokeWidth = 2);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

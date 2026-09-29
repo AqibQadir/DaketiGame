@@ -34,9 +34,11 @@ class RoomSocket extends GameSocketService {
   final updates = StreamController<GameSocketEvent>.broadcast(sync: true);
   int joins = 0;
   int readyCalls = 0;
+  final readyValues = <bool>[];
   bool connected = false;
   int count = 2;
   Completer<Map<String, dynamic>>? pendingReady;
+  Completer<Map<String, dynamic>>? pendingJoin;
   @override
   Stream<GameSocketEvent> get events => updates.stream;
   @override
@@ -53,13 +55,16 @@ class RoomSocket extends GameSocketService {
       required String playerName,
       String? token}) async {
     joins++;
+    if (pendingJoin != null) return pendingJoin!.future;
     return {'success': true, 'playerId': 'p0', 'gameState': room(count: count)};
   }
 
   @override
-  Future<Map<String, dynamic>> playerReady(String gameId) {
+  Future<Map<String, dynamic>> playerReady(String gameId,
+      {bool isReady = true}) {
     expect(gameId, '0093');
     readyCalls++;
+    readyValues.add(isReady);
     return (pendingReady = Completer<Map<String, dynamic>>()).future;
   }
 
@@ -150,7 +155,86 @@ void main() {
     expect(controller.state.game!.playerById('p0')!.isReady, isTrue);
   });
 
-  for (final count in [2, 4]) {
+  test('late join acknowledgement cannot undo a started room', () async {
+    socket.pendingJoin = Completer<Map<String, dynamic>>();
+    final joining =
+        controller.joinExistingGame(gameId: '0093', playerName: 'Player 0');
+    await Future<void>.delayed(Duration.zero);
+    socket.update('game_started', room(status: 'playing'));
+    socket.pendingJoin!.complete({'playerId': 'p0', 'gameState': room()});
+    expect(await joining, isTrue);
+    expect(controller.state.game!.status, DaketiGameStatus.playing);
+    expect(controller.state.isMultiplayer, isTrue);
+  });
+
+  testWidgets('already started room opens the game on first frame',
+      (tester) async {
+    await join();
+    socket.update('game_started', room(status: 'playing'));
+    await tester.pumpWidget(ProviderScope(
+      overrides: [gameControllerProvider.overrideWith((ref) => controller)],
+      child: MaterialApp(home: const WaitingRoomScreen(), routes: {
+        AppRoutes.game: (_) => const Scaffold(body: Text('Game opened')),
+      }),
+    ));
+    await tester.pumpAndSettle();
+    expect(find.text('Game opened'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox());
+    controller = GameController(restClient: rest, socketService: socket);
+  });
+
+  testWidgets('Ready toggles to yellow Unready and back using server state',
+      (tester) async {
+    await tester.binding.setSurfaceSize(const Size(844, 390));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await join();
+    await tester.pumpWidget(ProviderScope(
+      overrides: [gameControllerProvider.overrideWith((ref) => controller)],
+      child: const MaterialApp(home: WaitingRoomScreen()),
+    ));
+    await tester.pumpAndSettle();
+    final button = find.byType(GameButton);
+    await tester.ensureVisible(button);
+    await tester.tap(button);
+    await tester.pump();
+    expect(socket.readyValues, [true]);
+    expect(tester.widget<GameButton>(button).onTap, isNull);
+    socket.pendingReady!
+        .complete({'success': true, 'gameState': room(ready: true)});
+    await tester.pumpAndSettle();
+    expect(find.text('UNREADY'), findsOneWidget);
+    expect(tester.widget<GameButton>(button).backgroundTint,
+        const Color(0xFFFFD54F));
+    expect(tester.widget<GameButton>(button).onTap, isNotNull);
+    await tester.tap(button);
+    await tester.pump();
+    expect(socket.readyValues, [true, false]);
+    socket.pendingReady!.completeError(const GameApiException('Try again'));
+    await tester.pumpAndSettle();
+    expect(find.text('UNREADY'), findsOneWidget);
+    expect(controller.state.game!.playerById('p0')!.isReady, isTrue);
+    await tester.tap(button);
+    await tester.pump();
+    socket.update('player_ready', room());
+    socket.pendingReady!.complete({'success': true});
+    await tester.pumpAndSettle();
+    expect(tester.widget<GameButton>(button).text, 'Ready');
+    expect(tester.widget<GameButton>(button).backgroundTint, isNull);
+    expect(controller.state.game!.playerById('p0')!.isReady, isFalse);
+    await tester.tap(button);
+    await tester.pump();
+    socket.pendingReady!
+        .complete({'success': true, 'gameState': room(ready: true)});
+    await tester.pumpAndSettle();
+    expect(find.text('UNREADY'), findsOneWidget);
+    expect(socket.readyValues, [true, false, false, true]);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox());
+    controller = GameController(restClient: rest, socketService: socket);
+  });
+
+  for (final count in [2, 3, 4]) {
     testWidgets(
         '$count-player room Ready is reachable on short landscape screen',
         (tester) async {

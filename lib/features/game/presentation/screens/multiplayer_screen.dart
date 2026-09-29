@@ -11,6 +11,7 @@ import '../../../../core/widgets/game_button.dart';
 import '../../../../core/widgets/game_close_button.dart';
 import '../../../../core/widgets/glass_panel.dart';
 import '../controllers/game_controller.dart';
+import '../../domain/models/daketi_game.dart';
 
 class MultiplayerScreen extends ConsumerStatefulWidget {
   const MultiplayerScreen({
@@ -36,10 +37,19 @@ class _MultiplayerScreenState extends ConsumerState<MultiplayerScreen> {
           '')
       .trim();
 
-  bool ensureIdentity() {
+  bool _identityPending = false;
+
+  Future<bool> ensureIdentity() async {
     if (playerName.isNotEmpty) return true;
-    Navigator.pushNamed(context, AppRoutes.guestName);
-    return false;
+    if (_identityPending) return false;
+    _identityPending = true;
+    try {
+      await Navigator.pushNamed(context, AppRoutes.guestName,
+          arguments: AppRoutes.multiplayer);
+      return mounted && playerName.isNotEmpty;
+    } finally {
+      _identityPending = false;
+    }
   }
 
   @override
@@ -49,7 +59,8 @@ class _MultiplayerScreenState extends ConsumerState<MultiplayerScreen> {
   }
 
   Future<void> createRoom() async {
-    if (!ensureIdentity()) return;
+    if (ref.read(gameControllerProvider).isLoading) return;
+    if (!await ensureIdentity() || !mounted) return;
     final name = playerName;
     final success = await ref
         .read(gameControllerProvider.notifier)
@@ -58,7 +69,8 @@ class _MultiplayerScreenState extends ConsumerState<MultiplayerScreen> {
   }
 
   Future<void> joinRoom() async {
-    if (!ensureIdentity()) return;
+    if (ref.read(gameControllerProvider).isLoading) return;
+    if (!await ensureIdentity() || !mounted) return;
     final name = playerName;
     final code = codeController.text.trim();
     if (name.isEmpty || !RegExp(r'^\d{4}$').hasMatch(code)) {
@@ -73,7 +85,14 @@ class _MultiplayerScreenState extends ConsumerState<MultiplayerScreen> {
 
   void _finish(bool success) {
     if (success) {
-      Navigator.pushReplacementNamed(context, AppRoutes.waitingRoom);
+      final status = ref.read(gameControllerProvider).game?.status;
+      Navigator.pushReplacementNamed(
+          context,
+          status == DaketiGameStatus.playing
+              ? AppRoutes.game
+              : status == DaketiGameStatus.finished
+                  ? AppRoutes.results
+                  : AppRoutes.waitingRoom);
     } else {
       _message(
         ref.read(gameControllerProvider).error ?? 'Unable to join the room.',

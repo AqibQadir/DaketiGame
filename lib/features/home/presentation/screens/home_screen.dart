@@ -10,6 +10,8 @@ import '../../../../core/widgets/game_icon_button.dart';
 import '../../../auth/presentation/controllers/auth_controller.dart';
 import '../../../auth/presentation/controllers/guest_name_provider.dart';
 import '../../../tables/presentation/widgets/city_table_cards.dart';
+import '../../../game/presentation/controllers/game_controller.dart';
+import '../../../game/domain/models/daketi_game.dart';
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
@@ -54,6 +56,7 @@ class HomeScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final auth = ref.watch(authControllerProvider);
     final user = auth.user;
+    final session = ref.watch(gameControllerProvider);
     final guestName = ref.watch(guestNameProvider)?.trim();
     final hasGuestIdentity = guestName != null && guestName.isNotEmpty;
     return Scaffold(
@@ -107,8 +110,8 @@ class HomeScreen extends ConsumerWidget {
             ),
             Positioned(
               top: 12,
-              left: 310,
-              right: 90,
+              left: session.previousGame == null ? 310 : 210,
+              right: session.previousGame == null ? 90 : 260,
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
@@ -146,6 +149,36 @@ class HomeScreen extends ConsumerWidget {
                 },
               ),
             ),
+            if (session.previousGame != null)
+              Positioned(
+                right: 70,
+                top: 12,
+                child: GameButton(
+                  text: session.isLoading ? 'Rejoining…' : 'Join previous game',
+                  width: 180,
+                  onTap: session.isLoading
+                      ? null
+                      : () async {
+                          final controller =
+                              ref.read(gameControllerProvider.notifier);
+                          final resumed = await controller.resumePreviousGame();
+                          if (!context.mounted) return;
+                          if (!resumed) {
+                            showGameAlert(
+                                context,
+                                ref.read(gameControllerProvider).error ??
+                                    'Unable to rejoin. Please try again.');
+                            return;
+                          }
+                          final game = ref.read(gameControllerProvider).game;
+                          Navigator.pushNamed(
+                              context,
+                              game?.status == DaketiGameStatus.waiting
+                                  ? AppRoutes.waitingRoom
+                                  : AppRoutes.game);
+                        },
+                ),
+              ),
             Positioned(
               left: 18,
               top: 88,

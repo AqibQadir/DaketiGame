@@ -29,6 +29,8 @@ class GameSocketService {
 
     final completer = Completer<void>();
     _connectionCompleter = completer;
+    // Dispose a failed/reconnecting transport before explicitly retrying.
+    _socket?.dispose();
     final socket = io.io(serverUrl, <String, dynamic>{
       'transports': ['websocket'],
       'autoConnect': false,
@@ -90,8 +92,9 @@ class GameSocketService {
     });
   }
 
-  Future<Map<String, dynamic>> playerReady(String gameId) {
-    return _emitWithAck('player_ready', {'gameId': gameId});
+  Future<Map<String, dynamic>> playerReady(String gameId,
+      {bool isReady = true}) {
+    return _emitWithAck('player_ready', {'gameId': gameId, 'isReady': isReady});
   }
 
   Future<Map<String, dynamic>> getActions(String gameId) {
@@ -128,6 +131,7 @@ class GameSocketService {
       event,
       payload,
       ack: (data) {
+        if (completer.isCompleted) return;
         final response = _map(data);
         if (response['success'] == false) {
           completer.completeError(

@@ -6,6 +6,7 @@ import '../../../../core/config/backend_config.dart';
 import '../../../auth/presentation/controllers/auth_controller.dart';
 import '../../data/game_api_exception.dart';
 import '../../data/game_rest_client.dart';
+import '../../data/previous_game_storage.dart';
 import '../../data/game_socket_service.dart';
 import '../../domain/models/daketi_game.dart';
 import '../../domain/models/game_action.dart';
@@ -55,6 +56,9 @@ class GameSessionState {
     this.chatMessages = const [],
     this.turnTimerRevision = 0,
     this.recoveryFailed = false,
+    this.previousGame,
+    this.isMultiplayer = false,
+    this.isResumedGame = false,
   });
 
   final GameConnectionStatus connectionStatus;
@@ -74,6 +78,9 @@ class GameSessionState {
   final List<RoomChatMessage> chatMessages;
   final int turnTimerRevision;
   final bool recoveryFailed;
+  final PreviousGame? previousGame;
+  final bool isMultiplayer;
+  final bool isResumedGame;
 
   bool get isCurrentPlayersTurn =>
       game?.currentPlayerId != null && game?.currentPlayerId == playerId;
@@ -96,8 +103,13 @@ class GameSessionState {
     List<RoomChatMessage>? chatMessages,
     int? turnTimerRevision,
     bool? recoveryFailed,
+    Object? previousGame = _unchanged,
+    bool? isMultiplayer,
+    bool? isResumedGame,
   }) {
     return GameSessionState(
+      isMultiplayer: isMultiplayer ?? this.isMultiplayer,
+      isResumedGame: isResumedGame ?? this.isResumedGame,
       connectionStatus: connectionStatus ?? this.connectionStatus,
       isLoading: isLoading ?? this.isLoading,
       gameId: gameId == _unchanged ? this.gameId : gameId as String?,
@@ -118,6 +130,9 @@ class GameSessionState {
       chatMessages: chatMessages ?? this.chatMessages,
       turnTimerRevision: turnTimerRevision ?? this.turnTimerRevision,
       recoveryFailed: recoveryFailed ?? this.recoveryFailed,
+      previousGame: previousGame == _unchanged
+          ? this.previousGame
+          : previousGame as PreviousGame?,
     );
   }
 }
@@ -139,6 +154,7 @@ final gameSocketServiceProvider = Provider<GameSocketService>((ref) {
 final gameControllerProvider =
     StateNotifierProvider<GameController, GameSessionState>((ref) {
   return GameController(
+    previousGameStorage: PreviousGameStorage(),
     restClient: ref.watch(gameRestClientProvider),
     socketService: ref.watch(gameSocketServiceProvider),
     tokenLoader: ref.watch(authTokenStorageProvider).read,
@@ -151,21 +167,27 @@ final gameControllerProvider =
 
 class GameController extends StateNotifier<GameSessionState> {
   GameController({
+    PreviousGameStorage? previousGameStorage,
     required GameRestClient restClient,
     required GameSocketService socketService,
     Future<String?> Function()? tokenLoader,
     Future<bool> Function()? sessionValidator,
     Future<void> Function()? onGameCompleted,
-  })  : _restClient = restClient,
+  })  : _previousGameStorage = previousGameStorage,
+        _restClient = restClient,
         _socketService = socketService,
         _tokenLoader = tokenLoader ?? _noToken,
         _sessionValidator = sessionValidator,
         _onGameCompleted = onGameCompleted,
         super(const GameSessionState()) {
     _eventsSubscription = _socketService.events.listen(_handleSocketEvent);
+    unawaited(_restorePreviousGame());
   }
 
+  final PreviousGameStorage? _previousGameStorage;
   final GameRestClient _restClient;
+  bool _rejoining = false;
+  bool _resuming = false;
   final GameSocketService _socketService;
   final Future<String?> Function() _tokenLoader;
   final Future<bool> Function()? _sessionValidator;
@@ -177,15 +199,111 @@ class GameController extends StateNotifier<GameSessionState> {
 
   static const _reconnectDeadline = Duration(seconds: 15);
 
+  Future<void> _restorePreviousGame() async {
+    try {
+      final previous = await _previousGameStorage?.read();
+      if (mounted && state.gameId == null && state.previousGame == null) {
+        state = state.copyWith(previousGame: previous);
+      }
+    } catch (_) {
+      // A storage failure must not prevent playing.
+    }
+  }
+
+  Future<void> _rememberGame() async {
+    final gameId = state.gameId;
+    final playerId = state.playerId;
+    final name = state.playerName;
+    if (gameId == null || playerId == null || name == null) return;
+    final token = await _tokenLoader();
+    if (!mounted || state.gameId != gameId) return;
+    final previous = PreviousGame(
+        gameId: gameId,
+        playerId: playerId,
+        playerName: name,
+        isMultiplayer: state.isMultiplayer,
+        ownerToken: token);
+    state = state.copyWith(previousGame: previous);
+    try {
+      await _previousGameStorage?.write(previous);
+    } catch (_) {}
+  }
+
+  Future<void> _forgetPreviousGame() async {
+    state = state.copyWith(previousGame: null);
+    try {
+      await _previousGameStorage?.clear();
+    } catch (_) {}
+  }
+
+  Future<bool> resumePreviousGame() async {
+    final previous = state.previousGame;
+    if (previous == null || state.isLoading) return false;
+    _reconnectTimer?.cancel();
+    _resuming = true;
+    state = state.copyWith(isLoading: true, error: null);
+    try {
+      if (await _tokenLoader() != previous.ownerToken) {
+        throw const GameApiException(
+            'Sign in with the account used for this game to rejoin.');
+      }
+      final game = await _restClient.getGame(previous.gameId);
+      if (game.status == DaketiGameStatus.finished) {
+        await _forgetPreviousGame();
+        throw const GameApiException(
+            'Your previous game has finished. You can start a new game.');
+      }
+      await _ensureConnected();
+      final response = await _socketService.joinGame(
+          gameId: previous.gameId,
+          playerName: previous.playerName,
+          token: await _validatedTokenForGame());
+      if (!mounted) return false;
+      final restored = _gameFrom(response['gameState']);
+      if (restored == null ||
+          restored.gameId != previous.gameId ||
+          response['playerId']?.toString() != previous.playerId) {
+        throw const GameApiException(
+            'The server could not restore your original seat. Please try again.');
+      }
+      state = state.copyWith(
+          isMultiplayer: previous.isMultiplayer,
+          isResumedGame: true,
+          gameId: previous.gameId,
+          playerName: previous.playerName,
+          playerId: previous.playerId,
+          game: restored,
+          isLoading: false,
+          recoveryFailed: false,
+          error: null,
+          availableActions: const [],
+          winner: restored.winner,
+          scores: const [],
+          activity: 'Rejoined your game');
+      return true;
+    } catch (error) {
+      if (error is GameApiException && error.statusCode == 404) {
+        await _forgetPreviousGame();
+      }
+      if (mounted) _setError(error);
+      return false;
+    } finally {
+      _resuming = false;
+    }
+  }
+
   Future<bool> createSoloGame({
     required String playerName,
     int aiCount = 1,
     String difficulty = 'master',
   }) async {
     state = state.copyWith(
+      isResumedGame: false,
+      isMultiplayer: false,
       isLoading: true,
       error: null,
       playerId: null,
+      recoveryFailed: false,
       playerName: playerName,
       lastAiCount: aiCount,
       lastDifficulty: difficulty,
@@ -211,6 +329,7 @@ class GameController extends StateNotifier<GameSessionState> {
         playerId: response['playerId']?.toString(),
         game: _gameFrom(response['gameState']) ?? state.game,
       );
+      await _rememberGame();
       return true;
     } catch (error) {
       _setError(error);
@@ -223,9 +342,12 @@ class GameController extends StateNotifier<GameSessionState> {
     int maxPlayers = 4,
   }) async {
     state = state.copyWith(
+      isResumedGame: false,
+      isMultiplayer: true,
       isLoading: true,
       error: null,
       playerId: null,
+      recoveryFailed: false,
       playerName: playerName,
       winner: null,
       scores: const [],
@@ -257,10 +379,14 @@ class GameController extends StateNotifier<GameSessionState> {
     bool preserveLoading = false,
   }) async {
     state = state.copyWith(
+      isResumedGame: false,
+      isMultiplayer: true,
       isLoading: true,
       error: null,
       gameId: gameId,
+      game: null,
       playerId: null,
+      recoveryFailed: false,
       playerName: playerName,
       winner: null,
       scores: const [],
@@ -269,16 +395,22 @@ class GameController extends StateNotifier<GameSessionState> {
     );
     try {
       await _ensureConnected();
+      final revision = _roomStateRevision;
       final response = await _socketService.joinGame(
         gameId: gameId,
         playerName: playerName,
         token: await _validatedTokenForGame(),
       );
+      final joinedGame = revision == _roomStateRevision
+          ? _gameFrom(response['gameState'])
+          : state.game;
       state = state.copyWith(
+        winner: joinedGame?.winner,
         isLoading: false,
         playerId: response['playerId']?.toString(),
-        game: _gameFrom(response['gameState']),
+        game: joinedGame,
       );
+      await _rememberGame();
       return true;
     } catch (error) {
       _setError(error);
@@ -292,14 +424,14 @@ class GameController extends StateNotifier<GameSessionState> {
     if (gameId == null ||
         state.isLoading ||
         player == null ||
-        player.isReady ||
         state.game?.status != DaketiGameStatus.waiting) {
       return;
     }
     final revision = _roomStateRevision;
     state = state.copyWith(isLoading: true, error: null);
     try {
-      final response = await _socketService.playerReady(gameId);
+      final response =
+          await _socketService.playerReady(gameId, isReady: !player.isReady);
       if (!mounted || state.gameId != gameId) return;
       // Broadcasts can precede the acknowledgement, including game_started.
       // Never replace their newer state with the request's waiting snapshot.
@@ -345,7 +477,9 @@ class GameController extends StateNotifier<GameSessionState> {
   void resetSession() {
     _reconnectTimer?.cancel();
     _rejoinAttempts = 0;
-    state = GameSessionState(connectionStatus: state.connectionStatus);
+    state = GameSessionState(
+        connectionStatus: state.connectionStatus,
+        previousGame: state.previousGame);
   }
 
   Future<void> loadAvailableActions() async {
@@ -395,6 +529,7 @@ class GameController extends StateNotifier<GameSessionState> {
 
   Future<bool> handleTurnTimeout({String? selectedCardId}) async {
     if (!state.isCurrentPlayersTurn || state.gameId == null) return true;
+    if (!_socketService.isConnected || state.recoveryFailed) return false;
 
     state = state.copyWith(activity: 'TIME OVER');
 
@@ -419,19 +554,12 @@ class GameController extends StateNotifier<GameSessionState> {
         final discardActions = actions
             .where((item) => item.type == GameActionType.discard)
             .toList(growable: false);
-        final selectedDiscard = selectedCardId == null
-            ? null
-            : discardActions.cast<GameAction?>().firstWhere(
-                  (item) => item?.cardId == selectedCardId,
-                  orElse: () => null,
-                );
-        final action = selectedDiscard ??
-            (discardActions.isEmpty
-                ? actions.first
-                : discardActions.reduce((lowest, candidate) =>
-                    _cardRank(candidate.cardId) < _cardRank(lowest.cardId)
-                        ? candidate
-                        : lowest));
+        final action = discardActions.isEmpty
+            ? actions.first
+            : discardActions.reduce((lowest, candidate) =>
+                _cardRank(candidate.cardId) < _cardRank(lowest.cardId)
+                    ? candidate
+                    : lowest);
         state = state.copyWith(
           activity: 'TIME OVER · AUTO ${_actionLabel(action)}',
         );
@@ -509,7 +637,7 @@ class GameController extends StateNotifier<GameSessionState> {
       );
       // The initial connection belongs to the explicit join/create request.
       // Rejoining it concurrently can create/reset a player's room entry.
-      if (state.playerId != null) _attemptRejoin();
+      if (state.playerId != null && !_resuming) unawaited(_attemptRejoin());
       return;
     }
     if (event.name == 'disconnected') {
@@ -525,7 +653,13 @@ class GameController extends StateNotifier<GameSessionState> {
       });
       return;
     }
+    final eventGameId = event.data['gameId']?.toString() ??
+        (event.data['gameState'] is Map
+            ? event.data['gameState']['gameId']?.toString()
+            : null);
+    if (eventGameId != null && eventGameId != state.gameId) return;
     if (event.name == 'game_over') {
+      unawaited(_forgetPreviousGame());
       final rawScores = event.data['scores'] as List<dynamic>? ?? const [];
       state = state.copyWith(
         game: _gameFrom(event.data['gameState']) ?? state.game,
@@ -600,14 +734,26 @@ class GameController extends StateNotifier<GameSessionState> {
   Future<void> _attemptRejoin() async {
     final gameId = state.gameId;
     final playerName = state.playerName;
-    if (gameId == null || playerName == null || state.game == null) return;
+    if (gameId == null ||
+        playerName == null ||
+        state.game == null ||
+        _rejoining) {
+      return;
+    }
+    _rejoining = true;
     try {
       final response = await _socketService.joinGame(
         gameId: gameId,
         playerName: playerName,
         token: await _validatedTokenForGame(),
       );
+      if (!mounted || state.gameId != gameId) return;
+      if (response['playerId']?.toString() != state.playerId) {
+        throw const GameApiException(
+            'The server could not restore your original seat.');
+      }
       state = state.copyWith(
+        isLoading: false,
         playerId: response['playerId']?.toString() ?? state.playerId,
         game: _gameFrom(response['gameState']) ?? state.game,
         activity: 'Reconnected to room $gameId',
@@ -616,9 +762,11 @@ class GameController extends StateNotifier<GameSessionState> {
       );
       _rejoinAttempts = 0;
     } catch (error) {
+      if (!mounted || state.gameId != gameId) return;
       _rejoinAttempts += 1;
       try {
         final recoveredGame = await _restClient.getGame(gameId);
+        if (!mounted || state.gameId != gameId) return;
         state = state.copyWith(
           game: recoveredGame,
           activity: 'Restoring connection to room $gameId…',
@@ -637,18 +785,22 @@ class GameController extends StateNotifier<GameSessionState> {
         const Duration(seconds: 2),
         () => unawaited(_attemptRejoin()),
       );
+    } finally {
+      _rejoining = false;
     }
   }
 
   void _endUnrecoverableSession() {
     _reconnectTimer?.cancel();
     _rejoinAttempts = 0;
-    state = GameSessionState(
+    state = state.copyWith(
+      isLoading: false,
+      availableActions: const [],
       connectionStatus: _socketService.isConnected
           ? GameConnectionStatus.connected
           : GameConnectionStatus.disconnected,
       recoveryFailed: true,
-      error: 'The game could not be restored after the connection was lost.',
+      error: 'Connection lost. Use Join previous game to try again.',
     );
   }
 

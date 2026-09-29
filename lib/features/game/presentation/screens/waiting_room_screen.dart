@@ -13,27 +13,53 @@ import '../../../../core/widgets/glass_panel.dart';
 import '../../domain/models/daketi_game.dart';
 import '../controllers/game_controller.dart';
 
-class WaitingRoomScreen extends ConsumerWidget {
+class WaitingRoomScreen extends ConsumerStatefulWidget {
   const WaitingRoomScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<WaitingRoomScreen> createState() => _WaitingRoomScreenState();
+}
+
+class _WaitingRoomScreenState extends ConsumerState<WaitingRoomScreen> {
+  bool _openingGame = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _openGameIfStarted(ref.read(gameControllerProvider));
+    });
+  }
+
+  void _openGameIfStarted(GameSessionState session) {
+    final status = session.game?.status;
+    if (_openingGame ||
+        !mounted ||
+        (status != DaketiGameStatus.playing &&
+            status != DaketiGameStatus.finished)) {
+      return;
+    }
+    _openingGame = true;
+    if (status == DaketiGameStatus.playing) GameSoundService.matchFound();
+    Navigator.pushNamedAndRemoveUntil(
+        context,
+        status == DaketiGameStatus.finished
+            ? AppRoutes.results
+            : AppRoutes.game,
+        (route) =>
+            route.settings.name == AppRoutes.tables ||
+            route.settings.name == AppRoutes.home);
+  }
+
+  @override
+  Widget build(BuildContext context) {
     ref.listen(gameControllerProvider, (previous, next) {
       final previousCount = previous?.game?.players.length ?? 0;
       final nextCount = next.game?.players.length ?? 0;
       if (previous != null && nextCount > previousCount) {
         GameSoundService.playerJoined();
       }
-      if (previous?.game?.status != DaketiGameStatus.playing &&
-          next.game?.status == DaketiGameStatus.playing) {
-        GameSoundService.matchFound();
-        Navigator.pushNamedAndRemoveUntil(
-            context,
-            AppRoutes.game,
-            (route) =>
-                route.settings.name == AppRoutes.tables ||
-                route.settings.name == AppRoutes.home);
-      }
+      _openGameIfStarted(next);
     });
     final session = ref.watch(gameControllerProvider);
     final game = session.game;
@@ -180,11 +206,13 @@ class WaitingRoomScreen extends ConsumerWidget {
                           text: session.isLoading
                               ? 'Sending…'
                               : isReady
-                                  ? 'Ready ✓'
+                                  ? 'Unready'
                                   : 'Ready',
                           width: 180,
-                          onTap: isReady ||
-                                  session.isLoading ||
+                          backgroundTint:
+                              isReady ? const Color(0xFFFFD54F) : null,
+                          onTap: session.isLoading ||
+                                  game?.status != DaketiGameStatus.waiting ||
                                   currentPlayer == null ||
                                   session.connectionStatus !=
                                       GameConnectionStatus.connected

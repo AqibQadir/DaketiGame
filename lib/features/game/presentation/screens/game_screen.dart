@@ -190,7 +190,7 @@ class _GameScreenState extends ConsumerState<GameScreen> {
       if (victim != null && actorId != null) {
         final third = stealCounter.add(stolen);
         GameSoundService.stealCard(third: third);
-        if (third) {
+        if (third || victim.id == next.playerId) {
           stealAnimation = _StealAnimation(
             id: ++stealAnimationId,
             targetPlayerId: victim.id,
@@ -305,8 +305,16 @@ class _GameScreenState extends ConsumerState<GameScreen> {
   @override
   void initState() {
     super.initState();
+    if (ref.read(gameControllerProvider).isResumedGame) {
+      openingDealPhase = 2;
+    }
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) GameSoundService.shuffle();
+      if (!mounted) return;
+      if (openingDealPhase == 0) {
+        GameSoundService.shuffle();
+      } else if (ref.read(gameControllerProvider).isCurrentPlayersTurn) {
+        ref.read(gameControllerProvider.notifier).loadAvailableActions();
+      }
     });
   }
 
@@ -1041,6 +1049,7 @@ class _Board extends StatelessWidget {
                 deck: game.deckCount,
                 captureAction: captureTableAction,
                 onCapture: onAction,
+                animateOpening: openingDealPhase == 1,
                 onOpeningComplete: openingDealPhase == 1 ? onTableDealt : null,
               ),
             )),
@@ -1135,6 +1144,7 @@ class _Board extends StatelessWidget {
                   const Offset(515, 89),
           cardCount: animation.cardCount,
           cards: animation.cards,
+          isLocalVictim: animation.targetPlayerId == session.playerId,
           onComplete: onStealAnimationComplete,
         ),
       if (drawAnimation case final animation?)
@@ -1326,15 +1336,18 @@ class _Square extends StatelessWidget {
       height: 45,
       child: _Panel(
           padding: const EdgeInsets.symmetric(horizontal: 6),
-          child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-            Icon(icon, color: _cream, size: 23),
-            if (label != null) ...[
-              const SizedBox(width: 5),
-              Text(label!,
-                  style: const TextStyle(
-                      fontWeight: FontWeight.w900, fontSize: 14))
-            ]
-          ])));
+          child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child:
+                  Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                Icon(icon, color: _cream, size: 23),
+                if (label != null) ...[
+                  const SizedBox(width: 5),
+                  Text(label!,
+                      style: const TextStyle(
+                          fontWeight: FontWeight.w900, fontSize: 14))
+                ]
+              ]))));
 }
 
 class _Room extends StatelessWidget {
@@ -1513,13 +1526,13 @@ class _MedallionState extends State<_Medallion> with WidgetsBindingObserver {
       setState(() => ringProgress = progress);
     }
     _syncWarning(next);
-    if (next == remaining) return;
-    if (mounted) setState(() => remaining = next);
     if (widget.isActive && widget.isLocal && next == 0 && !timeoutSent) {
       timeoutSent = true;
       widget.onTimeout?.call();
       return;
     }
+    if (next == remaining) return;
+    if (mounted) setState(() => remaining = next);
     if (!widget.isActive || !widget.isLocal || next <= 0) {
       return;
     }
@@ -1790,6 +1803,7 @@ class _TableCards extends StatefulWidget {
     this.captureAction,
     this.onCapture,
     this.onOpeningComplete,
+    this.animateOpening = true,
   });
   final List<GameCard> cards;
   final int deck;
@@ -1797,6 +1811,7 @@ class _TableCards extends StatefulWidget {
   final GameAction? captureAction;
   final ValueChanged<GameAction>? onCapture;
   final VoidCallback? onOpeningComplete;
+  final bool animateOpening;
 
   @override
   State<_TableCards> createState() => _TableCardsState();
@@ -1811,7 +1826,11 @@ class _TableCardsState extends State<_TableCards> {
   void initState() {
     super.initState();
     slots.update(widget.cards.map((card) => card.id));
-    _startOpeningDeal();
+    if (widget.animateOpening) {
+      _startOpeningDeal();
+    } else {
+      openingDeal = false;
+    }
   }
 
   @override

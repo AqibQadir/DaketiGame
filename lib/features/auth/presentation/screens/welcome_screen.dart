@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../../runner/presentation/screens/runner_test_screen.dart';
+
 import '../../../../core/routes/app_routes.dart';
 import '../../../../core/widgets/daketi_logo.dart';
 import '../../../../core/widgets/game_background.dart';
@@ -51,6 +53,16 @@ class WelcomeScreen extends StatelessWidget {
                         onTap: () =>
                             Navigator.pushNamed(context, AppRoutes.signup)),
                   ]),
+                  const SizedBox(height: 12),
+                  GameButton(
+                    text: 'Test Subway Surfer',
+                    width: 220,
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => const RunnerTestScreen(),
+                      ),
+                    ),
+                  ),
                   const SizedBox(height: 12),
                   GameButton(
                     text: 'Play as guest',

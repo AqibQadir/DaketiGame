@@ -80,6 +80,7 @@ class AppRouter {
         return page(const AuthChoiceScreen());
       case AppRoutes.guestName:
         return page(GuestNameScreen(
+          returnToPrevious: settings.arguments == AppRoutes.multiplayer,
           tableSelection: settings.arguments is TableMatchSelection
               ? settings.arguments! as TableMatchSelection
               : null,

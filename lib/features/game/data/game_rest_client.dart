@@ -58,7 +58,9 @@ class GameRestClient {
   }
 
   Future<DaketiGame> getGame(String gameId) async {
-    final response = await _client.get(Uri.parse('$baseUrl/api/game/$gameId'));
+    final response = await _client
+        .get(Uri.parse('$baseUrl/api/game/$gameId'))
+        .timeout(const Duration(seconds: 12));
     final data = _decode(response);
     return DaketiGame.fromJson(_map(data['gameState'], 'gameState'));
   }

@@ -7,9 +7,11 @@ import '../../../../core/widgets/game_background.dart';
 import '../../../../core/widgets/game_button.dart';
 
 class GuestNameScreen extends ConsumerStatefulWidget {
-  const GuestNameScreen({super.key, this.tableSelection});
+  const GuestNameScreen(
+      {super.key, this.tableSelection, this.returnToPrevious = false});
 
   final TableMatchSelection? tableSelection;
+  final bool returnToPrevious;
   @override
   ConsumerState<GuestNameScreen> createState() => _GuestNameScreenState();
 }
@@ -40,6 +42,10 @@ class _GuestNameScreenState extends ConsumerState<GuestNameScreen> {
     ref.read(guestNameProvider.notifier).state = controller.text.trim();
     ref.read(guestAgeProvider.notifier).state = age;
     ref.read(guestGenderProvider.notifier).state = gender;
+    if (widget.returnToPrevious) {
+      Navigator.pop(context, true);
+      return;
+    }
     final selection = widget.tableSelection;
     if (selection != null) {
       Navigator.pushReplacementNamed(context, AppRoutes.guestOpponents,
