@@ -1,3 +1,4 @@
+import '../../features/friends/presentation/friends_screen.dart';
 import 'package:flutter/material.dart';
 
 import '../../features/auth/presentation/screens/auth_choice_screen.dart';
@@ -36,6 +37,8 @@ import '../../features/tables/domain/table_match_selection.dart';
 import '../../features/game/presentation/screens/multiplayer_screen.dart';
 import '../../features/game/presentation/screens/waiting_room_screen.dart';
 import '../../features/game/presentation/screens/game_results_screen.dart';
+import '../../features/access/presentation/waitlist_screen.dart';
+import '../../features/auth/presentation/screens/account_link_screen.dart';
 import 'app_routes.dart';
 import 'fixed_background_page_route.dart';
 import 'game_popup_route.dart';
@@ -47,8 +50,11 @@ class AppRouter {
     Route<dynamic> page(Widget child) {
       final mainPage = {
             AppRoutes.splash,
+            AppRoutes.waitlist,
+            AppRoutes.accountLink,
             AppRoutes.welcome,
             AppRoutes.login,
+            AppRoutes.signup,
             AppRoutes.home,
             AppRoutes.tables,
             AppRoutes.game,
@@ -68,6 +74,12 @@ class AppRouter {
     }
 
     switch (settings.name) {
+      case AppRoutes.waitlist:
+        return page(const WaitlistScreen());
+      case AppRoutes.accountLink:
+        return page(AccountLinkScreen(
+            uri:
+                settings.arguments is Uri ? settings.arguments as Uri : Uri()));
       case AppRoutes.splash:
         return page(const SplashScreen());
       case AppRoutes.terms:
@@ -129,6 +141,8 @@ class AppRouter {
         return page(GameTutorialScreen(
           returnRoute: arguments is String ? arguments : AppRoutes.welcome,
         ));
+      case AppRoutes.friends:
+        return page(const FriendsScreen());
       case AppRoutes.baithak:
         return page(const BaithakScreen());
       case AppRoutes.myClan:

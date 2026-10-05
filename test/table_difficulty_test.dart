@@ -61,6 +61,12 @@ void main() {
         await tester
             .tap(find.descendant(of: card, matching: find.text('ENTER MATCH')));
         await tester.pumpAndSettle();
+        if (tier.locked) {
+          expect(find.byType(GuestOpponentScreen), findsNothing);
+          expect(controller.requestedDifficulty, isNull);
+          expect(tester.takeException(), isNull);
+          return;
+        }
         final setup = tester
             .widget<GuestOpponentScreen>(find.byType(GuestOpponentScreen));
         expect(setup.tableSelection?.room, room);

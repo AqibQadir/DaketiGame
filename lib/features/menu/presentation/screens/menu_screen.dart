@@ -16,21 +16,26 @@ class MenuScreen extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             GameButton(
+                text: 'Friends',
+                width: 195,
+                onTap: () => Navigator.pushNamed(context, AppRoutes.friends)),
+            const SizedBox(height: 12),
+            GameButton(
               text: 'Account settings',
-              width: 225,
+              width: 195,
               onTap: () =>
                   Navigator.pushNamed(context, AppRoutes.generalSettings),
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 12),
             GameButton(
               text: 'Leaderboard',
-              width: 225,
+              width: 195,
               onTap: () => Navigator.pushNamed(context, AppRoutes.leaderboard),
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 12),
             GameButton(
               text: 'How to play',
-              width: 225,
+              width: 195,
               onTap: () => Navigator.pushNamed(
                 context,
                 AppRoutes.gameTutorial,

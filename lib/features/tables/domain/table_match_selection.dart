@@ -1,13 +1,15 @@
 import 'table_room.dart';
 
 enum TableTier {
-  silver('SILVER', 'LOW STAKES', '100', '100', 'STARTER'),
-  gold('GOLD', 'MID STAKES', '500', '700', 'POPULAR'),
-  platinum('PLATINUM', 'HIGHEST STAKES', '2000', '2500', 'PREMIUM'),
-  diamond('DIAMOND', 'EXCLUSIVE STAKES', '10K', '10K', 'EXCLUSIVE');
+  silver('ADDA', 'LOW STAKES', '100', '100', 'STARTER'),
+  gold('MEHFIL', 'MID STAKES', '500', '700', 'POPULAR'),
+  platinum('NAWABI', 'HIGHEST STAKES', '2000', '2500', ''),
+  diamond('BAAZI', 'EXCLUSIVE STAKES', '10K', '100', '');
 
   const TableTier(
       this.title, this.subtitle, this.buyIn, this.reward, this.badge);
+
+  bool get locked => this == TableTier.diamond;
 
   final String title;
   final String subtitle;

@@ -1,0 +1,10 @@
+{
+  "FACEBOOK_ENABLED": false,
+  "FIREBASE_ENABLED": false,
+  "FIREBASE_API_KEY": "",
+  "FIREBASE_APP_ID": "",
+  "FIREBASE_SENDER_ID": "",
+  "FIREBASE_PROJECT_ID": "",
+  "FIREBASE_IOS_BUNDLE_ID": "de.zamedia.daketigame",
+  "FIREBASE_VAPID_KEY": ""
+}

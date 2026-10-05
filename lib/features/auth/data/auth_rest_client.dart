@@ -29,17 +29,57 @@ class AuthRestClient {
     required String name,
     required String email,
     required String password,
+    String? referralCode,
   }) async {
     final response = await _client
         .post(
           Uri.parse('$baseUrl/api/auth/signup'),
           headers: const {'Content-Type': 'application/json'},
-          body:
-              jsonEncode({'name': name, 'email': email, 'password': password}),
+          body: jsonEncode({
+            'name': name,
+            'email': email,
+            'password': password,
+            if (referralCode != null && referralCode.trim().isNotEmpty)
+              'referralCode': referralCode.trim()
+          }),
         )
         .timeout(const Duration(seconds: 15));
     return _authResult(response);
   }
+
+  Future<AuthResult> facebookLogin(String accessToken,
+      {String? referralCode}) async {
+    final response = await _client
+        .post(
+          Uri.parse('$baseUrl/api/auth/facebook'),
+          headers: const {'Content-Type': 'application/json'},
+          body: jsonEncode({
+            'accessToken': accessToken,
+            if (referralCode != null && referralCode.trim().isNotEmpty)
+              'referralCode': referralCode.trim()
+          }),
+        )
+        .timeout(const Duration(seconds: 15));
+    return _authResult(response);
+  }
+
+  /// Used by the launch-access, referrals and device APIs from the same guide.
+  Future<Map<String, dynamic>> request(String method, String path,
+      {String? token, Map<String, dynamic>? body}) async {
+    final request = http.Request(method, Uri.parse('$baseUrl$path'));
+    request.headers.addAll({
+      if (token != null) 'Authorization': 'Bearer $token',
+      if (body != null) 'Content-Type': 'application/json'
+    });
+    if (body != null) request.body = jsonEncode(body);
+    final response = await http.Response.fromStream(
+      await _client.send(request).timeout(const Duration(seconds: 15)),
+    ).timeout(const Duration(seconds: 15));
+    return _decode(response);
+  }
+
+  Future<Map<String, dynamic>> validateReferral(String code) => request(
+      'GET', '/api/referrals/validate/${Uri.encodeComponent(code.trim())}');
 
   Future<AuthResult> login({
     required String email,
@@ -59,7 +99,7 @@ class AuthRestClient {
     final response = await _client.get(
       Uri.parse('$baseUrl/api/auth/me'),
       headers: {'Authorization': 'Bearer $token'},
-    );
+    ).timeout(const Duration(seconds: 15));
     final data = _decode(response);
     return CurrentUserResult(
       user: AuthUser.fromJson(_map(data['user'], 'user')),
@@ -68,10 +108,12 @@ class AuthRestClient {
   }
 
   Future<List<GameHistoryEntry>> getHistory(String token) async {
-    final response = await _client.get(
-      Uri.parse('$baseUrl/api/auth/me/history'),
-      headers: _authHeaders(token),
-    );
+    final response = await _client
+        .get(
+          Uri.parse('$baseUrl/api/auth/me/history'),
+          headers: _authHeaders(token),
+        )
+        .timeout(const Duration(seconds: 15));
     final data = _decode(response);
     return (data['history'] as List<dynamic>? ?? const [])
         .whereType<Map>()
@@ -84,12 +126,19 @@ class AuthRestClient {
     required String token,
     required String name,
     String? dateOfBirth,
+    String? email,
   }) async {
-    final response = await _client.patch(
-      Uri.parse('$baseUrl/api/auth/me'),
-      headers: _authHeaders(token, json: true),
-      body: jsonEncode({'name': name, 'dateOfBirth': dateOfBirth}),
-    );
+    final response = await _client
+        .patch(
+          Uri.parse('$baseUrl/api/auth/me'),
+          headers: _authHeaders(token, json: true),
+          body: jsonEncode({
+            'name': name,
+            'dateOfBirth': dateOfBirth,
+            if (email != null) 'email': email.trim()
+          }),
+        )
+        .timeout(const Duration(seconds: 15));
     return AuthUser.fromJson(_map(_decode(response)['user'], 'user'));
   }
 
@@ -116,10 +165,11 @@ class AuthRestClient {
           body: jsonEncode({'token': token, 'newPassword': newPassword})));
 
   Future<AuthUser> verifyEmail(String verificationToken) async {
-    final response = await _client.post(
-        Uri.parse('$baseUrl/api/auth/verify-email'),
-        headers: const {'Content-Type': 'application/json'},
-        body: jsonEncode({'token': verificationToken}));
+    final response = await _client
+        .post(Uri.parse('$baseUrl/api/auth/verify-email'),
+            headers: const {'Content-Type': 'application/json'},
+            body: jsonEncode({'token': verificationToken}))
+        .timeout(const Duration(seconds: 15));
     return AuthUser.fromJson(_map(_decode(response)['user'], 'user'));
   }
 
@@ -132,7 +182,7 @@ class AuthRestClient {
 
   Future<Map<String, dynamic>> _decodeFuture(
           Future<http.Response> request) async =>
-      _decode(await request);
+      _decode(await request.timeout(const Duration(seconds: 15)));
 
   Map<String, String> _authHeaders(String token, {bool json = false}) => {
         'Authorization': 'Bearer $token',
@@ -181,7 +231,7 @@ class AuthRestClient {
     final parsed = int.tryParse(rawReset.trim());
     if (parsed == null) return 'Please try again later.';
     final nowSeconds = DateTime.now().millisecondsSinceEpoch ~/ 1000;
-    final seconds = parsed > nowSeconds ? parsed - nowSeconds : parsed;
+    final seconds = parsed >= 1000000000 ? parsed - nowSeconds : parsed;
     if (seconds <= 1) return 'Please try again shortly.';
     if (seconds < 60) return 'Try again in $seconds seconds.';
     final minutes = (seconds / 60).ceil();

@@ -10,6 +10,10 @@ android {
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
+    buildFeatures {
+        resValues = true
+    }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
@@ -24,6 +28,9 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+        resValue("string", "facebook_app_id", providers.gradleProperty("DAKETI_FACEBOOK_APP_ID").getOrElse("0"))
+        resValue("string", "facebook_client_token", providers.gradleProperty("DAKETI_FACEBOOK_CLIENT_TOKEN").getOrElse("not-configured"))
+        resValue("string", "fb_login_protocol_scheme", "fb" + providers.gradleProperty("DAKETI_FACEBOOK_APP_ID").getOrElse("0"))
     }
 
     buildTypes {

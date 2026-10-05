@@ -1,0 +1,14 @@
+{
+  "applinks": {
+    "details": [
+      {
+        "appIDs": ["M6S4T8V7RU.de.zamedia.daketigame"],
+        "components": [
+          {"/": "/", "?": {"resetToken": "*"}},
+          {"/": "/", "?": {"verifyToken": "*"}},
+          {"/": "/", "?": {"ref": "*"}}
+        ]
+      }
+    ]
+  }
+}

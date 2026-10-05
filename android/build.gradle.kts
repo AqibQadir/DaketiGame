@@ -17,6 +17,18 @@ subprojects {
 }
 subprojects {
     project.evaluationDependsOn(":app")
+    // Facebook's Android library leaves Java at AGP's default (11), while
+    // Flutter's Kotlin task targets 17. Keep both compilers on the same target.
+    if (project.name == "flutter_facebook_auth") {
+        plugins.withId("com.android.library") {
+            extensions.configure<com.android.build.gradle.LibraryExtension> {
+                compileOptions {
+                    sourceCompatibility = JavaVersion.VERSION_17
+                    targetCompatibility = JavaVersion.VERSION_17
+                }
+            }
+        }
+    }
 }
 
 tasks.register<Delete>("clean") {

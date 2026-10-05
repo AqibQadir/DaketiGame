@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/routes/app_routes.dart';
-import '../../../../core/constants/app_assets.dart';
+import '../widgets/facebook_login_button.dart';
 import '../../../../core/widgets/daketi_logo.dart';
 import '../../../../core/widgets/game_background.dart';
 import '../../../../core/widgets/game_button.dart';
@@ -64,14 +64,7 @@ class AuthChoiceScreen extends StatelessWidget {
                     ],
                   ),
                   const SizedBox(height: 16),
-                  const GameButton(
-                    text: 'Connect',
-                    icon: Icons.facebook,
-                    width: 180,
-                    backgroundAsset: AppAssets.facebookButtonBrush,
-                    splatterColor: Color(0xFF2478D4),
-                    onTap: null,
-                  ),
+                  const FacebookLoginButton(),
                 ],
               ),
             ),

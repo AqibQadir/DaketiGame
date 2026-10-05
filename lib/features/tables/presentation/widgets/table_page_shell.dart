@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/routes/app_routes.dart';
 import '../../../../core/widgets/game_background.dart';
-import '../../../../core/widgets/game_close_button.dart';
+import '../../../../core/widgets/game_viewport.dart';
 import '../../../../core/widgets/game_icon_button.dart';
 import 'table_top_bar.dart';
 
@@ -11,12 +11,10 @@ class TablePageShell extends StatelessWidget {
     super.key,
     required this.title,
     required this.child,
-    required this.categories,
   });
 
   final String title;
   final Widget child;
-  final Widget categories;
 
   @override
   Widget build(BuildContext context) {
@@ -24,23 +22,26 @@ class TablePageShell extends StatelessWidget {
       body: GameBackground(
         overlayOpacity: .19,
         child: SizedBox.expand(
-          child: FittedBox(
-            fit: BoxFit.cover,
-            alignment: Alignment.center,
+          child: GameViewport(
             child: SizedBox(
-              width: 844,
-              height: 390,
               child: Stack(
                 children: [
                   Positioned(
                     left: 26,
                     top: 24,
                     child: Row(children: [
-                      GameCloseButton(
-                        size: 38,
-                        onTap: () => Navigator.of(context)
-                            .pushNamedAndRemoveUntil(
-                                AppRoutes.home, (_) => false),
+                      IconButton(
+                        tooltip: 'Back',
+                        icon: const Icon(Icons.arrow_back_ios, size: 32),
+                        onPressed: () {
+                          final navigator = Navigator.of(context);
+                          if (navigator.canPop()) {
+                            navigator.pop();
+                          } else {
+                            navigator.pushNamedAndRemoveUntil(
+                                AppRoutes.home, (_) => false);
+                          }
+                        },
                       ),
                       const SizedBox(width: 2),
                       Text(
@@ -53,11 +54,11 @@ class TablePageShell extends StatelessWidget {
                       ),
                     ]),
                   ),
-                  const Positioned(right: 31, top: 23, child: TableTopBar()),
-                  Positioned(left: 39, right: 49, top: 77, child: child),
+                  const Positioned(right: 31, top: 32, child: TableTopBar()),
+                  Positioned(left: 42, right: 32, top: 80, child: child),
                   Positioned(
-                    left: 27,
-                    bottom: 22,
+                    left: 32,
+                    bottom: 32,
                     child: Row(
                       children: [
                         GameIconButton(
@@ -86,14 +87,6 @@ class TablePageShell extends StatelessWidget {
                       ],
                     ),
                   ),
-                  Positioned(
-                      left: 205,
-                      right: 30,
-                      bottom: 31,
-                      child: FittedBox(
-                          fit: BoxFit.scaleDown,
-                          alignment: Alignment.centerRight,
-                          child: categories)),
                 ],
               ),
             ),

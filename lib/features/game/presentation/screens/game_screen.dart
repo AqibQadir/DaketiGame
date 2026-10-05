@@ -130,11 +130,13 @@ class _GameScreenState extends ConsumerState<GameScreen> {
     }
     presentedSession ??= previous;
     pendingPresentations.add(next);
-    if (presentationTimer == null) _presentNext();
+    if (presentationTimer == null && stealAnimation == null) _presentNext();
   }
 
   void _presentNext() {
-    if (!mounted || pendingPresentations.isEmpty) return;
+    if (!mounted || pendingPresentations.isEmpty || stealAnimation != null) {
+      return;
+    }
     final previous = presentedSession!;
     final next = pendingPresentations.removeAt(0);
     final oldGame = previous.game;
@@ -190,6 +192,9 @@ class _GameScreenState extends ConsumerState<GameScreen> {
       if (victim != null && actorId != null) {
         final third = stealCounter.add(stolen);
         GameSoundService.stealCard(third: third);
+        if (victim.id == next.playerId) {
+          HapticFeedback.vibrate();
+        }
         if (third || victim.id == next.playerId) {
           stealAnimation = _StealAnimation(
             id: ++stealAnimationId,
@@ -425,6 +430,7 @@ class _GameScreenState extends ConsumerState<GameScreen> {
     final state = ref.read(gameControllerProvider);
     if (!state.isCurrentPlayersTurn ||
         isSubmitting ||
+        stealAnimation != null ||
         presentationTimer != null) {
       return;
     }
@@ -441,6 +447,7 @@ class _GameScreenState extends ConsumerState<GameScreen> {
 
   Future<void> perform(GameAction action) async {
     if (presentationTimer != null ||
+        stealAnimation != null ||
         isSubmitting ||
         !ref.read(gameControllerProvider).isCurrentPlayersTurn) {
       return;
@@ -463,7 +470,7 @@ class _GameScreenState extends ConsumerState<GameScreen> {
   }
 
   Future<void> handleTurnTimeout() async {
-    if (isHandlingTimeout || isSubmitting) return;
+    if (isHandlingTimeout || isSubmitting || stealAnimation != null) return;
     setState(() => isHandlingTimeout = true);
     GameSoundService.timerEnd();
     HapticFeedback.heavyImpact();
@@ -607,6 +614,7 @@ class _GameScreenState extends ConsumerState<GameScreen> {
                       selected: selectedCardId,
                       actions: actions,
                       submitting: isSubmitting ||
+                          stealAnimation != null ||
                           drawAnimation != null ||
                           presentationTimer != null,
                       chatMessage: chatMessage,
@@ -629,7 +637,11 @@ class _GameScreenState extends ConsumerState<GameScreen> {
                       },
                       stealAnimation: stealAnimation,
                       onStealAnimationComplete: () {
-                        if (mounted) setState(() => stealAnimation = null);
+                        if (!mounted) return;
+                        setState(() {
+                          stealAnimation = null;
+                          if (presentationTimer == null) _presentNext();
+                        });
                       },
                       drawAnimation: drawAnimation,
                       onDrawAnimationComplete: () {
@@ -951,6 +963,7 @@ class _Board extends StatelessWidget {
                 isActive: game.currentPlayerId == topOpponent.id,
                 game: game,
                 timerRevision: session.turnTimerRevision,
+                timerPaused: stealAnimation != null,
                 showHand: openingDealPhase >= 1,
                 dealingCardCount: dealingCountFor(topOpponent.id),
                 identityScale: isFourPlayerMatch ? 1.08 : 1,
@@ -985,6 +998,7 @@ class _Board extends StatelessWidget {
                 isActive: game.currentPlayerId == leftOpponent.id,
                 game: game,
                 timerRevision: session.turnTimerRevision,
+                timerPaused: stealAnimation != null,
                 showHand: openingDealPhase >= 1,
                 dealingCardCount: dealingCountFor(leftOpponent.id),
                 handLeft: 30,
@@ -1015,6 +1029,7 @@ class _Board extends StatelessWidget {
                 isActive: game.currentPlayerId == rightOpponent.id,
                 game: game,
                 timerRevision: session.turnTimerRevision,
+                timerPaused: stealAnimation != null,
                 showHand: openingDealPhase >= 1,
                 dealingCardCount: dealingCountFor(rightOpponent.id),
                 handLeft: 33,
@@ -1107,6 +1122,7 @@ class _Board extends StatelessWidget {
             isLocal: true,
             game: game,
             timerRevision: session.turnTimerRevision,
+            timerPaused: stealAnimation != null,
             onTimeout: onTurnTimeout,
           )),
       if (chatMessage != null)
@@ -1377,6 +1393,7 @@ class _Seat extends StatelessWidget {
     required this.isActive,
     required this.game,
     required this.timerRevision,
+    required this.timerPaused,
     required this.showHand,
     required this.dealingCardCount,
     this.identityScale = 1,
@@ -1390,6 +1407,7 @@ class _Seat extends StatelessWidget {
   final bool isActive;
   final DaketiGame game;
   final int timerRevision;
+  final bool timerPaused;
   final bool showHand;
   final int dealingCardCount;
   final double identityScale;
@@ -1422,6 +1440,7 @@ class _Seat extends StatelessWidget {
                   isLocal: false,
                   game: game,
                   timerRevision: timerRevision,
+                  timerPaused: timerPaused,
                 ),
               )),
           Positioned(
@@ -1450,6 +1469,7 @@ class _Medallion extends StatefulWidget {
     required this.isLocal,
     required this.game,
     required this.timerRevision,
+    required this.timerPaused,
     this.fallbackName = 'Player',
     this.displayName,
     this.avatarAsset,
@@ -1461,6 +1481,7 @@ class _Medallion extends StatefulWidget {
   final bool isLocal;
   final DaketiGame game;
   final int timerRevision;
+  final bool timerPaused;
   final String fallbackName;
   final String? displayName;
   final String? avatarAsset;
@@ -1494,6 +1515,7 @@ class _MedallionState extends State<_Medallion> with WidgetsBindingObserver {
   }
 
   double calculateProgress() {
+    if (widget.timerPaused) return 0;
     final raw = widget.game.turnStartTime;
     final started = raw == null || useFallbackStart
         ? fallbackStart
@@ -1507,6 +1529,7 @@ class _MedallionState extends State<_Medallion> with WidgetsBindingObserver {
   }
 
   int calculateRemaining() {
+    if (widget.timerPaused) return 0;
     final raw = widget.game.turnStartTime;
     final started = raw == null || useFallbackStart
         ? fallbackStart
@@ -1519,7 +1542,7 @@ class _MedallionState extends State<_Medallion> with WidgetsBindingObserver {
   }
 
   void updateCountdown() {
-    if (!appActive || !widget.isActive) return;
+    if (!appActive || !widget.isActive || widget.timerPaused) return;
     final next = calculateRemaining();
     final progress = calculateProgress();
     if (mounted && progress != ringProgress) {
@@ -1554,13 +1577,18 @@ class _MedallionState extends State<_Medallion> with WidgetsBindingObserver {
         (widget.player?.stackCount ?? 0) > (oldWidget.player?.stackCount ?? 0);
     final moveAccepted =
         oldWidget.timerRevision != widget.timerRevision || capturedCards;
-    if (playerChanged || serverStartChanged || moveAccepted) {
+    final pauseChanged = oldWidget.timerPaused != widget.timerPaused;
+    final turnChanged = oldWidget.game.currentTurn != widget.game.currentTurn ||
+        oldWidget.game.round != widget.game.round;
+    if (playerChanged ||
+        serverStartChanged ||
+        moveAccepted ||
+        turnChanged ||
+        pauseChanged) {
       fallbackStart = DateTime.now().millisecondsSinceEpoch;
-      // Captures, steals and stack extensions can keep the same player active.
-      // A successful-move revision must therefore restart that player's timer
-      // locally even when the response also contains a changed/stale server
-      // timestamp. A real hand-off still follows the next player's server time.
-      useFallbackStart = !playerChanged && (moveAccepted || useFallbackStart);
+      // Every presented move gets a full turn, even if the server timestamp
+      // is stale. Finishing the steal animation starts a fresh countdown.
+      useFallbackStart = true;
       lastAlert = null;
       timeoutSent = false;
       remaining = calculateRemaining();
@@ -1572,7 +1600,11 @@ class _MedallionState extends State<_Medallion> with WidgetsBindingObserver {
   void _syncWarning(int seconds) {
     if (widget.isLocal) {
       GameSoundService.setCountdownWarning(
-        appActive && widget.isActive && seconds > 0 && seconds <= 3,
+        appActive &&
+            widget.isActive &&
+            !widget.timerPaused &&
+            seconds > 0 &&
+            seconds <= 3,
       );
     }
   }

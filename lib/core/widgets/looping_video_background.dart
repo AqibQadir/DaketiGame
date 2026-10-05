@@ -53,7 +53,7 @@ class _LoopingVideoBackgroundState extends State<LoopingVideoBackground>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    _visible = TickerMode.of(context);
+    _visible = TickerMode.valuesOf(context).enabled;
     unawaited(_syncPlayback());
   }
 

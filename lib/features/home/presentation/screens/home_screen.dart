@@ -8,6 +8,8 @@ import '../../../../core/widgets/game_alert.dart';
 import '../../../../core/widgets/game_button.dart';
 import '../../../../core/widgets/game_icon_button.dart';
 import '../../../auth/presentation/controllers/auth_controller.dart';
+import '../../../access/presentation/access_controller.dart';
+import '../../../access/presentation/waitlist_screen.dart';
 import '../../../auth/presentation/controllers/guest_name_provider.dart';
 import '../../../tables/presentation/widgets/city_table_cards.dart';
 import '../../../game/presentation/controllers/game_controller.dart';
@@ -55,6 +57,10 @@ class HomeScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final auth = ref.watch(authControllerProvider);
+    if (auth.isAuthenticated &&
+        ref.watch(accessControllerProvider).waitlist?.canPlay != true) {
+      return const WaitlistScreen();
+    }
     final user = auth.user;
     final session = ref.watch(gameControllerProvider);
     final guestName = ref.watch(guestNameProvider)?.trim();
@@ -63,6 +69,15 @@ class HomeScreen extends ConsumerWidget {
       body: GameBackground(
         child: Stack(
           children: [
+            if (auth.isAuthenticated)
+              Positioned(
+                  right: 75,
+                  bottom: 14,
+                  child: TextButton.icon(
+                      icon: const Icon(Icons.group_add),
+                      label: const Text('Invite friends'),
+                      onPressed: () =>
+                          Navigator.pushNamed(context, AppRoutes.waitlist))),
             Positioned(
               left: 16,
               top: 12,

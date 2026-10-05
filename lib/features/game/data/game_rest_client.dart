@@ -20,9 +20,19 @@ class GameRestClient {
   final http.Client _client;
 
   Future<bool> healthCheck() async {
-    final response = await _client.get(Uri.parse('$baseUrl/health'));
+    final response = await _client
+        .get(Uri.parse('$baseUrl/health'))
+        .timeout(const Duration(seconds: 15));
     final data = _decode(response);
     return data['status'] == 'ok';
+  }
+
+  /// Operational counts, not the number of actively-playing tables.
+  Future<Map<String, dynamic>> getServerStats() async {
+    final response = await _client
+        .get(Uri.parse('$baseUrl/api/stats'))
+        .timeout(const Duration(seconds: 15));
+    return _map(_decode(response)['stats'], 'stats');
   }
 
   Future<CreatedGame> createSoloGame({
@@ -30,15 +40,17 @@ class GameRestClient {
     int aiCount = 1,
     String difficulty = 'master',
   }) async {
-    final response = await _client.post(
-      Uri.parse('$baseUrl/api/game/solo'),
-      headers: const {'Content-Type': 'application/json'},
-      body: jsonEncode({
-        'playerName': playerName,
-        'aiCount': aiCount,
-        'difficulty': difficulty
-      }),
-    );
+    final response = await _client
+        .post(
+          Uri.parse('$baseUrl/api/game/solo'),
+          headers: const {'Content-Type': 'application/json'},
+          body: jsonEncode({
+            'playerName': playerName,
+            'aiCount': aiCount,
+            'difficulty': difficulty
+          }),
+        )
+        .timeout(const Duration(seconds: 15));
     return _createdGameFromResponse(response);
   }
 
@@ -46,14 +58,16 @@ class GameRestClient {
     required String playerName,
     int maxPlayers = 4,
   }) async {
-    final response = await _client.post(
-      Uri.parse('$baseUrl/api/game/multiplayer'),
-      headers: const {'Content-Type': 'application/json'},
-      body: jsonEncode({
-        'playerName': playerName,
-        'maxPlayers': maxPlayers,
-      }),
-    );
+    final response = await _client
+        .post(
+          Uri.parse('$baseUrl/api/game/multiplayer'),
+          headers: const {'Content-Type': 'application/json'},
+          body: jsonEncode({
+            'playerName': playerName,
+            'maxPlayers': maxPlayers,
+          }),
+        )
+        .timeout(const Duration(seconds: 15));
     return _createdGameFromResponse(response);
   }
 

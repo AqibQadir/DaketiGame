@@ -22,17 +22,18 @@ class TableTopBar extends ConsumerWidget {
           text: 'Buy Coins',
           onTap: () => Navigator.pushNamed(context, AppRoutes.dukan),
         ),
-        const SizedBox(width: 12),
-        _Counter(icon: Icons.stars_rounded, text: coins),
-        const SizedBox(width: 12),
-        const _Counter(icon: Icons.handshake, text: '—'),
-        const SizedBox(width: 8),
-        IconButton(
-            tooltip: 'Menu',
-            onPressed: () => Navigator.pushNamed(context, AppRoutes.menu),
-            icon: const Icon(Icons.menu, color: AppColors.cream),
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints.tightFor(width: 30, height: 30)),
+        const SizedBox(width: 24),
+        _Counter(
+            icon: Icons.stars_rounded,
+            text: coins,
+            add: true,
+            onTap: () => Navigator.pushNamed(context, AppRoutes.dukan)),
+        const SizedBox(width: 24),
+        _Counter(
+            icon: Icons.handshake,
+            text: '—',
+            add: true,
+            onTap: () => Navigator.pushNamed(context, AppRoutes.sideQuests)),
       ],
     );
   }
@@ -43,11 +44,12 @@ class _Counter extends StatelessWidget {
     required this.icon,
     required this.text,
     this.onTap,
+    this.add = false,
   });
 
   final IconData icon;
   final String text;
-  final bool add = false;
+  final bool add;
   final VoidCallback? onTap;
 
   @override
@@ -55,7 +57,7 @@ class _Counter extends StatelessWidget {
     return InkWell(
       onTap: onTap,
       child: Container(
-        height: 27,
+        height: 23,
         padding: EdgeInsets.only(left: 8, right: add ? 3 : 9),
         decoration: BoxDecoration(
           color: const Color(0xDE46321F),

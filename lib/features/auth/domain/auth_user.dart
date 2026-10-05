@@ -6,6 +6,8 @@ class AuthUser {
     required this.emailVerified,
     required this.role,
     this.dateOfBirth,
+    this.facebookLinked = false,
+    this.hasPassword = true,
     required this.createdAt,
   });
 
@@ -15,6 +17,9 @@ class AuthUser {
   final bool emailVerified;
   final String role;
   final String? dateOfBirth;
+  final bool facebookLinked;
+  final bool hasPassword;
+  bool get needsEmail => email.isEmpty;
   final DateTime? createdAt;
 
   factory AuthUser.fromJson(Map<String, dynamic> json) => AuthUser(
@@ -23,6 +28,8 @@ class AuthUser {
         email: json['email']?.toString() ?? '',
         emailVerified: json['emailVerified'] == true,
         role: json['role']?.toString() ?? 'user',
+        facebookLinked: json['facebookLinked'] == true,
+        hasPassword: json['hasPassword'] != false,
         dateOfBirth: json['dateOfBirth']?.toString(),
         createdAt: DateTime.tryParse(json['createdAt']?.toString() ?? ''),
       );

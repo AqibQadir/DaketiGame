@@ -7,8 +7,12 @@ import '../../../../core/widgets/game_alert.dart';
 import '../../../../core/widgets/game_button.dart';
 import '../../../../core/widgets/game_close_button.dart';
 import '../../../../core/widgets/game_icon_button.dart';
-import '../../../../core/widgets/game_text_field.dart';
+import '../../../../core/widgets/daketi_logo.dart';
+import '../../../../core/widgets/game_styled_dialog.dart';
+import '../../../../core/widgets/game_dialog_title.dart';
 import '../controllers/auth_controller.dart';
+import '../widgets/facebook_login_button.dart';
+import '../../../access/presentation/access_controller.dart';
 
 class SignupScreen extends ConsumerStatefulWidget {
   const SignupScreen({super.key});
@@ -18,6 +22,14 @@ class SignupScreen extends ConsumerStatefulWidget {
 }
 
 class _SignupScreenState extends ConsumerState<SignupScreen> {
+  final referralController = TextEditingController();
+  bool _validating = false;
+  @override
+  void initState() {
+    super.initState();
+    referralController.text = ref.read(pendingReferralProvider) ?? '';
+  }
+
   final TextEditingController emailController = TextEditingController();
   final TextEditingController usernameController = TextEditingController();
   final TextEditingController passwordController = TextEditingController();
@@ -26,6 +38,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
 
   @override
   void dispose() {
+    referralController.dispose();
     emailController.dispose();
     usernameController.dispose();
     passwordController.dispose();
@@ -34,20 +47,43 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
   }
 
   Future<void> submit() async {
-    if (ref.read(authControllerProvider).isLoading) return;
+    if (ref.read(authControllerProvider).isLoading || _validating) return;
     FocusScope.of(context).unfocus();
     final email = emailController.text.trim().toLowerCase();
     if (passwordController.text != confirmPasswordController.text) {
       showGameAlert(context, 'Passwords do not match.');
       return;
     }
+    if (usernameController.text.trim().isEmpty ||
+        !email.contains('@') ||
+        passwordController.text.length < 8) {
+      showGameAlert(context,
+          'Enter your name, a valid email, and a password of at least 8 characters.');
+      return;
+    }
+    if (referralController.text.trim().isNotEmpty) {
+      setState(() => _validating = true);
+      try {
+        await ref
+            .read(authRestClientProvider)
+            .validateReferral(referralController.text);
+      } catch (error) {
+        if (mounted) showGameAlert(context, error.toString());
+        return;
+      } finally {
+        if (mounted) setState(() => _validating = false);
+      }
+      if (!mounted) return;
+    }
     final success = await ref.read(authControllerProvider.notifier).signup(
           name: usernameController.text.trim(),
           email: email,
           password: passwordController.text,
+          referralCode: referralController.text.trim(),
         );
     if (!mounted) return;
     if (success) {
+      ref.read(pendingReferralProvider.notifier).state = null;
       Navigator.pushNamedAndRemoveUntil(context, AppRoutes.home,
           (route) => route.settings.name == AppRoutes.welcome);
       return;
@@ -61,155 +97,234 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
   @override
   Widget build(BuildContext context) {
     final keyboardOpen = MediaQuery.viewInsetsOf(context).bottom > 0;
-    final loading = ref.watch(authControllerProvider).isLoading;
+    final loading = ref.watch(authControllerProvider).isLoading || _validating;
     return Scaffold(
       resizeToAvoidBottomInset: false,
       body: GameBackground(
-        child: Stack(
-          children: [
-            Positioned(
-              left: 18,
-              top: 18,
-              child: GameCloseButton(
-                onTap: Navigator.of(context).pop,
-              ),
-            ),
-            Positioned(
-              right: 18,
-              top: 18,
-              child: GameIconButton(
-                icon: Icons.menu,
-                onTap: () {
-                  Navigator.pushNamed(
-                    context,
-                    AppRoutes.settings,
-                  );
-                },
-              ),
-            ),
-            Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text('SIGN UP',
-                      style:
-                          TextStyle(fontFamily: 'Dirty Brush', fontSize: 30)),
-                  const SizedBox(height: 14),
-                  AnimatedSlide(
-                    offset: Offset(0, keyboardOpen ? -.55 : 0),
-                    duration: const Duration(milliseconds: 220),
-                    curve: Curves.easeOutCubic,
-                    child: Column(children: [
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          GameTextField(
-                            hint: 'Email',
-                            controller: emailController,
-                            keyboardType: TextInputType.emailAddress,
-                            autofillHints: const [AutofillHints.email],
+        child: Center(
+            child: FittedBox(
+                fit: BoxFit.contain,
+                child: SizedBox(
+                    width: 844,
+                    height: 390,
+                    child: Stack(
+                      children: [
+                        Positioned(
+                          left: 18,
+                          top: 18,
+                          child: GameCloseButton(
+                            onTap: Navigator.of(context).pop,
                           ),
-                          const SizedBox(width: 14),
-                          GameTextField(
-                            hint: 'Username',
-                            controller: usernameController,
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          GameTextField(
-                            hint: 'Password',
-                            obscureText: true,
-                            controller: passwordController,
-                            autofillHints: const [AutofillHints.newPassword],
-                          ),
-                          const SizedBox(width: 14),
-                          GameTextField(
-                            hint: 'Re-enter password',
-                            obscureText: true,
-                            controller: confirmPasswordController,
-                            autofillHints: const [AutofillHints.newPassword],
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 14),
-                      if (loading)
-                        const Padding(
-                          padding: EdgeInsets.only(bottom: 8),
-                          child: SizedBox(
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(strokeWidth: 2)),
                         ),
-                      GameButton(
-                        text: loading ? 'Please wait…' : 'Signup',
-                        onTap: loading ? null : submit,
-                      ),
-                    ]),
-                  ),
-                ],
-              ),
-            ),
-            Positioned(
-              left: 18,
-              bottom: 18,
-              child: Row(
-                children: [
-                  GameIconButton(
-                    icon: Icons.settings,
-                    onTap: () {
-                      Navigator.pushNamed(
-                        context,
-                        AppRoutes.settings,
-                      );
-                    },
-                  ),
-                  const SizedBox(width: 8),
-                  GameIconButton(
-                    icon: Icons.support_agent,
-                    onTap: () {
-                      Navigator.pushNamed(
-                        context,
-                        AppRoutes.support,
-                      );
-                    },
-                  ),
-                ],
-              ),
-            ),
-            const Positioned(
-              right: 18,
-              bottom: 18,
-              child: Row(
-                children: [
-                  GameIconButton(
-                    icon: Icons.facebook,
-                    onTap: null,
-                  ),
-                  SizedBox(width: 8),
-                  GameIconButton(
-                    icon: Icons.camera_alt,
-                    onTap: null,
-                  ),
-                  SizedBox(width: 8),
-                  GameIconButton(
-                    icon: Icons.play_arrow,
-                    onTap: null,
-                  ),
-                  SizedBox(width: 8),
-                  GameIconButton(
-                    icon: Icons.music_note,
-                    onTap: null,
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
+                        Positioned(
+                          right: 18,
+                          top: 18,
+                          child: GameIconButton(
+                            icon: Icons.menu,
+                            onTap: () {
+                              Navigator.pushNamed(
+                                context,
+                                AppRoutes.menu,
+                              );
+                            },
+                          ),
+                        ),
+                        Positioned(
+                          top: 36,
+                          left: 0,
+                          right: 0,
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const DaketiLogo(width: 320, height: 120),
+                              const SizedBox(height: 20),
+                              AnimatedSlide(
+                                offset: Offset(0, keyboardOpen ? -.55 : 0),
+                                duration: const Duration(milliseconds: 220),
+                                curve: Curves.easeOutCubic,
+                                child: Column(children: [
+                                  Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      _signupField(
+                                        hint: 'Email',
+                                        controller: emailController,
+                                        keyboardType:
+                                            TextInputType.emailAddress,
+                                        autofillHints: const [
+                                          AutofillHints.email
+                                        ],
+                                      ),
+                                      const SizedBox(width: 36),
+                                      _signupField(
+                                        hint: 'Username',
+                                        controller: usernameController,
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 18),
+                                  Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        _signupField(
+                                            hint: 'Password',
+                                            controller: passwordController,
+                                            obscureText: true,
+                                            autofillHints: const [
+                                              AutofillHints.newPassword
+                                            ]),
+                                        const SizedBox(width: 36),
+                                        _signupField(
+                                            hint: 'Re-enter Password',
+                                            controller:
+                                                confirmPasswordController,
+                                            obscureText: true,
+                                            autofillHints: const [
+                                              AutofillHints.newPassword
+                                            ]),
+                                      ]),
+                                  const SizedBox(height: 16),
+                                  SizedBox(
+                                      height: 40,
+                                      child: loading
+                                          ? const Center(
+                                              child: SizedBox(
+                                                  width: 18,
+                                                  height: 18,
+                                                  child:
+                                                      CircularProgressIndicator(
+                                                          strokeWidth: 2)))
+                                          : GameButton(
+                                              text: 'Signup', onTap: submit)),
+                                  Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        FacebookLoginButton(
+                                            referralCode:
+                                                referralController.text),
+                                        TextButton(
+                                          onPressed:
+                                              loading ? null : _editReferral,
+                                          child: Text(referralController.text
+                                                  .trim()
+                                                  .isEmpty
+                                              ? 'Have an invitation code?'
+                                              : 'Invitation code added'),
+                                        ),
+                                      ]),
+                                ]),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Positioned(
+                          left: 18,
+                          bottom: 18,
+                          child: Row(
+                            children: [
+                              GameIconButton(
+                                icon: Icons.settings,
+                                onTap: () {
+                                  Navigator.pushNamed(
+                                    context,
+                                    AppRoutes.settings,
+                                  );
+                                },
+                              ),
+                              const SizedBox(width: 8),
+                              GameIconButton(
+                                icon: Icons.support_agent,
+                                onTap: () {
+                                  Navigator.pushNamed(
+                                    context,
+                                    AppRoutes.support,
+                                  );
+                                },
+                              ),
+                            ],
+                          ),
+                        ),
+                        const Positioned(
+                          right: 18,
+                          bottom: 18,
+                          child: Row(
+                            children: [
+                              GameIconButton(
+                                icon: Icons.facebook,
+                                onTap: null,
+                              ),
+                              SizedBox(width: 8),
+                              GameIconButton(
+                                icon: Icons.camera_alt,
+                                onTap: null,
+                              ),
+                              SizedBox(width: 8),
+                              GameIconButton(
+                                icon: Icons.play_arrow,
+                                onTap: null,
+                              ),
+                              SizedBox(width: 8),
+                              GameIconButton(
+                                icon: Icons.music_note,
+                                onTap: null,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    )))),
       ),
     );
+  }
+
+  Widget _signupField({
+    required String hint,
+    required TextEditingController controller,
+    bool obscureText = false,
+    TextInputType? keyboardType,
+    Iterable<String>? autofillHints,
+  }) =>
+      SizedBox(
+        width: 198,
+        height: 34,
+        child: TextField(
+          controller: controller,
+          obscureText: obscureText,
+          keyboardType: keyboardType,
+          autofillHints: autofillHints,
+          autocorrect: false,
+          style: const TextStyle(fontSize: 14),
+          decoration: InputDecoration(
+            hintText: hint,
+            hintStyle: const TextStyle(color: Colors.white38),
+            filled: true,
+            fillColor: const Color(0x773C3A36),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 20),
+            enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(30),
+                borderSide: const BorderSide(color: Colors.white30)),
+            focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(30),
+                borderSide: const BorderSide(color: Color(0xFFFF8500))),
+          ),
+        ),
+      );
+
+  Future<void> _editReferral() async {
+    await showDialog<void>(
+        context: context,
+        builder: (dialogContext) => GameStyledDialog(
+              title: const GameDialogTitle('INVITATION CODE'),
+              content: TextField(
+                  controller: referralController,
+                  decoration: const InputDecoration(
+                      hintText: 'Referral code (optional)')),
+              actions: [
+                TextButton(
+                    onPressed: () => Navigator.pop(dialogContext),
+                    child: const Text('Done'))
+              ],
+            ));
+    if (mounted) setState(() {});
   }
 }

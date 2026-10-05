@@ -491,6 +491,8 @@
 					"@executable_path/Frameworks",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = de.zamedia.daketigame;
+				CODE_SIGN_ENTITLEMENTS = Runner/Runner.entitlements;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
@@ -683,6 +685,8 @@
 					"@executable_path/Frameworks",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = de.zamedia.daketigame;
+				CODE_SIGN_ENTITLEMENTS = Runner/Runner.entitlements;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
@@ -715,6 +719,8 @@
 					"@executable_path/Frameworks",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = de.zamedia.daketigame;
+				CODE_SIGN_ENTITLEMENTS = Runner/Runner.entitlements;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";

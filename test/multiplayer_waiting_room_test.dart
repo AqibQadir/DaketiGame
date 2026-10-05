@@ -53,18 +53,18 @@ class RoomSocket extends GameSocketService {
   Future<Map<String, dynamic>> joinGame(
       {required String gameId,
       required String playerName,
-      String? token}) async {
+      String? token,
+      String? reconnectToken}) async {
     joins++;
     if (pendingJoin != null) return pendingJoin!.future;
     return {'success': true, 'playerId': 'p0', 'gameState': room(count: count)};
   }
 
   @override
-  Future<Map<String, dynamic>> playerReady(String gameId,
-      {bool isReady = true}) {
+  Future<Map<String, dynamic>> playerReady(String gameId) {
     expect(gameId, '0093');
     readyCalls++;
-    readyValues.add(isReady);
+    readyValues.add(true);
     return (pendingReady = Completer<Map<String, dynamic>>()).future;
   }
 
@@ -184,7 +184,8 @@ void main() {
     controller = GameController(restClient: rest, socketService: socket);
   });
 
-  testWidgets('Ready toggles to yellow Unready and back using server state',
+  testWidgets(
+      'Ready waits for other players without offering unsupported Unready',
       (tester) async {
     await tester.binding.setSurfaceSize(const Size(844, 390));
     addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -203,32 +204,11 @@ void main() {
     socket.pendingReady!
         .complete({'success': true, 'gameState': room(ready: true)});
     await tester.pumpAndSettle();
-    expect(find.text('UNREADY'), findsOneWidget);
-    expect(tester.widget<GameButton>(button).backgroundTint,
-        const Color(0xFFFFD54F));
-    expect(tester.widget<GameButton>(button).onTap, isNotNull);
-    await tester.tap(button);
-    await tester.pump();
-    expect(socket.readyValues, [true, false]);
-    socket.pendingReady!.completeError(const GameApiException('Try again'));
-    await tester.pumpAndSettle();
-    expect(find.text('UNREADY'), findsOneWidget);
+    expect(tester.widget<GameButton>(button).text, 'Waiting…');
+    expect(tester.widget<GameButton>(button).onTap, isNull);
+    await controller.sendReady();
+    expect(socket.readyCalls, 1);
     expect(controller.state.game!.playerById('p0')!.isReady, isTrue);
-    await tester.tap(button);
-    await tester.pump();
-    socket.update('player_ready', room());
-    socket.pendingReady!.complete({'success': true});
-    await tester.pumpAndSettle();
-    expect(tester.widget<GameButton>(button).text, 'Ready');
-    expect(tester.widget<GameButton>(button).backgroundTint, isNull);
-    expect(controller.state.game!.playerById('p0')!.isReady, isFalse);
-    await tester.tap(button);
-    await tester.pump();
-    socket.pendingReady!
-        .complete({'success': true, 'gameState': room(ready: true)});
-    await tester.pumpAndSettle();
-    expect(find.text('UNREADY'), findsOneWidget);
-    expect(socket.readyValues, [true, false, false, true]);
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox());
     controller = GameController(restClient: rest, socketService: socket);

@@ -58,6 +58,16 @@ class RecoverySocket extends GameSocketService {
   bool connected = false;
   int joins = 0;
   String playerId = 'p0';
+  bool reclaimed = false;
+  bool loseMembershipOnce = false;
+  String? receivedReconnectToken;
+  Map<String, dynamic> currentSnapshot() {
+    final value = snapshot();
+    value['currentPlayerId'] = playerId;
+    (value['players'] as List).first['id'] = playerId;
+    return value;
+  }
+
   String? discarded;
   @override
   Stream<GameSocketEvent> get events => updates.stream;
@@ -73,18 +83,32 @@ class RecoverySocket extends GameSocketService {
   Future<Map<String, dynamic>> joinGame(
       {required String gameId,
       required String playerName,
-      String? token}) async {
+      String? token,
+      String? reconnectToken}) async {
     joins++;
-    return {'playerId': playerId, 'gameState': snapshot()};
+    receivedReconnectToken = reconnectToken;
+    return {
+      'playerId': playerId,
+      'gameState': currentSnapshot(),
+      'reconnectToken': 'seat-secret',
+      'reclaimed': reclaimed
+    };
   }
 
   @override
-  Future<Map<String, dynamic>> getActions(String gameId) async => {
-        'actions': [
-          for (final card in ['KH', '2D', '8C'])
-            {'type': 'discard', 'cardId': card}
-        ],
-      };
+  Future<Map<String, dynamic>> getActions(String gameId) async {
+    if (loseMembershipOnce) {
+      loseMembershipOnce = false;
+      throw const GameApiException('Rejoin required', code: 'NOT_IN_GAME');
+    }
+    return {
+      'actions': [
+        for (final card in ['KH', '2D', '8C'])
+          {'type': 'discard', 'cardId': card}
+      ],
+    };
+  }
+
   @override
   Future<Map<String, dynamic>> performAction(
       String event, Map<String, dynamic> payload) async {
@@ -178,6 +202,54 @@ void main() {
     expect(controller.state.error, contains('original seat'));
     expect(controller.state.playerId, 'p0');
     expect(storage.saved, isNotNull);
+  });
+
+  test('seat token survives restart and accepts confirmed new socket identity',
+      () async {
+    await join();
+    expect(storage.saved?.reconnectToken, 'seat-secret');
+    controller.dispose();
+    socket.connected = false;
+    socket.playerId = 'new-socket';
+    socket.reclaimed = true;
+    controller = makeController();
+    await Future<void>.delayed(Duration.zero);
+    expect(await controller.resumePreviousGame(), isTrue);
+    expect(socket.receivedReconnectToken, 'seat-secret');
+    expect(controller.state.playerId, 'new-socket');
+    expect(controller.state.game?.currentPlayerId, 'new-socket');
+    expect(controller.state.game?.playerById('new-socket')?.hand.length, 3);
+    expect(storage.saved?.playerId, 'new-socket');
+  });
+
+  test('NOT_IN_GAME reclaims seat then retries available actions', () async {
+    await join();
+    socket.loseMembershipOnce = true;
+    socket.playerId = 'new-socket';
+    socket.reclaimed = true;
+    await controller.loadAvailableActions();
+    expect(socket.joins, 2);
+    expect(socket.receivedReconnectToken, 'seat-secret');
+    expect(controller.state.playerId, 'new-socket');
+    expect(controller.state.availableActions.length, 3);
+  });
+
+  test('opponent reconnect replaces stale target IDs and available actions',
+      () async {
+    await join();
+    await controller.loadAvailableActions();
+    socket.updates.add(GameSocketEvent('player_reconnected', {
+      'playerName': 'Friend',
+      'gameState': {
+        ...snapshot(),
+        'players': [
+          ...(snapshot()['players'] as List),
+          {'id': 'new-opponent', 'name': 'Friend', 'type': 'human'}
+        ]
+      }
+    }));
+    expect(controller.state.game?.playerById('new-opponent'), isNotNull);
+    expect(controller.state.availableActions, isEmpty);
   });
 
   test('timeout discards the smallest legal card even with a larger selection',

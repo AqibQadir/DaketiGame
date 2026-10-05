@@ -22,9 +22,17 @@ class LeaderboardClient {
   final http.Client _client;
 
   Future<List<LeaderboardEntry>> load({int limit = 20}) async {
-    final response = await _client.get(
-        Uri.parse('${BackendConfig.serverUrl}/api/leaderboard?limit=$limit'));
-    final body = jsonDecode(response.body);
+    final response = await _client
+        .get(Uri.parse(
+            '${BackendConfig.serverUrl}/api/leaderboard?limit=$limit'))
+        .timeout(const Duration(seconds: 15));
+    dynamic body;
+    try {
+      body = jsonDecode(response.body);
+    } on FormatException {
+      throw GameApiException('The server returned an invalid leaderboard.',
+          statusCode: response.statusCode);
+    }
     if (body is! Map ||
         response.statusCode < 200 ||
         response.statusCode >= 300 ||

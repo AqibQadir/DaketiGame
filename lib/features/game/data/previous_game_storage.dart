@@ -8,12 +8,16 @@ class PreviousGame {
       required this.playerName,
       required this.playerId,
       this.ownerToken,
+      this.ownerAccountId,
+      this.reconnectToken,
       this.isMultiplayer = false});
 
   final String gameId;
   final String playerName;
   final String playerId;
   final String? ownerToken;
+  final String? ownerAccountId;
+  final String? reconnectToken;
   final bool isMultiplayer;
 }
 
@@ -32,6 +36,8 @@ class PreviousGameStorage {
           playerName: data['playerName'] as String,
           playerId: data['playerId'] as String,
           ownerToken: data['ownerToken'] as String?,
+          ownerAccountId: data['ownerAccountId'] as String?,
+          reconnectToken: data['reconnectToken'] as String?,
           isMultiplayer: data['isMultiplayer'] == true);
     } on FormatException {
       return null;
@@ -47,7 +53,9 @@ class PreviousGameStorage {
         'playerName': game.playerName,
         'playerId': game.playerId,
         'isMultiplayer': game.isMultiplayer,
-        'ownerToken': game.ownerToken
+        'ownerToken': game.ownerToken,
+        'ownerAccountId': game.ownerAccountId,
+        'reconnectToken': game.reconnectToken
       }));
 
   Future<void> clear() => _storage.delete(key: _key);

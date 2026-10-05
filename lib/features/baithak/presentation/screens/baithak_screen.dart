@@ -90,13 +90,13 @@ class BaithakScreen extends StatelessWidget {
                         ),
                         const SizedBox(width: 18),
                         _ModeCard(
-                          title: 'GLOBAL',
-                          subtitle: 'PAIRS RANDOMLY WITH\nPLAYER',
-                          buttonText: 'CREATE ROOM',
+                          title: 'FRIENDS',
+                          subtitle: 'FIND PLAYERS &\nBUILD YOUR FRIEND LIST',
+                          buttonText: 'FIND FRIENDS',
                           onTap: () {
                             Navigator.pushNamed(
                               context,
-                              AppRoutes.globalPlayers,
+                              AppRoutes.friends,
                             );
                           },
                         ),

@@ -18,6 +18,11 @@ dependencies:
   shared_preferences: ^2.5.3
   flutter_secure_storage: ^9.2.4
   video_player: ^2.11.1
+  firebase_core: ^4.15.0
+  firebase_messaging: ^16.7.0
+  flutter_facebook_auth: ^7.1.5
+  app_links: ^7.2.1
+  share_plus: ^12.0.2
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -30,6 +35,7 @@ flutter:
     - assets/videos/
     - assets/audio/game/
     - assets/images/
+    - assets/images/tables/lobbies/
     - assets/images/players/
     - assets/images/cards/style01/Clubs/
     - assets/images/cards/style01/Diamonds/

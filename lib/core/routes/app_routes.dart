@@ -1,6 +1,9 @@
 class AppRoutes {
   AppRoutes._();
 
+  static const String waitlist = '/waitlist';
+  static const String accountLink = '/account-link';
+
   static const String splash = '/';
   static const String terms = '/terms';
   static const String privacy = '/privacy';
@@ -23,6 +26,7 @@ class AppRoutes {
   static const String home = '/home';
   static const String game = '/game';
   static const String gameTutorial = '/game/tutorial';
+  static const String friends = '/friends';
   static const String baithak = '/baithak';
   static const String myClan = '/baithak/my-clan';
   static const String globalPlayers = '/baithak/global';

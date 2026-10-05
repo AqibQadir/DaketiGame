@@ -206,12 +206,13 @@ class _WaitingRoomScreenState extends ConsumerState<WaitingRoomScreen> {
                           text: session.isLoading
                               ? 'Sending…'
                               : isReady
-                                  ? 'Unready'
+                                  ? 'Waiting…'
                                   : 'Ready',
                           width: 180,
                           backgroundTint:
                               isReady ? const Color(0xFFFFD54F) : null,
                           onTap: session.isLoading ||
+                                  isReady ||
                                   game?.status != DaketiGameStatus.waiting ||
                                   currentPlayer == null ||
                                   session.connectionStatus !=

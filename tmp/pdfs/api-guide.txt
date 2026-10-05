@@ -1,0 +1,1567 @@
+
+--- PAGE 1 ---
+Daketi API Guide · 30 September 2026 Page 1 of 41
+Daketi API Guide
+Backend integration reference for the Flutter app
+Production base URL: https://game.daketi.pk
+Generated: 30 September 2026
+Source: FLUTTER_API_GUIDE.md (Daketi backend repository)
+STATUS AT TIME OF WRITING
+Every REST endpoint in this guide is live in production, including Facebook login, the
+waiting list, referrals, play eligibility and device registration.
+Facebook login needs you on the app's tester list. While the Meta app is unpublished
+only people with a role on it can sign in - ask Najeeb to add you as a T ester, and send him
+your iOS bundle id and Android package name + key hashes.
+Push notiﬁcations are not yet delivering. The endpoints and payload format are ﬁnal,
+but Firebase credentials are still to be conﬁgured server-side. Device registration works today;
+notiﬁcations begin arriving once that is done, with no app change required.
+The reconnect contract ( reconnectToken  on join_game ) is live and remains the most
+important change for the app - see "Reconnecting".
+
+--- PAGE 2 ---
+Daketi API Guide · 30 September 2026 Page 2 of 41
+Daketi API Guide for Flutter Developers
+This guide explains how to integrate the Daketi backend with your Flutter application.
+Last veriﬁed: 30 Sep 2026, against main  @ 2a823c3  plus uncommitted work. If this guide and
+the server ever disagree, the server wins - backend/src/routes/auth.js  and
+backend/src/socket/gameHandler.js  are the source of truth, and the game rules live in
+backend/src/services/gameEngine.js .
+Table of Contents
+1. Server URL
+2. Socket.io Setup
+3. REST API Endpoints
+4. Game IDs
+5. User Accounts (Signup / Login)
+6. Rate Limits and Error Handling
+7. Waiting List, Referrals and Push
+8. Socket.io Events
+9. Game State Structure
+10. Card Format
+11. Game Rules the Client Must Respect
+12. Example Flutter Implementation
+13. T esting Tips
+14. Common Gotchas
+Server URL
+Production (use this one):
+https://game.daketi.pk
+Nginx terminates TLS here and proxies to the Node server, WebSocket upgrade included. No
+port number - it's plain 443.
+Development:
+http://localhost:3006
+
+--- PAGE 3 ---
+Daketi API Guide · 30 September 2026 Page 3 of 41
+The port comes from backend/.env  ( PORT=3006  currently) - conﬁrm with the backend dev
+before hardcoding.
+Direct EC2 access (debugging only):
+http://54.81.228.43:3006
+Same server, bypassing nginx and TLS. Handy with curl, but don't ship a build pointing at
+it: Android blocks cleartext HTTP by default from API 28 on, and iOS ATS blocks it too - you'd
+have to weaken both platforms' network security conﬁg to make it work, on a URL that also
+breaks whenever the instance IP changes. Use the domain.
+Both REST calls and the Socket.io connection use the same base URL - there's no separate
+WebSocket URL.
+Socket.io Setup
+Flutter Dependencies
+Add to pubspec.yaml :
+dependencies:
+  socket_io_client: ^2.0.0
+  http: ^0.13.0
+  flutter_riverpod: ^2.3.0
+Initialize Socket Connection
+transports: ['websocket']  is required, not optional. The server only accepts WebSocket
+connections (no HTTP long-polling) - this is what lets the backend run multiple worker
+processes (pm2 cluster mode) without needing sticky sessions. If you omit this option, the
+client's default polling-ﬁrst handshake will simply fail to connect.
+
+--- PAGE 4 ---
+Daketi API Guide · 30 September 2026 Page 4 of 41
+import 'package:socket_io_client/socket_io_client.d art' as IO;
+class SocketService {
+  late IO.Socket socket;
+  void connect(String serverUrl) {
+    socket = IO.io(serverUrl, <String, dynamic>{
+      'transports': ['websocket'],
+      'autoConnect': true,
+    });
+    socket.onConnect((_) {
+      print('Connected to server');
+    });
+    socket.onDisconnect((_) {
+      print('Disconnected from server');
+    });
+  }
+  void disconnect() {
+    socket.dispose();
+  }
+}
+REST API Endpoints
+1. Health Check
+GET /health
+Response:
+{
+  "status": "ok",
+  "timestamp": "2026-08-06T00:00:00.000Z",
+  "uptime": 123.45
+}
+2. Get Server Stats
+GET /api/stats
+Response:
+
+--- PAGE 5 ---
+Daketi API Guide · 30 September 2026 Page 5 of 41
+{
+  "success": true,
+  "stats": {
+    "activeGames": 5,
+    "connectedPlayers": 20,
+    "activeRooms": 8
+  }
+}
+Note: 
+activeGames  counts every game record still in storage (Redis keys with an unexpired
+TTL - 1 hour after last save), not how many games currently have someone actively playing.
+A ﬁnished or abandoned game still counts here until its TTL runs out. connectedPlayers  is the
+more "live" number - it's deleted immediately on disconnect, so it accurately reﬂects who's
+connected right now.
+3. Create Solo Game (you + AI opponents)
+POST /api/game/solo
+Content-Type: application/json
+{
+  "playerName": "John",
+  "aiCount": 1,
+  "difficulty": "master"
+}
+aiCount  is optional, clamped to 1-3 (default 1). T otal seats in the room = aiCount + 1  (you).
+difficulty  is optional: "beginner"  or "master"  (default "master" ). Applies to every AI
+opponent in the room. Beginner AI avoids stealing from opponents and picks moves without
+optimizing card value; Master AI plays the existing optimal strategy (prioritizes high-value
+steals and captures).
+Response:
+{
+  "success": true,
+  "gameId": "4821",
+  "playerName": "John",
+  "gameState": { /* game state object, status: "wai ting" */ }
+}
+Note: this response does not include a 
+playerId . The AI players already have internal IDs,
+but your playerId  is only assigned once you actually join over the socket (see Join Game
+below) - the REST call just reserves the room.
+Flutter Example:
+
+--- PAGE 6 ---
+Daketi API Guide · 30 September 2026 Page 6 of 41
+Future<Map<String, dynamic>> createSoloGame(String playerName, {int aiCount = 1, String 
+difficulty = 'master'}) async {
+  final response = await http.post(
+    Uri.parse('$serverUrl/api/game/solo'),
+    headers: {'Content-Type': 'application/json'},
+    body: jsonEncode({'playerName': playerName, 'ai Count': aiCount, 'difficulty': 
+difficulty}),
+  );
+  return jsonDecode(response.body);
+}
+4. Create Multiplayer Room (human players only, no AI)
+POST /api/game/multiplayer
+Content-Type: application/json
+{
+  "playerName": "Alice",
+  "maxPlayers": 4
+}
+maxPlayers  is optional, clamped to 2-4 (default 4). This is the total number of human seats -
+the room does not auto-start; every player must join by gameId  and then send player_ready
+(see below). The game only starts once the room is full and everyone in it has signaled
+ready.
+Response:
+{
+  "success": true,
+  "gameId": "0472",
+  "playerName": "Alice",
+  "maxPlayers": 4,
+  "gameState": { /* game state object, status: "wai ting" */ }
+}
+5. Get Game State
+GET /api/game/:gameId
+Response:
+{
+  "success": true,
+  "gameState": { /* game state object */ }
+}
+
+--- PAGE 7 ---
+Daketi API Guide · 30 September 2026 Page 7 of 41
+6. Leaderboard
+GET /api/leaderboard?limit=20
+Public - no auth needed. Ranked by games won, ties broken by total score.
+Response:
+{
+  "success": true,
+  "leaderboard": [
+    { "user_id": "e13bcab0-...", "name": "John", "g ames_played": 12, "games_won": 5, 
+"total_score": 430 }
+  ]
+}
+limit  defaults to 20 and is clamped to 1-100 (an out-of-range or non-numeric value is
+clamped, not rejected). Keys are snake_case , like the other stats payloads.
+Only players who ﬁnished a game while logged in appear here - see User Accounts for
+what "logged in" means at the socket layer. A brand-new deployment's leaderboard is
+legitimately empty; that's not a bug.
+The admin-only 
+/api/dashboard/*  endpoints also exist, but they back the web admin
+dashboard and require an admin  role - nothing in the app should call them.
+Game IDs
+gameId  is a 4-digit numeric string (e.g. "0472" ), not a UUID - short enough to read aloud
+or type when sharing a room with friends. It's zero-padded, so treat it as a string everywhere,
+not a number (
+"0472"  !== 472 ). It's randomly generated per game and only unique among
+currently-active games (games expire from storage after being idle, so codes do get reused
+over time).
+User Accounts (Signup / Login)
+A user account is a persistent Postgres-backed identity, distinct from the freely-typed
+playerName  you pass to join_game . Playing still doesn't require an account - guests can play
+every game mode exactly as before.
+What being logged in buys you: pass the account's JWT as 
+token  on join_game  (see Join
+Game) and every ﬁnished game gets recorded against the account - which is what powers
+/api/auth/me  stats, /api/auth/me/history  and the public leaderboard. Without that token ,
+the player is a guest and nothing is saved.
+
+--- PAGE 8 ---
+Daketi API Guide · 30 September 2026 Page 8 of 41
+Not yet implemented: WhatsApp login. Email/password signup, Facebook login, email
+veriﬁcation, password reset and proﬁle editing are all live.
+Endpoint summary
+Endpoint Auth Rate limit
+POST /api/auth/signup - 5 / 15 min
+POST /api/auth/login - 10 / 15 min
+GET /api/auth/me Bearer -
+GET /api/auth/me/history Bearer -
+PATCH /api/auth/me Bearer -
+POST /api/auth/change-password Bearer 10 / 15 min
+POST /api/auth/forgot-password - 3 / hour
+POST /api/auth/reset-password - 10 / hour
+POST /api/auth/verify-email - -
+POST /api/auth/resend-verification Bearer 3 / hour
+POST /api/auth/facebook - 10 / 15 min
+Every response is JSON with a success  boolean; failures carry { "success": false, "error": "
+<human-readable message>" } . The error  strings are written to be shown to the user as-is.
+The user object
+Every endpoint that returns a user returns this exact shape:
+{
+  "id": "e13bcab0-8ffb-440e-875b-f79063d8f626",
+  "name": "John",
+  "email": "john@example.com",
+  "emailVerified": false,
+  "role": "user",
+  "dateOfBirth": "1990-05-15",
+  "createdAt": "2026-08-11T08:20:05.378Z",
+  "facebookLinked": false,
+  "hasPassword": true
+}
+role  is "user"  or "admin" . Admin only gates the web admin dashboard
+( /api/dashboard/* ) - the app has no admin surface, so you can ignore it.
+dateOfBirth  is null  until the user sets it, and always plain YYYY-MM-DD  (never a full
+timestamp) - safe to feed straight into a date picker.
+facebookLinked  / hasPassword  say which ways this account can sign in - see Facebook
+Login / Signup. A Facebook-only account has hasPassword: false  and may have email:
+null .
+
+--- PAGE 9 ---
+Daketi API Guide · 30 September 2026 Page 9 of 41
+1. Signup
+POST /api/auth/signup
+Content-Type: application/json
+{
+  "name": "John",
+  "email": "john@example.com",
+  "password": "at-least-8-characters"
+}
+Response (201): 
+{ "success": true, "token": "eyJhbGciOi...", "user" : { ... } }
+A veriﬁcation email is sent automatically, ﬁre-and-forget: signup still succeeds (and still
+returns a usable token) if SES is having a bad moment. The new user is logged in
+immediately with 
+emailVerified: false  - nothing is gated on veriﬁcation today, so don't
+block the app on it.
+Errors: 
+400  for a missing name, invalid email format, or a password under 8 characters; 409
+( "Email is already registered" ); 429  if rate-limited.
+Note: signup does not accept dateOfBirth . Collect it after signup with PATCH /api/auth/me  if
+you want it during onboarding.
+Signup also accepts an optional 
+referralCode  - see Signing Up With a Code.
+2. Login
+POST /api/auth/login
+Content-Type: application/json
+{
+  "email": "john@example.com",
+  "password": "at-least-8-characters"
+}
+Response (200): same shape as signup (
+{ success, token, user } ).
+Error: 401  with "Invalid email or password"  for either a wrong password or an unregistered
+email - deliberately the same message for both, so a client can't use this endpoint to
+enumerate which emails are registered. Don't "helpfully" split that into two diﬀerent UI
+messages.
+3. Get Current User (+ stats)
+GET /api/auth/me
+Authorization: Bearer <token>
+Response (200):
+
+--- PAGE 10 ---
+Daketi API Guide · 30 September 2026 Page 10 of 41
+{
+  "success": true,
+  "user": { "id": "...", "name": "...", "email": ". ..", "emailVerified": true, "role": "user", 
+"dateOfBirth": null, "createdAt": "..." },
+  "stats": { "games_played": 12, "games_won": 5, "t otal_score": 430 }
+}
+stats  is aggregated over recorded games only (see the token  note above) and is all-zeros
+for a user who has never played while logged in. The stats keys are snake_case  - they
+come straight from SQL - unlike the camelCase  user object. Don't assume one convention
+across the whole payload.
+Errors: 
+401  if the header is missing or the token is invalid/expired; 404  if the account has
+since been deleted.
+4. Game History
+GET /api/auth/me/history
+Authorization: Bearer <token>
+Response (200): the 20 most recent ﬁnished games, newest ﬁrst.
+{
+  "success": true,
+  "history": [
+    {
+      "game_id": "0472",
+      "player_name": "John",
+      "score": 42,
+      "is_winner": true,
+      "max_players": 4,
+      "played_at": "2026-09-11T18:04:22.118Z",
+      "opponents": [
+        { "name": "AI Bot 1", "type": "ai", "score":  31, "isWinner": false },
+        { "name": "Sara", "type": "human", "score": 28, "isWinner": false }
+      ]
+    }
+  ]
+}
+All 
+snake_case  at the top level, but the nested opponents  objects are camelCase  ( isWinner ) -
+they were stored as JSON, not as columns. opponents  is a snapshot taken when the game
+ended, so it stays correct even though the game itself is long gone from Redis. player_name
+is the name that player used in that game, which may diﬀer from their current account
+name.
+
+--- PAGE 11 ---
+Daketi API Guide · 30 September 2026 Page 11 of 41
+5. Update Proﬁle
+PATCH /api/auth/me
+Authorization: Bearer <token>
+Content-Type: application/json
+{
+  "name": "Johnny",
+  "dateOfBirth": "1990-05-15"
+}
+Response (200): 
+{ "success": true, "user": { ... } }
+name  is required on every call - this is a full-ﬁeld update, not a partial patch. Sending
+only dateOfBirth  fails with 400 "Name is required" , so always send the current name
+back.
+dateOfBirth  is optional; null  or ""  clears it. Must be YYYY-MM-DD , not in the future, and at
+least 13 years ago ( 400 "You must be at least 13 years old" ).
+Email is not editable through this endpoint.
+6. Change Password (logged in)
+POST /api/auth/change-password
+Authorization: Bearer <token>
+Content-Type: application/json
+{ "currentPassword": "...", "newPassword": "at-leas t-8-characters" }
+Response (200): 
+{ "success": true, "message": "Password updated" }
+Errors: 400  if newPassword  is under 8 characters; 401  if currentPassword  is wrong; 429  after
+10 attempts in 15 minutes. Existing tokens are not invalidated - the user stays logged in
+everywhere.
+7. Forgot Password
+POST /api/auth/forgot-password
+Content-Type: application/json
+{ "email": "john@example.com" }
+Response (200): always
+{ "success": true, "message": "If that email is reg istered, we've sent password reset 
+instructions." }
+That same response comes back whether or not the email exists (and even if sending failed)
+- by design, so the endpoint can't be used to discover which emails have accounts. Show it
+verbatim; don't imply an email deﬁnitely went out. Only a malformed email gets a 
+400 .
+
+--- PAGE 12 ---
+Daketi API Guide · 30 September 2026 Page 12 of 41
+The emailed link contains a token valid for 1 hour.
+8. Reset Password
+POST /api/auth/reset-password
+Content-Type: application/json
+{ "token": "<token from the email link>", "newPassw ord": "at-least-8-characters" }
+Response (200): 
+{ "success": true, "message": "Password updated - y ou can now log in" }
+Errors: 400  for a missing token, a password under 8 characters, or "This reset link is
+invalid or has expired"  (also what you get for an already-used token). No session is returned
+- send the user to the login screen afterwards.
+9. Verify Email
+POST /api/auth/verify-email
+Content-Type: application/json
+{ "token": "<token from the email link>" }
+Response (200): 
+{ "success": true, "user": { ...with emailVerified:  true } }
+No auth header needed - the token is the proof. Valid for 24 hours; 400 "This verification
+link is invalid or has expired"  otherwise.
+10. Resend Veriﬁcation Email
+POST /api/auth/resend-verification
+Authorization: Bearer <token>
+Response (200): 
+{ "success": true, "message": "Verification email s ent" } , or the same
+success: true  with "Your email is already verified"  if there was nothing to do - check the
+message , not just success , if you want to branch. Limited to 3 per hour.
+11. Facebook Login / Signup
+POST /api/auth/facebook
+Content-Type: application/json
+{ "accessToken": "<token from the Facebook SDK>", " referralCode": "ABCD2345" }
+One endpoint for both login and signup - from the app's side it's the same tap. Get an access
+token with the Facebook SDK (
+flutter_facebook_auth ), post it here, and the server veriﬁes it
+with Facebook and returns the same JWT as password login. Every other endpoint in this
+guide then works unchanged.
+
+--- PAGE 13 ---
+Daketi API Guide · 30 September 2026 Page 13 of 41
+Response (201 new account, 200 returning user):
+{
+  "success": true,
+  "token": "eyJhbGciOi...",
+  "isNewUser": true,
+  "needsEmail": false,
+  "user": {
+    "id": "e13bcab0-...",
+    "name": "Aqib",
+    "email": "aqib@example.com",
+    "emailVerified": true,
+    "role": "player",
+    "dateOfBirth": null,
+    "createdAt": "2026-09-30T09:00:00.000Z",
+    "facebookLinked": true,
+    "hasPassword": false
+  }
+}
+referralCode  is optional and behaves exactly as it does on POST /api/auth/signup  - only
+applied when the account is created, and an invalid code is rejected with 400  before
+anything else happens.
+What the server does with the token
+It calls Facebook's debug_token  and checks the token was issued for our app id, then
+reads the proﬁle. A token from any other Facebook app is refused. This matters for you only
+in one way: the token must come from the Facebook app conﬁgured for Daketi, so use the
+app id the backend dev gives you, not one from another project.
+Three outcomes
+Situation What happens Response
+This Facebook account has signed in before Logged in
+200 , isNewUser:
+false
+Facebook's email matches an existing
+password account
+Linked automatically, then
+logged in
+200 , isNewUser:
+false
+Neither Account created 201 , isNewUser:
+true
+The middle row is the one to design for: a user who signed up with email and password last
+month, then taps "Continue with Facebook", ends up in the same account, not a duplicate.
+Their password keeps working - the response will show 
+hasPassword: true  and
+facebookLinked: true .
+
+--- PAGE 14 ---
+Daketi API Guide · 30 September 2026 Page 14 of 41
+needsEmail  - the case worth handling properly
+Facebook does not always give us an email. The user can deny the permission, and
+phone-only Facebook accounts have none at all, which is common in Pakistan. Those
+accounts are created successfully with 
+email: null  and needsEmail: true .
+Such a user can play normally, but until they add an email they cannot:
+reset a password (there's nowhere to send the link),
+be credited as someone's referral (credit requires a veriﬁed email).
+So when needsEmail  is true , prompt for an email address at a sensible moment and send it
+with PATCH /api/auth/me . Don't block the game on it.
+Sign-in methods on the user object
+Every endpoint that returns a user now includes two booleans, so the app can show the right
+options:
+facebookLinked  - true  if this account can sign in with Facebook.
+hasPassword  - false  for a Facebook-only account. Hide "change password" for those; POST
+/api/auth/change-password  will refuse with a message telling them to use "forgot password"
+to set one, which works as long as they have an email.
+Errors
+Status Meaning What the app should do
+400 No accessToken , or a bad referralCode Fix the request
+401 Facebook rejected the token (expired, invalid,
+wrong app)
+Re-run the Facebook SDK login and retry
+once
+409 That email is already linked to a diﬀerent Facebook
+account
+T ell the user to sign in with the original
+method
+429 Rate limited - 10 per 15 minutes per IP Show the message, back oﬀ
+502 We couldn't reach Facebook Transient - oﬀer a retry; not the user's
+fault
+503 Facebook login isn't conﬁgured on the server Hide the Facebook button
+Note the diﬀerence between 401  and 502 : 401  means the token is bad and re-
+authenticating will help, 502  means Facebook was unreachable from our side and the user
+did nothing wrong. Don't send someone back through a login loop for a 502 .
+Password login against a Facebook-only account returns the normal 401 "Invalid email
+or password"  - deliberately the same message as any other failed login, so it can't be used to
+discover which emails have accounts. If a user insists they have an account and the
+password fails, suggest trying the Facebook button.
+
+--- PAGE 15 ---
+Daketi API Guide · 30 September 2026 Page 15 of 41
+Flutter example:
+Future<Map<String, dynamic>> loginWithFacebook({Str ing? referralCode}) async {
+  final result = await FacebookAuth.instance.login( permissions: ['email', 'public_profile']);
+  if (result.status != LoginStatus.success) {
+    throw Exception('Facebook sign-in cancelled');
+  }
+  final response = await http.post(
+    Uri.parse('$serverUrl/api/auth/facebook'),
+    headers: {'Content-Type': 'application/json'},
+    body: jsonEncode({
+      'accessToken': result.accessToken!.tokenStrin g,
+      if (referralCode != null) 'referralCode': ref erralCode,
+    }),
+  );
+  final data = jsonDecode(response.body);
+  if (response.statusCode == 401) {
+    await FacebookAuth.instance.logOut();   // stal e token - start clean
+    throw Exception(data['error']);
+  }
+  if (response.statusCode >= 500) {
+    throw Exception('Could not reach Facebook - ple ase try again');
+  }
+  await storage.write(key: 'token', value: data['to ken']);   // same JWT as password login
+  if (data['needsEmail'] == true) promptForEmailLat er();
+  return data['user'];
+}
+Email links and deep linking
+Reset and veriﬁcation emails link to the web app, not the mobile app:
+https://game.daketi.pk/?resetToken=<token>
+https://game.daketi.pk/?verifyToken=<token>
+(The base URL is the backend's 
+FRONTEND_URL  env var.) A user who taps that link on their
+phone lands in the browser, which completes the ﬂow on the web - it works, but it leaves the
+app. If you want these to open the Flutter app instead, that needs a coordinated change:
+Android App Links / iOS Universal Links on your side, plus the backend pointing 
+FRONTEND_URL
+at a link that resolves to both. Talk to the backend dev before building against these
+URLs - they're the one thing here that can't be handled app-side alone. Either way, the token
+is just a query parameter: however you get it, you POST it to /verify-email  or /reset-
+password .
+Token handling
+token  is a JWT, valid for 30 days. Store it securely ( flutter_secure_storage , not plain
+SharedPreferences ) and send it as Authorization: Bearer <token>  on any endpoint that
+needs it - and as the token  ﬁeld on join_game , which is the only way games get
+
+--- PAGE 16 ---
+Daketi API Guide · 30 September 2026 Page 16 of 41
+recorded.
+There's no refresh-token ﬂow - when a token expires the user logs in again. Treat any 401
+on an authed endpoint as "session over": clear the stored token and show the login
+screen.
+The JWT payload is just { userId } . Don't decode it for display - call /api/auth/me  for
+anything you want to show.
+Flutter Example:
+
+--- PAGE 17 ---
+Daketi API Guide · 30 September 2026 Page 17 of 41
+Future<Map<String, dynamic>> signup(String name, St ring email, String password) async {
+  final response = await http.post(
+    Uri.parse('$serverUrl/api/auth/signup'),
+    headers: {'Content-Type': 'application/json'},
+    body: jsonEncode({'name': name, 'email': email,  'password': password}),
+  );
+  return jsonDecode(response.body);
+}
+Future<Map<String, dynamic>> login(String email, St ring password) async {
+  final response = await http.post(
+    Uri.parse('$serverUrl/api/auth/login'),
+    headers: {'Content-Type': 'application/json'},
+    body: jsonEncode({'email': email, 'password': p assword}),
+  );
+  return jsonDecode(response.body);
+}
+Future<Map<String, dynamic>> getMe(String token) as ync {
+  final response = await http.get(
+    Uri.parse('$serverUrl/api/auth/me'),
+    headers: {'Authorization': 'Bearer $token'},
+  );
+  return jsonDecode(response.body);
+}
+Future<Map<String, dynamic>> getHistory(String toke n) async {
+  final response = await http.get(
+    Uri.parse('$serverUrl/api/auth/me/history'),
+    headers: {'Authorization': 'Bearer $token'},
+  );
+  return jsonDecode(response.body);
+}
+/// Name is required even when you're only changing  the date of birth.
+Future<Map<String, dynamic>> updateProfile(String t oken, String name, String? dateOfBirth) 
+async {
+  final response = await http.patch(
+    Uri.parse('$serverUrl/api/auth/me'),
+    headers: {'Content-Type': 'application/json', ' Authorization': 'Bearer $token'},
+    body: jsonEncode({'name': name, 'dateOfBirth': dateOfBirth}),
+  );
+  return jsonDecode(response.body);
+}
+Future<Map<String, dynamic>> forgotPassword(String email) async {
+  final response = await http.post(
+    Uri.parse('$serverUrl/api/auth/forgot-password' ),
+    headers: {'Content-Type': 'application/json'},
+    body: jsonEncode({'email': email}),
+  );
+  return jsonDecode(response.body);
+}
+Future<Map<String, dynamic>> resetPassword(String r esetToken, String newPassword) async {
+  final response = await http.post(
+    Uri.parse('$serverUrl/api/auth/reset-password') ,
+    headers: {'Content-Type': 'application/json'},
+    body: jsonEncode({'token': resetToken, 'newPass word': newPassword}),
+
+--- PAGE 18 ---
+Daketi API Guide · 30 September 2026 Page 18 of 41
+  );
+  return jsonDecode(response.body);
+}
+Rate Limits and Error Handling
+The auth endpoints are rate-limited per IP address (see the table in User Accounts for the
+per-endpoint numbers). Nothing else - game creation, game state, leaderboard, and every
+Socket.io event - is limited today.
+When a limit is hit you get:
+HTTP 429
+{ "success": false, "error": "Too many requests - p lease try again later" }
+Standard 
+RateLimit-*  response headers come back on every call to a limited endpoint (not
+just the 429), so you can read RateLimit-Remaining  / RateLimit-Reset  if you want to warn
+before the wall.
+T wo things to plan for:
+1. Handle 429 explicitly. An app that only checks 
+success  will show "Login failed" to a
+user who actually just needs to wait - a confusing dead end, especially on the 3/hour
+forgot-password limiter. Show the 
+error  message and, ideally, the wait time from
+RateLimit-Reset .
+2. Limits are per IP , not per user. Everyone on one oﬃce wiﬁ or behind one mobile-carrier
+NAT shares a bucket. Expect to hit this during team testing - it's not a bug, and retrying
+immediately makes it worse.
+A suggested shape for every REST call:
+
+--- PAGE 19 ---
+Daketi API Guide · 30 September 2026 Page 19 of 41
+Future<Map<String, dynamic>> post(String path, Map< String, dynamic> body, {String? token}) 
+async {
+  final response = await http.post(
+    Uri.parse('$serverUrl$path'),
+    headers: {
+      'Content-Type': 'application/json',
+      if (token != null) 'Authorization': 'Bearer $ token',
+    },
+    body: jsonEncode(body),
+  );
+  final data = jsonDecode(response.body) as Map<Str ing, dynamic>;
+  if (response.statusCode == 429) {
+    throw RateLimitedException(data['error'], respo nse.headers['ratelimit-reset']);
+  }
+  if (response.statusCode == 401 && token != null) {
+    throw SessionExpiredException(); // clear store d token, go to login
+  }
+  return data;
+}
+Waiting List, Referrals and Push
+The pre-launch ﬂow: users join a waiting list, climb it by referring friends, and are let in by an
+admin - at which point the app can let them play. Everything here needs 
+Authorization:
+Bearer <token>  from the existing login, except GET /api/referrals/validate/:code .
+Endpoint summary
+Endpoint Auth What it's for
+POST /api/waitlist/join Bearer Put the user on the list
+GET /api/waitlist/me Bearer Position, status, referral code/count - the whole screen in
+one call
+GET /api/play/eligibility Bearer Cheap "can they play right now?" check
+GET /api/referrals/me Bearer Code, shareable link, who they've brought in
+GET
+/api/referrals/validate/:code
+- Check a code before signup
+POST /api/devices Bearer Register/refresh the FCM token
+DELETE /api/devices Bearer Unregister on logout
+POST /api/auth/signup - Now accepts an optional referralCode
+
+--- PAGE 20 ---
+Daketi API Guide · 30 September 2026 Page 20 of 41
+How position works
+Position is computed on read, never stored: the queue is ranked by (verified referrals
+DESC, joined_at ASC) . T wo consequences worth designing the UI around:
+A user's number can move without them doing anything - someone ahead gets
+invited, or a rival earns a referral. Re-read /api/waitlist/me  when the screen is shown
+rather than caching a number from yesterday.
+A referral only counts once the referred account veriﬁes its email. That's
+deliberate - referrals aﬀect position, so unveriﬁed signups would be farmable.
+referralCount  is what counts; pendingReferralCount  is referred-but-unveriﬁed, exposed so
+"I invited 5 but it says 3" is answerable in the UI instead of looking like a bug.
+Status values
+Status Meaning canPlay
+none Never joined the waiting list false
+waiting In the queue - has a position false
+invited Admin has invited them; not yet playable false
+ready Allowed to play true
+active Playing / has played true
+Only waiting  users hold a position. Everyone else gets position: null  - show the status, not
+a stale number. Never gate the UI on the status string yourself: use canPlay , so the
+rule can change server-side without an app release.
+1. Join the Waiting List
+POST /api/waitlist/join
+Authorization: Bearer <token>
+Response (201 ﬁrst time, 200 if already on it):
+
+--- PAGE 21 ---
+Daketi API Guide · 30 September 2026 Page 21 of 41
+{
+  "success": true,
+  "joined": true,
+  "waitlist": {
+    "status": "waiting",
+    "position": 501,
+    "totalWaiting": 500,
+    "joinedAt": "2026-09-24T08:00:00.000Z",
+    "canPlay": false,
+    "referralCode": "ABCD2345",
+    "referralLink": "https://game.daketi.pk/?ref=AB CD2345",
+    "referralCount": 0,
+    "pendingReferralCount": 0
+  }
+}
+Idempotent: calling it again returns 
+200  with joined: false  and keeps the original place -
+a double tap can't send someone to the back of the queue. Safe to call on every app start.
+Errors: 
+401  (missing/expired token), 404  (account deleted).
+2. Waiting-List Status
+GET /api/waitlist/me
+Authorization: Bearer <token>
+Response (200): the same 
+waitlist  object as above.
+This single call covers position, status, referral code, referral count and eligibility -
+deliberately one round trip rather than the separate position/status calls the spec listed,
+since one screen shows all of it.
+3. Play Eligibility
+GET /api/play/eligibility
+Authorization: Bearer <token>
+Response (200):
+{ "success": true, "status": "ready", "canPlay": tr ue }
+The cheap check - use it on resume and before entering a game; use 
+/api/waitlist/me  when
+you're drawing the full screen.
+4. Referrals
+GET /api/referrals/me
+Authorization: Bearer <token>
+
+--- PAGE 22 ---
+Daketi API Guide · 30 September 2026 Page 22 of 41
+Response (200):
+{
+  "success": true,
+  "referralCode": "ABCD2345",
+  "referralLink": "https://game.daketi.pk/?ref=ABCD 2345",
+  "referralCount": 2,
+  "pendingReferralCount": 1,
+  "referrals": [
+    { "name": "Sara", "verified": true,  "joinedAt" : "2026-09-21T10:00:00.000Z" },
+    { "name": "Omar", "verified": false, "joinedAt" : "2026-09-22T11:30:00.000Z" }
+  ]
+}
+Codes are 8 characters from an unambiguous alphabet (no 
+O / 0 , no I / 1 ) because people
+read them oﬀ a friend's screen. A user who signed up before referrals existed gets a code the
+ﬁrst time this is called - no migration needed.
+5. Validate a Code (before signup)
+GET /api/referrals/validate/ABCD2345
+Response (200): { "success": true, "valid": true, "referrerName": " Najeeb" }  Response
+(404): { "success": false, "valid": false, "error": "That referral code is not valid" }
+No auth - the code is meant to be shared, and this only conﬁrms whether one is real.
+Matching is case-insensitive, so don't force-uppercase the user's input. Use it to validate as
+they type instead of failing the whole signup.
+6. Signing Up With a Code
+POST /api/auth/signup
+Content-Type: application/json
+{ "name": "Alice", "email": "alice@example.com", "p assword": "at-least-8-characters", 
+"referralCode": "ABCD2345" }
+Response (201): the usual 
+{ success, token, user } , plus "referredBy": "Najeeb"  when a
+code was used.
+An invalid code fails the signup with 
+400  rather than being silently ignored - a typo'd
+code would otherwise cost the referrer their credit with nobody noticing. Empty string or
+omitted means "no code" and is ﬁne. If you take the code from a deep link
+(
+https://game.daketi.pk/?ref=ABCD2345 ), validate it ﬁrst so the user can ﬁx it before ﬁlling in
+the form.
+
+--- PAGE 23 ---
+Daketi API Guide · 30 September 2026 Page 23 of 41
+7. Push Notiﬁcation Devices
+POST /api/devices
+Authorization: Bearer <token>
+Content-Type: application/json
+{ "token": "<FCM registration token>", "platform": "android" }
+Response (200): 
+{ "success": true, "device": { "platform": "android ", "registeredAt":
+"...", "lastSeenAt": "..." } }
+platform  is optional, one of ios  / android  / web . Call this on login and on every Firebase
+token refresh - FCM rotates tokens, and a stale one silently stops receiving anything.
+DELETE /api/devices
+Authorization: Bearer <token>
+{ "token": "<FCM registration token>" }
+Call on logout, or a shared handset keeps receiving the previous account's notiﬁcations.
+Deleting an already-gone token is 
+200  with removed: false , not an error.
+T okens are stored against the device, not the user: registering a token that already exists
+reassigns it to the current account, which is what makes a handed-over phone behave
+correctly.
+Push payload format
+Every notiﬁcation carries a notification  block (title/body, shown by the OS) and a data
+block the app switches on. All data  values are strings - FCM's own constraint, so position
+arrives as "42" , not 42 .
+{
+  "notification": { "title": "You're in!", "body": "Your Daketi invitation is ready." },
+  "data": { "type": "waitlist_status", "status": "i nvited" }
+}
+type Sent when Extra
+data
+Suggested action
+app_live The game goes live
+(broadcast)
+- Open the app / home
+waitlist_st
+atus
+Their status changes (e.g.
+invited)
+status Refresh /api/waitlist/me , show the
+waiting-list screen
+play_unlock
+ed
+They become able to play status Re-check /api/play/eligibility , then
+let them in
+referral_cr
+edited
+A referred friend veriﬁed
+their email
+referredN
+ame
+Refresh the referral screen; their position
+may have moved
+
+--- PAGE 24 ---
+Daketi API Guide · 30 September 2026 Page 24 of 41
+Treat the push as a hint, not a source of truth - always re-read the relevant endpoint
+before changing what the user can do. A push can arrive late, twice, or not at all, and
+canPlay  from the API is the only thing that should open the door.
+The ﬂow end to end
+1. User signs up (optionally with a referral code from a deep link) and logs in.
+2. App registers its FCM token with 
+POST /api/devices .
+3. App calls POST /api/waitlist/join , then shows position  / totalWaiting .
+4. User shares referralLink ; each friend who signs up and veriﬁes their email lifts their
+position.
+5. Admin invites people oﬀ the list; the user gets a waitlist_status  push.
+6. Admin marks them ready; a play_unlocked  push arrives and canPlay  ﬂips to true .
+7. App re-checks /api/play/eligibility  and opens the game.
+
+--- PAGE 25 ---
+Daketi API Guide · 30 September 2026 Page 25 of 41
+Flutter example
+class WaitlistApi {
+  WaitlistApi(this.baseUrl, this.token);
+  final String baseUrl;
+  final String token;
+  Map<String, String> get _headers => {
+    'Content-Type': 'application/json',
+    'Authorization': 'Bearer $token',
+  };
+  Future<Map<String, dynamic>> join() async {
+    final res = await http.post(Uri.parse('$baseUrl /api/waitlist/join'), headers: _headers);
+    return jsonDecode(res.body)['waitlist'];
+  }
+  Future<Map<String, dynamic>> status() async {
+    final res = await http.get(Uri.parse('$baseUrl/ api/waitlist/me'), headers: _headers);
+    return jsonDecode(res.body)['waitlist'];
+  }
+  Future<bool> canPlay() async {
+    final res = await http.get(Uri.parse('$baseUrl/ api/play/eligibility'), headers: _headers);
+    return jsonDecode(res.body)['canPlay'] == true;
+  }
+  /// Call on login and from FirebaseMessaging.onTo kenRefresh.
+  Future<void> registerDevice(String fcmToken) asyn c {
+    await http.post(
+      Uri.parse('$baseUrl/api/devices'),
+      headers: _headers,
+      body: jsonEncode({
+        'token': fcmToken,
+        'platform': Platform.isIOS ? 'ios' : 'androi d',
+      }),
+    );
+  }
+}
+// Push arrives -> re-read the API, never trust the  payload alone.
+FirebaseMessaging.onMessage.listen((message) async {
+  switch (message.data['type']) {
+    case 'play_unlocked':
+      if (await api.canPlay()) unlockGame();
+      break;
+    case 'waitlist_status':
+    case 'referral_credited':
+      refreshWaitlistScreen(await api.status());
+      break;
+    case 'app_live':
+      goHome();
+      break;
+  }
+});
+
+--- PAGE 26 ---
+Daketi API Guide · 30 September 2026 Page 26 of 41
+Socket.io Events
+Client → Server Events
+1. Join Game
+Works the same for solo and multiplayer games - call it right after creating (or whenever
+joining an existing) room.
+socket.emit('join_game', {
+  'gameId': '0472',
+  'playerName': 'John',
+  'token': authToken,            // optional JWT - omit for guests, see below
+  'reconnectToken': savedToken,  // optional - send  it back to reclaim your seat
+}, (response) {
+  // response: { success, playerId, reconnectToken,  reclaimed, gameState }
+  // For solo games, the game auto-starts as soon a s you (the 1 human) join.
+  // For multiplayer rooms, status stays "waiting" until everyone is ready.
+  print(response);
+});
+Errors: 
+"Game not found" , "Game is full"  (room already has maxPlayers  players).
+token  is how a game gets recorded against an account. Pass the JWT from signup/login
+(the same one you'd put in an Authorization  header) and, when the game ﬁnishes, the result
+is written to that user's record - feeding /api/auth/me  stats, /api/auth/me/history  and the
+leaderboard.
+Whenever you have a logged-in user, send it. If you don't:
+The join still succeeds and the game plays identically - the player is simply treated as a
+guest.
+Nothing is saved. No stats, no history row, no leaderboard entry, and there's no way to
+backﬁll it afterwards - the game is gone from Redis by the time anyone notices.
+An invalid or expired token is treated exactly like no token: a silent guest session, no error.
+So a user whose 30-day JWT quietly expired keeps playing while their games stop counting,
+with nothing in the response to reveal it. Guard against it on the client: call 
+/api/auth/me  on
+app start (and on resume) and force a re-login on 401  before letting them into a game.
+playerName  is still yours to choose and is not taken from the account - pass the account's
+name yourself if you want them to match.
+Reconnecting: reconnectToken
+Every join response carries a reconnectToken . Persist it, and send it back on every
+subsequent join for that game. This is not optional polish on mobile - without it a
+reconnect loses the game.
+
+--- PAGE 27 ---
+Daketi API Guide · 30 September 2026 Page 27 of 41
+Here's why. The server binds your seat to the socket id, and Socket.io issues a new socket
+id every time it reconnects - which on a phone happens constantly: backgrounding the
+app, a screen lock, wiﬁ dropping to cellular, a tunnel. On that new id the server no longer
+recognises you, and before this token existed the outcome was one of:
+a solo game refused you with "Game is full"  (the room is full at 1 human + the AI) - the
+game was unrecoverable;
+a multiplayer room handed you a second seat, stranding your real hand and score in the
+orphaned one.
+Send the token and the server moves your existing seat - hand, stack, score, ready state -
+onto the new socket, and answers with 
+reclaimed: true :
+// first join
+{ success: true, playerId: 'abc123', reconnectToken : '9f2c…', reclaimed: false, gameState: 
+{...} }
+// after a reconnect, same game
+{ success: true, playerId: 'xyz789', reconnectToken : '9f2c…', reclaimed: true,  gameState: 
+{...} }
+Notes:
+playerId  changes on reclaim (it's the new socket id). Always re-read it from the
+response and re-read player ids from gameState ; never hold the old one.
+The token is per game, not per user. Store it against the gameId  and drop it when the
+game ends.
+Treat it as a secret - it's what proves the seat is yours. It's only ever sent to the seat's
+owner, never in a broadcast. Don't log it or show it in a UI.
+Logged-in users get a fallback: if you have no stored reconnectToken  but do send a
+valid token  (JWT), the server matches on the account instead. That covers an app
+reinstall. Guests have no fallback - the token is the only way back.
+Sending neither is still supported and behaves exactly as before (new seat, or "Game is
+full" ), so nothing breaks if you ship this in stages.
+2. Player Ready (multiplayer rooms only)
+socket.emit('player_ready', {
+  'gameId': '0472'
+}, (response) {
+  // Game starts (game_started event fires) once th e room is full AND
+  // every player in it has sent this.
+  print(response);
+});
+
+--- PAGE 28 ---
+Daketi API Guide · 30 September 2026 Page 28 of 41
+3. Draw Card
+socket.emit('draw_card', {
+  'gameId': '0472'
+}, (response) {
+  // response: { success, card, gameState }
+  print('Drew card: ${response['card']}');
+});
+Note: for a human player, the server already auto-draws for you at the start of your turn
+(see the 
+turn_started  event) - you generally won't need to call this yourself unless you're
+building a manual "Draw" button for some other reason.
+4. Capture Table Cards
+socket.emit('capture_table', {
+  'gameId': '0472',
+  'cardId': 'AH'  // Ace of Hearts
+}, (response) {
+  if (response['success']) {
+    print('Captured cards!');
+  }
+});
+Captures every table card matching the played card's value at once, not just one.
+5. Steal from Opponent
+socket.emit('steal_opponent', {
+  'gameId': '0472',
+  'targetPlayerId': 'opponent-socket-id',
+  'cardId': 'KD'  // King of Diamonds
+}, (response) {
+  if (response['success']) {
+    print('Stole cards from opponent!');
+  }
+});
+Only the opponent's top (visible) stack card can be targeted - but if they've built up a run
+of same-value cards on top (via repeated 
+extend_stack ), stealing takes the entire run, not
+just one card. If the value has become "protected" (see below), this is rejected. If, after the
+steal, the table also has matching cards, they're automatically captured too in the same
+action.
+
+--- PAGE 29 ---
+Daketi API Guide · 30 September 2026 Page 29 of 41
+6. Extend Own Stack
+socket.emit('extend_stack', {
+  'gameId': '0472',
+  'cardId': '7H'  // 7 of Hearts
+}, (response) {
+  if (response['success']) {
+    print('Extended stack!');
+  }
+});
+Only legal if the played card's value matches your own stack's current top card.
+7. Discard Card (End Turn)
+socket.emit('discard_card', {
+  'gameId': '0472',
+  'cardId': '3C'  // 3 of Clubs
+}, (response) {
+  if (response['success']) {
+    print('Turn ended!');
+  }
+});
+Important rule: a card cannot be discarded if its value matches any card currently on the
+table - it must be captured instead. The server rejects this with 
+error: "Cannot discard - a
+matching card is on the table, capture it instead" . Your UI should disable/hide the discard
+option for such a card rather than let the player tap it and get an error - check table  for a
+matching value, or just use get_actions  (below) as the source of truth.
+8. Get Available Actions
+socket.emit('get_actions', {
+  'gameId': '0472'
+}, (response) {
+  List actions = response['actions'];
+  // Each entry: { type: 'capture_table'|'steal_opp onent'|'extend_stack'|'discard', cardId, 
+... }
+  // Use this to decide which buttons to enable for  the currently selected card -
+  // it already accounts for the "can't discard a t able-matching card" rule and
+  // the "protected values can't be stolen" rule, s o you don't need to
+  // re-derive that logic client-side.
+});
+If the server doesn't recognise your socket as a player in this game, this returns a speciﬁc,
+recoverable error rather than a generic failure:
+{ "success": false, "error": "Not in this game - re join with your reconnectToken", "code": 
+"NOT_IN_GAME" }
+
+--- PAGE 30 ---
+Daketi API Guide · 30 September 2026 Page 30 of 41
+Check for code == 'NOT_IN_GAME'  and respond by re-emitting join_game  with your stored
+reconnectToken , then retry. It's the clearest signal that your socket reconnected underneath
+you.
+Server → Client Events
+1. Game Started
+socket.on('game_started', (data) {
+  final gameState = data['gameState'];
+  // Update UI - game has begun
+});
+2. Player Joined
+socket.on('player_joined', (data) {
+  final playerName = data['playerName'];
+  final gameState = data['gameState'];
+  // Show notification: "Player joined". Useful for  the multiplayer waiting room.
+});
+2a. Player Reconnected
+socket.on('player_reconnected', (data) {
+  final playerId = data['playerId'];   // their NEW  socket id
+  final playerName = data['playerName'];
+  // Re-read player ids from data['gameState'] - do  not keep the old one.
+});
+Fired instead of 
+player_joined  when an existing player reclaims their seat on a new socket
+(see Join Game). Nobody new entered the game; one player's playerId  changed. Any id
+you're holding for that player - a steal target, for instance - is now stale, so rebuild from
+gameState .
+2b. Player Ready (multiplayer rooms only)
+socket.on('player_ready', (data) {
+  final playerId = data['playerId'];
+  final gameState = data['gameState'];
+  // Someone in the waiting room marked themselves ready - update the room's
+  // ready/not-ready list. gameState.players[i].isR eady reflects current state.
+});
+
+--- PAGE 31 ---
+Daketi API Guide · 30 September 2026 Page 31 of 41
+3. Turn Started
+socket.on('turn_started', (data) {
+  final playerId = data['playerId'];
+  final gameState = data['gameState'];
+  // Whoever's turn it is now (already auto-drew if  human, or AI is about to move)
+});
+4. Action Performed
+socket.on('action_performed', (data) {
+  final actionType = data['type']; // 'capture_tabl e', 'steal_opponent', 'extend_stack'
+  final playerId = data['playerId'];
+  final gameState = data['gameState'];
+  // Animate the action
+});
+5. Turn Ended
+socket.on('turn_ended', (data) {
+  final nextPlayerId = data['nextPlayerId']; // the  player who will actually play next
+  final gameState = data['gameState'];
+  // Update UI - next player's turn
+});
+6. AI Action
+socket.on('ai_action', (data) {
+  final actionType = data['action'];
+  final cardId = data['cardId'];
+  final gameState = data['gameState']; // state as of THIS specific step, not the AI's final 
+state
+  // Animate AI move. Multiple ai_action events fir e in sequence (draw, then
+  // each action, then discard) roughly 500ms apart , each carrying the state
+  // at that exact step - use them to animate the A I's turn move-by-move
+  // rather than jumping straight to the end state.
+});
+7. Game Over
+socket.on('game_over', (data) {
+  final winner = data['winner']; // player id, or t he string "draw"
+  final scores = data['scores']; // [{ id, name, sc ore }, ...]
+  // Show results screen
+});
+This is also the moment results get written to Postgres, for each player who joined with a
+token  - so any stats or history screen you show after this event will be up to date. The write
+happens before the broadcast and is ﬁre-and-forget on failure: if the database write fails, the
+game still ends normally and 
+game_over  still arrives. Don't treat receiving this event as proof
+the result was saved; re-read /api/auth/me  if the number on screen has to be right.
+
+--- PAGE 32 ---
+Daketi API Guide · 30 September 2026 Page 32 of 41
+8. Player Disconnected
+socket.on('player_disconnected', (data) {
+  final playerId = data['playerId'];
+  final playerName = data['playerName'];
+  // Show notification: "Player disconnected"
+});
+Game State Structure
+The gameState  object you receive looks like this:
+{
+  "gameId": "0472",
+  "status": "playing",  // 'waiting', 'playing', 'f inished'
+  "players": [
+    {
+      "id": "player-socket-id",
+      "name": "John",
+      "type": "human",  // or "ai"
+      "hand": ["AH", "KD", "7C", "3S"],  // Your ca rds (visible only to you)
+      "handCount": 4,
+      "stack": ["QH", "QD", "5S"],  // Your full st ack (visible only to you)
+      "stackCount": 3,
+      "topCard": "5S",  // Top card (visible to all )
+      "score": 25,
+      "isConnected": true,
+      "isReady": true  // relevant pre-game, in the  multiplayer waiting room
+    }
+    // ... other players (their "hand" will be ["hi dden", "hidden", ...],
+    // and "stack" will only contain their topCard,  not the full stack)
+  ],
+  "maxPlayers": 4,  // room capacity chosen at crea tion (2-4)
+  "table": ["2H", "9D", "JC", "AS"],  // Cards on t able (visible to all)
+  "deckCount": 28,  // Remaining cards in deck
+  "currentTurn": 1,  // Index of current player
+  "currentPlayerId": "player-socket-id",
+  "turnStartTime": 1234567890,
+  "turnTimeLimit": 30,
+  "dealer": 0,
+  "round": 1,
+  "protectedValues": ["K", "A"],  // Card values th at can't be stolen anymore -
+                                    // in the order  they became protected during
+                                    // this game, n ot sorted by rank
+  "winner": null  // or player-id or "draw"
+}
+
+--- PAGE 33 ---
+Daketi API Guide · 30 September 2026 Page 33 of 41
+Card Format
+Cards are represented as 2-character strings:
+Format: 
+[Value][Suit]
+Values:
+2-9 : Number cards
+T : 10
+J : Jack
+Q : Queen
+K : King
+A : Ace
+Suits:
+H : Hearts ♥
+D : Diamonds ♦
+C : Clubs ♣
+S : Spades ♠
+Examples:
+AH  = Ace of Hearts
+KD  = King of Diamonds
+TD  = 10 of Diamonds
+7C  = 7 of Clubs
+Game Rules the Client Must Respect
+These aren't just documentation - the server enforces all of them and will reject illegal
+requests, but your UI should proactively disable illegal moves rather than let the player tap
+them and see an error:
+1. Can't discard a card matching the table. If any card in 
+table  shares a value with the
+card the player has selected, "discard" must be hidden/disabled for it - only "capture" is
+legal. Check via 
+get_actions  or by comparing the selected card's value against table .
+2. Only the top stack card is stealable, and only if its value isn't in protectedValues .
+3. A value becomes protected once all 4 copies are in someone's stack - not just oﬀ
+the table/deck. A copy still sitting in any player's hand does not count as protected yet.
+4. Extending your own stack requires the played card's value to match your current top
+stack card exactly.
+
+--- PAGE 34 ---
+Daketi API Guide · 30 September 2026 Page 34 of 41
+5. Exactly one card must be discarded to end a turn - but combo chains let a player
+capture/steal/extend repeatedly (auto-drawing after each) before ﬁnally discarding.
+6. During the endgame (deck empty), actions stop auto-drawing; if an action empties a
+player's hand entirely, their turn ends automatically without needing a discard.
+
+--- PAGE 35 ---
+Daketi API Guide · 30 September 2026 Page 35 of 41
+Example Flutter Implementation
+Game Provider (Riverpod)
+import 'package:flutter_riverpod/flutter_riverpod.d art';
+import 'package:socket_io_client/socket_io_client.d art' as IO;
+class GameState {
+  final String? gameId;
+  final String? playerId;
+  final Map<String, dynamic>? gameData;
+  final bool isConnected;
+  final String? error;
+  GameState({
+    this.gameId,
+    this.playerId,
+    this.gameData,
+    this.isConnected = false,
+    this.error,
+  });
+  GameState copyWith({
+    String? gameId,
+    String? playerId,
+    Map<String, dynamic>? gameData,
+    bool? isConnected,
+    String? error,
+  }) {
+    return GameState(
+      gameId: gameId ?? this.gameId,
+      playerId: playerId ?? this.playerId,
+      gameData: gameData ?? this.gameData,
+      isConnected: isConnected ?? this.isConnected,
+      error: error,
+    );
+  }
+}
+class GameNotifier extends StateNotifier<GameState>  {
+  GameNotifier() : super(GameState());
+  late IO.Socket socket;
+  static const String serverUrl = 'https://game.dak eti.pk'; // 'http://localhost:3006' in dev
+  /// JWT from signup/login, or null for a guest. S et it before joining -
+  /// games joined without it are never recorded ag ainst the account.
+  String? authToken;
+  void connect() {
+    socket = IO.io(serverUrl, <String, dynamic>{
+      'transports': ['websocket'],
+      'autoConnect': true,
+    });
+    socket.onConnect((_) {
+      state = state.copyWith(isConnected: true, err or: null);
+      // Socket.io reconnects with a NEW socket id,  which the server reads as a
+
+--- PAGE 36 ---
+Daketi API Guide · 30 September 2026 Page 36 of 41
+      // different player. Rejoin with the stored s eat token to get the same
+      // hand and score back; without this the game  is lost on every drop.
+      final gameId = state.gameId;
+      if (gameId != null && _reconnectToken != null ) {
+        _joinGame(gameId, _currentPlayerName ?? 'Pla yer');
+      }
+    });
+    socket.on('player_reconnected', (data) {
+      // Someone's socket id changed - rebuild from  gameState, don't reuse ids.
+      state = state.copyWith(gameData: data['gameSt ate']);
+    });
+    socket.onDisconnect((_) {
+      state = state.copyWith(isConnected: false);
+    });
+    // Listen to game events
+    socket.on('game_started', (data) {
+      state = state.copyWith(gameData: data['gameSt ate']);
+    });
+    socket.on('turn_started', (data) {
+      state = state.copyWith(gameData: data['gameSt ate']);
+    });
+    socket.on('action_performed', (data) {
+      state = state.copyWith(gameData: data['gameSt ate']);
+    });
+    socket.on('turn_ended', (data) {
+      state = state.copyWith(gameData: data['gameSt ate']);
+    });
+    socket.on('ai_action', (data) {
+      state = state.copyWith(gameData: data['gameSt ate']);
+    });
+    socket.on('game_over', (data) {
+      _reconnectToken = null; // seat token is per game - drop it when it ends
+      state = state.copyWith(gameData: data['gameSt ate']);
+    });
+  }
+  Future<void> createSoloGame(String playerName, {i nt aiCount = 1, String difficulty = 
+'master'}) async {
+    final response = await http.post(
+      Uri.parse('$serverUrl/api/game/solo'),
+      headers: {'Content-Type': 'application/json'} ,
+      body: jsonEncode({'playerName': playerName, ' aiCount': aiCount, 'difficulty': 
+difficulty}),
+    );
+    final data = jsonDecode(response.body);
+    if (data['success']) {
+      state = state.copyWith(gameId: data['gameId'] );
+      _joinGame(data['gameId'], playerName);
+    } else {
+      state = state.copyWith(error: data['error']);
+
+--- PAGE 37 ---
+Daketi API Guide · 30 September 2026 Page 37 of 41
+    }
+  }
+  Future<void> createMultiplayerRoom(String playerN ame, {int maxPlayers = 4}) async {
+    final response = await http.post(
+      Uri.parse('$serverUrl/api/game/multiplayer'),
+      headers: {'Content-Type': 'application/json'} ,
+      body: jsonEncode({'playerName': playerName, ' maxPlayers': maxPlayers}),
+    );
+    final data = jsonDecode(response.body);
+    if (data['success']) {
+      state = state.copyWith(gameId: data['gameId'] );
+      _joinGame(data['gameId'], playerName);
+    } else {
+      state = state.copyWith(error: data['error']);
+    }
+  }
+  Future<void> joinExistingGame(String gameId, Stri ng playerName) async {
+    _joinGame(gameId, playerName);
+  }
+  /// Seat token for the game currently being playe d. Persist this (it only
+  /// has to outlive a socket drop, so in-memory is  the minimum; secure
+  /// storage keyed by gameId also survives the app  being killed).
+  String? _reconnectToken;
+  String? _currentPlayerName;
+  void _joinGame(String gameId, String playerName) {
+    _currentPlayerName = playerName;
+    socket.emit('join_game', {
+      'gameId': gameId,
+      'playerName': playerName,
+      if (authToken != null) 'token': authToken,
+      if (_reconnectToken != null) 'reconnectToken' : _reconnectToken,
+    }, (response) {
+      if (response['success']) {
+        // playerId is the socket id and CHANGES whe n a seat is reclaimed -
+        // always take the new one rather than keepi ng the old.
+        _reconnectToken = response['reconnectToken']  ?? _reconnectToken;
+        state = state.copyWith(
+          gameId: gameId,
+          playerId: response['playerId'],
+          gameData: response['gameState'],
+        );
+      } else {
+        state = state.copyWith(error: response['erro r']);
+      }
+    });
+  }
+  void sendReady() {
+    socket.emit('player_ready', {'gameId': state.ga meId}, (response) {
+      if (!response['success']) {
+        state = state.copyWith(error: response['erro r']);
+      }
+    });
+  }
+
+--- PAGE 38 ---
+Daketi API Guide · 30 September 2026 Page 38 of 41
+  void discardCard(String cardId) {
+    socket.emit('discard_card', {
+      'gameId': state.gameId,
+      'cardId': cardId,
+    }, (response) {
+      if (response['success']) {
+        state = state.copyWith(gameData: response['g ameState']);
+      } else {
+        state = state.copyWith(error: response['erro r']);
+      }
+    });
+  }
+  // Add other methods (capture_table, steal_oppone nt, extend_stack) the same way...
+}
+final gameProvider = StateNotifierProvider<GameNoti fier, GameState>((ref) {
+  return GameNotifier();
+});
+
+--- PAGE 39 ---
+Daketi API Guide · 30 September 2026 Page 39 of 41
+Usage in Widget
+class GameScreen extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context, WidgetRef ref)  {
+    final gameState = ref.watch(gameProvider);
+    final gameNotifier = ref.read(gameProvider.noti fier);
+    if (gameState.gameData == null) {
+      return Center(child: CircularProgressIndicato r());
+    }
+    if (gameState.gameData!['status'] == 'waiting')  {
+      // Multiplayer waiting room: show players lis t + a "Ready" button
+      return WaitingRoomScreen(gameState: gameState , onReady: gameNotifier.sendReady);
+    }
+    final currentPlayer = (gameState.gameData!['pla yers'] as List)
+        .firstWhere((p) => p['id'] == gameState.play erId);
+    return Scaffold(
+      body: Column(
+        children: [
+          // Table cards
+          Text('Table: ${gameState.gameData!['table ']}'),
+          // Player hand
+          Wrap(
+            children: (currentPlayer['hand'] as Lis t).map((cardId) {
+              return GestureDetector(
+                onTap: () {
+                  // Handle card tap
+                },
+                child: CardWidget(cardId: cardId),
+              );
+            }).toList(),
+          ),
+          // Action buttons
+          ElevatedButton(
+            onPressed: () => gameNotifier.discardCa rd(/* selected card */ ''),
+            child: Text('Play Card / End Turn'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+Testing Tips
+1. Use the React web app - https://game.daketi.pk  in production, http://localhost:3006  in
+dev (same app also served at /app ) - to understand the game ﬂow before writing Flutter
+code against it. It's a real client against the same API, so anything it can do, your app can
+
+--- PAGE 40 ---
+Daketi API Guide · 30 September 2026 Page 40 of 41
+do.
+2. Test solo games ﬁrst - easier to debug without multiplayer complexity.
+3. For multiplayer, open two browser tabs on the web app to simulate two players
+joining the same room by code.
+4. Watch the Action Log for a raw play-by-play when debugging a speciﬁc sequence. It's
+hidden unless a player in the game is named "Qamar" or "Najeeb" (internal testers),
+which also unlocks the Protected Cards panel. Both are client-side ﬂags in the web
+app only - the backend doesn't treat those names specially, so don't build the same gate
+into Flutter expecting server support.
+5. Check gameState structure - log it to console/debugger to understand the data as it
+evolves.
+6. Test the logged-in path explicitly. Guest and logged-in games look identical while
+playing, and the only diﬀerence shows up after 
+game_over  - so create an account, play a
+game through with token  set, then check GET /api/auth/me  and /api/auth/me/history . If
+the numbers don't move, the token isn't reaching join_game .
+7. Expect rate limits during team testing - everyone behind one oﬃce IP shares the 5-
+signups-per-15-minutes and 3-forgot-passwords-per-hour buckets. See Rate Limits.
+Common Gotchas
+1. Card IDs are strings, not objects ( "AH"  not {value: "A", suit: "H"} ).
+2. Opponent hands are hidden - you'll see ["hidden", "hidden", ...] ; opponent stacks
+only show their top card, not the full stack.
+3. Actions auto-draw cards - after capture/steal/extend, a new card is automatically
+drawn (unless the deck is empty).
+4. Discard always ends the turn, and can't be used on a card that matches something on
+the table (see Game Rules).
+5. Protected cards - check protectedValues  to see which values can no longer be stolen;
+note the array order is chronological (when each value became protected), not sorted by
+rank.
+6. 
+gameId  is a string, even though it looks numeric ( "0472" ) - don't parse it as an int, and
+don't strip leading zeros.
+7. transports: ['websocket']  is mandatory - omitting it will simply fail to connect (see
+Socket.io Setup).
+8. playerId  comes from the socket, not the REST call - the REST create-game
+endpoints only return gameId ; call join_game  over the socket to get your actual playerId .
+9. Account login is separate from game identity - being logged in ( /api/auth/* ) doesn't
+automatically set your playerName  when joining a game; you still pass a name explicitly to
+join_game .
+
+--- PAGE 41 ---
+Daketi API Guide · 30 September 2026 Page 41 of 41
+10. Persist reconnectToken  or reconnects lose the game - a new socket id means a new
+identity to the server. On mobile this ﬁres constantly (backgrounding, wiﬁ↔cellular). See
+Reconnecting.
+11. playerId  is not stable across a reconnect - it's the socket id, and it changes when the
+seat is reclaimed. Re-read it from every join response and take player ids from gameState ,
+never from memory.
+12. Forgetting token  on join_game  silently loses the result - the game plays ﬁne, then
+nothing is recorded. An expired token behaves the same way, with no error. See Join
+Game.
+13. Response key casing is mixed - the user object is camelCase  ( emailVerified ,
+dateOfBirth ), but stats, history and leaderboard rows come straight from SQL as
+snake_case  ( games_won , is_winner , played_at ). Inside a history row's opponents , it's back
+to camelCase  ( isWinner ). Check the examples rather than guessing.
+14. PATCH /api/auth/me  needs name  every time - it's a full update, so sending only
+dateOfBirth  fails with 400 "Name is required" .
+15. Handle 429  - the auth endpoints are rate-limited per IP, and a client that only checks
+success  will report "login failed" to someone who just needs to wait.
+16. Password reset and veriﬁcation emails point at the web app, not the app - deep
+linking into Flutter needs a backend change too. See Email links and deep linking.
+Support
+If you encounter any issues:
+1. Check the backend logs ( pm2 logs daketi )
+2. T est with the web app ﬁrst (https://game.daketi.pk , or http://localhost:3006  in dev)
+3. Verify WebSocket connection is established ( transports: ['websocket']  on both ends)
+4. Check that gameId  and playerId  are being passed correctly
+5. Ask the backend dev - the game engine ( backend/src/services/gameEngine.js ) is the source
+of truth for exact rule behavior if this guide and reality ever disagree
+Good luck with the Flutter implementation! /g3C3

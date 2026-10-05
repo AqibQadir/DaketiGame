@@ -1,11 +1,11 @@
-import '../../../../core/widgets/game_styled_dialog.dart';
+import '../widgets/profile_edit_dialog.dart';
+import '../widgets/account_options_dialog.dart';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/constants/app_assets.dart';
 import '../../../../core/routes/app_routes.dart';
-import '../../../../core/widgets/game_dialog_title.dart';
 import '../../../../core/widgets/game_background.dart';
 import '../../../../core/widgets/game_alert.dart';
 import '../../../../core/widgets/game_button.dart';
@@ -179,7 +179,12 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                               fontSize: 20,
                               height: 1)))),
               const SizedBox(height: 2),
-              Text(user?.email ?? 'Not signed in',
+              Text(
+                  user == null
+                      ? 'Not signed in'
+                      : user.needsEmail
+                          ? 'No email added'
+                          : user.email,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style:
@@ -254,127 +259,27 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                             ? null
                             : () {
                                 setState(() => editMenuOpen = false);
-                                _accountAction(context, ref, 'password');
+                                showDialog<void>(
+                                  context: context,
+                                  barrierDismissible: false,
+                                  builder: (_) => const AccountOptionsDialog(),
+                                );
                               },
-                        child: const Text('Change password')),
-                    if (user?.emailVerified != true)
-                      TextButton(
-                          onPressed: user == null
-                              ? null
-                              : () {
-                                  setState(() => editMenuOpen = false);
-                                  _accountAction(context, ref, 'verify');
-                                },
-                          child: const Text('Verify email')),
+                        child: const Text('Account options')),
                   ]))),
       ])),
     ));
   }
 
   Future<void> _editProfile(BuildContext context, WidgetRef ref) async {
-    final user = ref.read(authControllerProvider).user;
-    if (user == null) return;
-    final name = TextEditingController(text: user.name);
-    final dob = TextEditingController(text: user.dateOfBirth ?? '');
-    final save = await showDialog<bool>(
-        context: context,
-        builder: (context) => GameStyledDialog(
-              scrollable: true,
-              title: const GameDialogTitle('EDIT PROFILE'),
-              content: Column(mainAxisSize: MainAxisSize.min, children: [
-                TextField(
-                    controller: name,
-                    decoration: const InputDecoration(labelText: 'Name')),
-                TextField(
-                    controller: dob,
-                    decoration: const InputDecoration(
-                        labelText: 'Date of birth (YYYY-MM-DD)')),
-              ]),
-              actions: [
-                TextButton(
-                    onPressed: () => _accountAction(context, ref, 'password'),
-                    child: const Text('Change password')),
-                TextButton(
-                    onPressed: () => _accountAction(context, ref, 'verify'),
-                    child: const Text('Resend verification')),
-                TextButton(
-                    onPressed: () => Navigator.pop(context, false),
-                    child: const Text('Cancel')),
-                FilledButton(
-                    onPressed: () => Navigator.pop(context, true),
-                    child: const Text('Save'))
-              ],
-            ));
-    if (save == true) {
-      final ok = await ref.read(authControllerProvider.notifier).updateProfile(
-          name: name.text.trim(),
-          dateOfBirth: dob.text.trim().isEmpty ? null : dob.text.trim());
-      if (context.mounted && !ok) {
-        _message(context,
-            ref.read(authControllerProvider).error ?? 'Update failed.');
-      }
+    final saved = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const ProfileEditDialog(),
+    );
+    if (context.mounted && saved == true) {
+      _message(context, 'Profile updated.');
     }
-    Future<void>.delayed(const Duration(milliseconds: 400), () {
-      name.dispose();
-      dob.dispose();
-    });
-  }
-
-  Future<void> _accountAction(
-      BuildContext context, WidgetRef ref, String value) async {
-    if (value == 'verify') {
-      try {
-        final message = await ref
-            .read(authControllerProvider.notifier)
-            .resendVerification();
-        if (context.mounted) _message(context, message);
-      } catch (error) {
-        if (context.mounted) _message(context, error.toString());
-      }
-      return;
-    }
-    final current = TextEditingController();
-    final next = TextEditingController();
-    final save = await showDialog<bool>(
-        context: context,
-        builder: (context) => GameStyledDialog(
-              scrollable: true,
-              title: const GameDialogTitle('CHANGE PASSWORD'),
-              content: Column(mainAxisSize: MainAxisSize.min, children: [
-                TextField(
-                    controller: current,
-                    obscureText: true,
-                    decoration:
-                        const InputDecoration(labelText: 'Current password')),
-                TextField(
-                    controller: next,
-                    obscureText: true,
-                    decoration:
-                        const InputDecoration(labelText: 'New password'))
-              ]),
-              actions: [
-                TextButton(
-                    onPressed: () => Navigator.pop(context, false),
-                    child: const Text('Cancel')),
-                FilledButton(
-                    onPressed: () => Navigator.pop(context, true),
-                    child: const Text('Update'))
-              ],
-            ));
-    if (save == true) {
-      try {
-        final message = await ref
-            .read(authControllerProvider.notifier)
-            .changePassword(current.text, next.text);
-        if (context.mounted) _message(context, message);
-      } catch (error) {
-        if (context.mounted) _message(context, error.toString());
-      }
-    }
-    Future<void>.delayed(const Duration(milliseconds: 400), () {
-      current.dispose();
-      next.dispose();
-    });
   }
 
   Future<void> _logout(BuildContext context, WidgetRef ref) async {

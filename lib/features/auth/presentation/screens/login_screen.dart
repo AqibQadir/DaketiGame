@@ -11,6 +11,8 @@ import '../../../../core/widgets/game_close_button.dart';
 import '../../../../core/widgets/game_icon_button.dart';
 import '../../../../core/widgets/daketi_logo.dart';
 import '../controllers/auth_controller.dart';
+import '../widgets/facebook_login_button.dart';
+import '../../../../core/services/account_links.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -90,14 +92,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           ),
                         ),
                         Positioned(
-                          top: 82,
+                          top: 46,
                           left: 0,
                           right: 0,
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               const DaketiLogo(width: 320, height: 120),
-                              const SizedBox(height: 32),
+                              const SizedBox(height: 18),
                               AnimatedSlide(
                                 offset: Offset(0, keyboardOpen ? -.55 : 0),
                                 duration: const Duration(milliseconds: 220),
@@ -126,7 +128,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                       ),
                                     ],
                                   ),
-                                  const SizedBox(height: 25),
+                                  const SizedBox(height: 16),
                                   if (loading)
                                     const Padding(
                                       padding: EdgeInsets.only(bottom: 8),
@@ -140,10 +142,22 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                     text: loading ? 'Please wait…' : 'Login',
                                     onTap: loading ? null : submit,
                                   ),
-                                  TextButton(
-                                    onPressed: loading ? null : _forgotPassword,
-                                    child: const Text('Forgot password?'),
-                                  ),
+                                  const FacebookLoginButton(),
+                                  Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        TextButton(
+                                            onPressed: loading
+                                                ? null
+                                                : _forgotPassword,
+                                            child:
+                                                const Text('Forgot password?')),
+                                        TextButton(
+                                            onPressed:
+                                                loading ? null : _openEmailLink,
+                                            child:
+                                                const Text('Open email link')),
+                                      ]),
                                 ]),
                               ),
                             ],
@@ -241,6 +255,37 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           ),
         ),
       );
+
+  Future<void> _openEmailLink() async {
+    final input = TextEditingController();
+    final value = await showDialog<String>(
+        context: context,
+        builder: (context) => GameStyledDialog(
+              title: const GameDialogTitle('OPEN EMAIL LINK'),
+              content: TextField(
+                  controller: input,
+                  decoration: const InputDecoration(
+                      labelText: 'Paste your reset or verification link')),
+              actions: [
+                TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('Cancel')),
+                TextButton(
+                    onPressed: () => Navigator.pop(context, input.text.trim()),
+                    child: const Text('Open'))
+              ],
+            ));
+    Future<void>.delayed(const Duration(milliseconds: 400), input.dispose);
+    if (!mounted || value == null) return;
+    final uri = Uri.tryParse(value);
+    final link = uri == null ? null : AccountLink.parse(uri);
+    if (link == null || (link.resetToken == null && link.verifyToken == null)) {
+      showGameAlert(
+          context, 'Paste a valid Daketi verification or password reset link.');
+      return;
+    }
+    Navigator.pushNamed(context, AppRoutes.accountLink, arguments: uri);
+  }
 
   Future<void> _forgotPassword() async {
     final controller = TextEditingController(text: usernameController.text);
