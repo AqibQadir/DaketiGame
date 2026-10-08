@@ -1,3 +1,4 @@
+import '../../../../core/widgets/game_navigation_footer.dart';
 import 'package:flutter/material.dart';
 
 import '../../../../core/constants/app_assets.dart';
@@ -6,7 +7,6 @@ import '../../../../core/routes/app_routes.dart';
 import '../../../../core/widgets/game_background.dart';
 import '../../../../core/widgets/game_button.dart';
 import '../../../../core/widgets/game_close_button.dart';
-import '../../../../core/widgets/game_icon_button.dart';
 
 class BaithakScreen extends StatelessWidget {
   const BaithakScreen({super.key});
@@ -135,34 +135,7 @@ class BaithakScreen extends StatelessWidget {
                       ),
                     ),
                   ),
-                  Positioned(
-                    left: 30,
-                    bottom: 25,
-                    child: Row(
-                      children: [
-                        GameIconButton(
-                          icon: Icons.settings,
-                          onTap: () {
-                            Navigator.pushNamed(context, AppRoutes.settings);
-                          },
-                        ),
-                        const SizedBox(width: 10),
-                        GameIconButton(
-                          icon: Icons.person,
-                          onTap: () {
-                            Navigator.pushNamed(context, AppRoutes.profile);
-                          },
-                        ),
-                        const SizedBox(width: 10),
-                        GameIconButton(
-                          icon: Icons.support_agent,
-                          onTap: () {
-                            Navigator.pushNamed(context, AppRoutes.support);
-                          },
-                        ),
-                      ],
-                    ),
-                  ),
+                  const GameNavigationFooter(),
                 ],
               ),
             ),

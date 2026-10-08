@@ -114,7 +114,7 @@ class _GameResultsScreenState extends ConsumerState<GameResultsScreen> {
                           top: 115,
                           child: _ResultCard(
                               asset:
-                                  'assets/images/cards/style01/Spades/King.png',
+                                  'assets/images/cards/style01/Spades/KIng.png',
                               angle: -0.17)),
                       const Positioned(
                           right: 100,
@@ -235,11 +235,10 @@ class _GameResultsScreenState extends ConsumerState<GameResultsScreen> {
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
                               GameButton(
-                                text: session.isLoading
-                                    ? 'Please wait'
-                                    : session.isMultiplayer
-                                        ? 'Play again'
-                                        : 'Replay',
+                                isLoading: session.isLoading,
+                                text: session.isMultiplayer
+                                    ? 'Play again'
+                                    : 'Replay',
                                 onTap: session.isLoading
                                     ? null
                                     : () async {

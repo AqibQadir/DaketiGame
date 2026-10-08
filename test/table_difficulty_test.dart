@@ -58,8 +58,9 @@ void main() {
         await tester.pumpAndSettle();
         final card = find.byWidgetPredicate(
             (widget) => widget is TableCard && widget.title == tier.title);
-        await tester
-            .tap(find.descendant(of: card, matching: find.text('ENTER MATCH')));
+        await tester.tap(
+            find.descendant(of: card, matching: find.text('ENTER MATCH')),
+            warnIfMissed: !tier.locked);
         await tester.pumpAndSettle();
         if (tier.locked) {
           expect(find.byType(GuestOpponentScreen), findsNothing);

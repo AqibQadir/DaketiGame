@@ -9,7 +9,15 @@ enum TableTier {
   const TableTier(
       this.title, this.subtitle, this.buyIn, this.reward, this.badge);
 
-  bool get locked => this == TableTier.diamond;
+  bool get locked => this != TableTier.silver;
+
+  // Artwork follows the displayed tier progression; retain existing tier IDs.
+  String get imageAsset => switch (this) {
+        TableTier.silver => 'assets/images/tables/lobbies/tier_bronze.png',
+        TableTier.gold => 'assets/images/tables/lobbies/tier_silver.png',
+        TableTier.platinum => 'assets/images/tables/lobbies/tier_gold.png',
+        TableTier.diamond => 'assets/images/tables/lobbies/tier_final.png',
+      };
 
   final String title;
   final String subtitle;

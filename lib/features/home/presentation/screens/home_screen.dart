@@ -1,3 +1,5 @@
+import '../../../../core/widgets/game_viewport.dart';
+import '../../../../core/widgets/game_navigation_footer.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -15,8 +17,41 @@ import '../../../tables/presentation/widgets/city_table_cards.dart';
 import '../../../game/presentation/controllers/game_controller.dart';
 import '../../../game/domain/models/daketi_game.dart';
 
-class HomeScreen extends ConsumerWidget {
+class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
+  @override
+  ConsumerState<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends ConsumerState<HomeScreen> {
+  Object? promptedGame;
+
+  Future<void> offerRecentGame() async {
+    if (!mounted || ModalRoute.of(context)?.isCurrent != true) return;
+    final join = await showGameConfirmation(
+      context,
+      title: 'BACK TO THE TABLE?',
+      message: 'You have a recent match. Would you like to join it again?',
+      confirmText: 'Join',
+    );
+    if (!mounted || !join) return;
+    final resumed =
+        await ref.read(gameControllerProvider.notifier).resumePreviousGame();
+    if (!mounted) return;
+    if (!resumed) {
+      showGameAlert(
+          context,
+          ref.read(gameControllerProvider).error ??
+              'Unable to rejoin. Please try again.');
+      return;
+    }
+    final game = ref.read(gameControllerProvider).game;
+    Navigator.pushNamed(
+        context,
+        game?.status == DaketiGameStatus.waiting
+            ? AppRoutes.waitingRoom
+            : AppRoutes.game);
+  }
 
   Widget buildCounter({
     required IconData icon,
@@ -55,7 +90,7 @@ class HomeScreen extends ConsumerWidget {
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final auth = ref.watch(authControllerProvider);
     if (auth.isAuthenticated &&
         ref.watch(accessControllerProvider).waitlist?.canPlay != true) {
@@ -63,11 +98,16 @@ class HomeScreen extends ConsumerWidget {
     }
     final user = auth.user;
     final session = ref.watch(gameControllerProvider);
+    if (session.previousGame != null && promptedGame != session.previousGame) {
+      promptedGame = session.previousGame;
+      WidgetsBinding.instance.addPostFrameCallback((_) => offerRecentGame());
+    }
     final guestName = ref.watch(guestNameProvider)?.trim();
     final hasGuestIdentity = guestName != null && guestName.isNotEmpty;
     return Scaffold(
       body: GameBackground(
-        child: Stack(
+        child: GameViewport(
+            child: Stack(
           children: [
             if (auth.isAuthenticated)
               Positioned(
@@ -125,8 +165,8 @@ class HomeScreen extends ConsumerWidget {
             ),
             Positioned(
               top: 12,
-              left: session.previousGame == null ? 310 : 210,
-              right: session.previousGame == null ? 90 : 260,
+              left: 310,
+              right: 90,
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
@@ -164,36 +204,6 @@ class HomeScreen extends ConsumerWidget {
                 },
               ),
             ),
-            if (session.previousGame != null)
-              Positioned(
-                right: 70,
-                top: 12,
-                child: GameButton(
-                  text: session.isLoading ? 'Rejoining…' : 'Join previous game',
-                  width: 180,
-                  onTap: session.isLoading
-                      ? null
-                      : () async {
-                          final controller =
-                              ref.read(gameControllerProvider.notifier);
-                          final resumed = await controller.resumePreviousGame();
-                          if (!context.mounted) return;
-                          if (!resumed) {
-                            showGameAlert(
-                                context,
-                                ref.read(gameControllerProvider).error ??
-                                    'Unable to rejoin. Please try again.');
-                            return;
-                          }
-                          final game = ref.read(gameControllerProvider).game;
-                          Navigator.pushNamed(
-                              context,
-                              game?.status == DaketiGameStatus.waiting
-                                  ? AppRoutes.waitingRoom
-                                  : AppRoutes.game);
-                        },
-                ),
-              ),
             Positioned(
               left: 18,
               top: 88,
@@ -206,13 +216,6 @@ class HomeScreen extends ConsumerWidget {
                       Navigator.pushNamed(context, AppRoutes.sideQuests);
                     },
                   ),
-                  const SizedBox(height: 14),
-                  const GameIconButton(
-                    icon: Icons.calendar_month,
-                    label: 'Daily',
-                    badge: '2',
-                    onTap: null,
-                  ),
                 ],
               ),
             ),
@@ -221,14 +224,6 @@ class HomeScreen extends ConsumerWidget {
               top: 88,
               child: Column(
                 children: [
-                  GameIconButton(
-                    icon: Icons.home_work_outlined,
-                    label: 'Clan',
-                    onTap: () {
-                      Navigator.pushNamed(context, AppRoutes.baithak);
-                    },
-                  ),
-                  const SizedBox(height: 14),
                   GameIconButton(
                     icon: Icons.storefront,
                     label: 'Shop',
@@ -239,43 +234,7 @@ class HomeScreen extends ConsumerWidget {
                 ],
               ),
             ),
-            Positioned(
-              left: 18,
-              bottom: 8,
-              child: Row(
-                children: [
-                  GameIconButton(
-                    icon: Icons.settings,
-                    onTap: () {
-                      Navigator.pushNamed(
-                        context,
-                        AppRoutes.settings,
-                      );
-                    },
-                  ),
-                  const SizedBox(width: 8),
-                  GameIconButton(
-                    icon: Icons.person,
-                    onTap: () {
-                      Navigator.pushNamed(
-                        context,
-                        AppRoutes.profile,
-                      );
-                    },
-                  ),
-                  const SizedBox(width: 8),
-                  GameIconButton(
-                    icon: Icons.support_agent,
-                    onTap: () {
-                      Navigator.pushNamed(
-                        context,
-                        AppRoutes.support,
-                      );
-                    },
-                  ),
-                ],
-              ),
-            ),
+            const GameNavigationFooter(),
             Positioned(
               right: 18,
               bottom: 8,
@@ -350,7 +309,7 @@ class HomeScreen extends ConsumerWidget {
                 ),
               ),
           ],
-        ),
+        )),
       ),
     );
   }

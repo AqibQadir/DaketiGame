@@ -8,6 +8,7 @@ class GameButton extends StatelessWidget {
     required this.text,
     required this.onTap,
     this.width = 155,
+    this.isLoading = false,
     this.icon,
     this.backgroundTint,
     this.backgroundAsset = AppAssets.buttonBrush,
@@ -15,6 +16,7 @@ class GameButton extends StatelessWidget {
     this.fontSize = 18,
   });
 
+  final bool isLoading;
   final String text;
   final VoidCallback? onTap;
   final double width;
@@ -30,11 +32,14 @@ class GameButton extends StatelessWidget {
     final height = width * 39 / 152;
     return Semantics(
       button: true,
-      label: text,
+      label: isLoading ? "$text, loading" : text,
+      enabled: onTap != null && !isLoading,
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          onTap: onTap,
+          onTap: isLoading ? null : onTap,
+          splashColor: Colors.transparent,
+          highlightColor: Colors.transparent,
           borderRadius: BorderRadius.circular(height / 2),
           child: SizedBox(
             width: width,
@@ -46,12 +51,9 @@ class GameButton extends StatelessWidget {
                   backgroundAsset,
                   fit: BoxFit.fill,
                   filterQuality: FilterQuality.high,
-                  color: onTap == null ? Colors.grey : backgroundTint,
-                  colorBlendMode: onTap == null
-                      ? BlendMode.saturation
-                      : backgroundTint != null
-                          ? BlendMode.srcIn
-                          : null,
+                  color: backgroundTint,
+                  colorBlendMode:
+                      backgroundTint != null ? BlendMode.srcIn : null,
                 ),
                 Center(
                   child: Padding(
@@ -61,7 +63,15 @@ class GameButton extends StatelessWidget {
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          if (icon != null) ...[
+                          if (isLoading) ...[
+                            const SizedBox(
+                                width: 14,
+                                height: 14,
+                                child: CircularProgressIndicator(
+                                    strokeWidth: 2, color: Colors.white)),
+                            const SizedBox(width: 6),
+                          ],
+                          if (!isLoading && icon != null) ...[
                             Icon(icon, size: 16, color: Colors.white),
                             const SizedBox(width: 6),
                           ],

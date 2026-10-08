@@ -1,3 +1,4 @@
+import '../../features/auth/presentation/screens/profile_setup_gate.dart';
 import '../../features/friends/presentation/friends_screen.dart';
 import 'package:flutter/material.dart';
 
@@ -55,8 +56,10 @@ class AppRouter {
             AppRoutes.welcome,
             AppRoutes.login,
             AppRoutes.signup,
+            AppRoutes.guestName,
             AppRoutes.home,
             AppRoutes.tables,
+            AppRoutes.tableRoom,
             AppRoutes.game,
             AppRoutes.terms,
             AppRoutes.privacy
@@ -133,7 +136,7 @@ class AppRouter {
       case AppRoutes.faqs:
         return page(const FaqScreen());
       case AppRoutes.home:
-        return page(const HomeScreen());
+        return page(const ProfileSetupGate(child: HomeScreen()));
       case AppRoutes.game:
         return page(const GameScreen());
       case AppRoutes.gameTutorial:

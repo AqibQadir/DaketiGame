@@ -203,11 +203,8 @@ class _WaitingRoomScreenState extends ConsumerState<WaitingRoomScreen> {
                         ),
                         const SizedBox(height: 14),
                         GameButton(
-                          text: session.isLoading
-                              ? 'Sending…'
-                              : isReady
-                                  ? 'Waiting…'
-                                  : 'Ready',
+                          isLoading: session.isLoading,
+                          text: isReady ? 'Waiting…' : 'Ready',
                           width: 180,
                           backgroundTint:
                               isReady ? const Color(0xFFFFD54F) : null,

@@ -55,6 +55,7 @@ class GameSessionState {
     this.lastAiCount = 1,
     this.lastDifficulty = 'master',
     this.chatMessages = const [],
+    this.latestChatMessage,
     this.turnTimerRevision = 0,
     this.recoveryFailed = false,
     this.previousGame,
@@ -77,6 +78,8 @@ class GameSessionState {
   final int lastAiCount;
   final String lastDifficulty;
   final List<RoomChatMessage> chatMessages;
+  // Live delivery only; loading chat history must not replay reactions.
+  final RoomChatMessage? latestChatMessage;
   final int turnTimerRevision;
   final bool recoveryFailed;
   final PreviousGame? previousGame;
@@ -102,6 +105,7 @@ class GameSessionState {
     int? lastAiCount,
     String? lastDifficulty,
     List<RoomChatMessage>? chatMessages,
+    RoomChatMessage? latestChatMessage,
     int? turnTimerRevision,
     bool? recoveryFailed,
     Object? previousGame = _unchanged,
@@ -129,6 +133,7 @@ class GameSessionState {
       lastAiCount: lastAiCount ?? this.lastAiCount,
       lastDifficulty: lastDifficulty ?? this.lastDifficulty,
       chatMessages: chatMessages ?? this.chatMessages,
+      latestChatMessage: latestChatMessage ?? this.latestChatMessage,
       turnTimerRevision: turnTimerRevision ?? this.turnTimerRevision,
       recoveryFailed: recoveryFailed ?? this.recoveryFailed,
       previousGame: previousGame == _unchanged
@@ -800,7 +805,9 @@ class GameController extends StateNotifier<GameSessionState> {
     if (event.name == 'chat_message') {
       final message = RoomChatMessage.fromJson(event.data);
       if (message.message.isNotEmpty) {
-        state = state.copyWith(chatMessages: [...state.chatMessages, message]);
+        state = state.copyWith(
+            chatMessages: [...state.chatMessages, message],
+            latestChatMessage: message);
       }
       return;
     }

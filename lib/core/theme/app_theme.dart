@@ -54,6 +54,7 @@ class AppTheme {
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
           foregroundColor: AppColors.cream,
+          disabledForegroundColor: AppColors.cream,
           textStyle: const TextStyle(
             fontSize: controlFontSize,
             fontWeight: FontWeight.w800,
@@ -63,6 +64,10 @@ class AppTheme {
       ),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
+          backgroundColor: AppColors.orange,
+          disabledBackgroundColor: AppColors.orange,
+          foregroundColor: AppColors.cream,
+          disabledForegroundColor: AppColors.cream,
           textStyle: const TextStyle(
             fontSize: controlFontSize,
             fontWeight: FontWeight.w800,
@@ -72,6 +77,7 @@ class AppTheme {
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
+          disabledForegroundColor: AppColors.cream,
           textStyle: const TextStyle(
             fontSize: controlFontSize,
             fontWeight: FontWeight.w800,

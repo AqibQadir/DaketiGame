@@ -110,7 +110,8 @@ class _AccountLinkScreenState extends ConsumerState<AccountLinkScreen> {
               const SizedBox(height: 12),
               if (!done && link != null)
                 GameButton(
-                    text: busy ? 'Please wait' : 'Confirm',
+                    text: 'Confirm',
+                    isLoading: busy,
                     onTap: busy ? null : submit),
               TextButton(
                   onPressed: busy

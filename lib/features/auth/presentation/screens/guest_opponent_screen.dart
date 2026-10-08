@@ -205,9 +205,10 @@ class _GuestOpponentScreenState extends ConsumerState<GuestOpponentScreen> {
                         ),
                       const Spacer(),
                       GameButton(
-                        text: loading ? 'Starting' : 'Play',
+                        text: 'Play',
+                        isLoading: loading,
                         width: 155,
-                        onTap: loading ? () {} : startGame,
+                        onTap: loading ? null : startGame,
                       ),
                     ]),
                   ),

@@ -12,7 +12,6 @@ import '../../../../core/widgets/game_dialog_title.dart';
 import '../../../../core/constants/app_assets.dart';
 import '../../../../core/services/game_sound_service.dart';
 import '../../domain/models/turn_steal_counter.dart';
-import '../../../../core/widgets/game_close_button.dart';
 import '../../../../core/widgets/game_viewport.dart';
 import '../../domain/models/daketi_game.dart';
 import '../../domain/models/game_action.dart';
@@ -23,6 +22,8 @@ import '../widgets/bike_daketi_overlay.dart';
 import '../widgets/fanned_card_hand.dart';
 import '../widgets/opening_deal_overlay.dart';
 import '../widgets/table_card_slots.dart';
+import '../../domain/models/game_reaction.dart';
+import '../widgets/game_reactions.dart';
 
 // Gameplay palette sampled from the approved table reference.
 const _gold = Color(0xFFC58B43);
@@ -98,8 +99,11 @@ class GameScreen extends ConsumerStatefulWidget {
 
 class _GameScreenState extends ConsumerState<GameScreen> {
   String? selectedCardId;
-  String? chatMessage;
-  Timer? chatTimer;
+  final reactions = <String, GameReaction>{};
+  final reactionTimers = <String, Timer>{};
+  final seenReactionMessages = <String>{};
+  bool reactionsOpen = false;
+  bool sendingReaction = false;
   String? noticeMessage;
   Timer? noticeTimer;
   bool isSubmitting = false;
@@ -326,25 +330,48 @@ class _GameScreenState extends ConsumerState<GameScreen> {
   @override
   void dispose() {
     presentationTimer?.cancel();
-    chatTimer?.cancel();
+    for (final timer in reactionTimers.values) {
+      timer.cancel();
+    }
     noticeTimer?.cancel();
     super.dispose();
   }
 
-  Future<void> sendChatMessage(String message) async {
-    final value = message.trim();
-    if (value.isEmpty) return;
-    final sent =
-        await ref.read(gameControllerProvider.notifier).sendChatMessage(value);
-    if (!sent && mounted) {
-      _message(ref.read(gameControllerProvider).error ?? 'Message not sent.');
-    }
+  void showReaction(String playerId, GameReaction reaction) {
+    reactionTimers.remove(playerId)?.cancel();
+    setState(() => reactions[playerId] = reaction);
+    reactionTimers[playerId] = Timer(const Duration(seconds: 4), () {
+      if (!mounted) return;
+      setState(() => reactions.remove(playerId));
+      reactionTimers.remove(playerId);
+    });
   }
 
-  Future<void> openChatHistory() => showDialog<void>(
-        context: context,
-        builder: (_) => _ChatHistoryDialog(onSend: sendChatMessage),
-      );
+  Future<void> sendReaction(GameReaction reaction) async {
+    final session = ref.read(gameControllerProvider);
+    final playerId = session.playerId;
+    if (playerId == null || sendingReaction) return;
+    final message = reaction.encode(DateTime.now().microsecondsSinceEpoch);
+    seenReactionMessages.add('$playerId:$message');
+    setState(() {
+      reactionsOpen = false;
+      sendingReaction = true;
+    });
+    showReaction(playerId, reaction);
+    // Solo reactions are local; there are no remote players to notify.
+    if (!session.isMultiplayer) {
+      setState(() => sendingReaction = false);
+      return;
+    }
+    final sent = await ref
+        .read(gameControllerProvider.notifier)
+        .sendChatMessage(message);
+    if (!mounted) return;
+    setState(() => sendingReaction = false);
+    if (!sent) {
+      _message('Reaction could not reach the other players.');
+    }
+  }
 
   Future<void> showCapturedCards(GamePlayer player) {
     if (player.id != ref.read(gameControllerProvider).playerId) {
@@ -571,15 +598,22 @@ class _GameScreenState extends ConsumerState<GameScreen> {
     final session = presentedSession == null
         ? liveSession
         : liveSession.copyWith(game: presentedSession!.game);
-    ref.listen(gameControllerProvider.select((value) => value.chatMessages),
-        (previous, next) {
-      if (next.isEmpty || next.length == previous?.length) return;
-      final latest = next.last;
-      chatTimer?.cancel();
-      setState(() => chatMessage = '${latest.senderName}: ${latest.message}');
-      chatTimer = Timer(const Duration(seconds: 5), () {
-        if (mounted) setState(() => chatMessage = null);
-      });
+    ref.listen(
+        gameControllerProvider.select((value) => value.latestChatMessage),
+        (previous, entry) {
+      if (entry == null) return;
+      final reaction = GameReaction.decode(entry.message);
+      final sender = entry.senderId;
+      if (reaction == null ||
+          sender == null ||
+          liveSession.game?.playerById(sender) == null) {
+        return;
+      }
+      if (!seenReactionMessages.add('$sender:${entry.message}')) return;
+      showReaction(sender, reaction);
+      if (seenReactionMessages.length > 200) {
+        seenReactionMessages.removeAll(seenReactionMessages.take(100).toList());
+      }
     });
     final game = session.game;
     final player = game?.playerById(session.playerId);
@@ -617,11 +651,16 @@ class _GameScreenState extends ConsumerState<GameScreen> {
                           stealAnimation != null ||
                           drawAnimation != null ||
                           presentationTimer != null,
-                      chatMessage: chatMessage,
+                      reactions: reactions,
+                      reactionsOpen: reactionsOpen,
+                      onToggleReactions: () =>
+                          setState(() => reactionsOpen = !reactionsOpen),
+                      onCloseReactions: () =>
+                          setState(() => reactionsOpen = false),
+                      reactionsEnabled: !sendingReaction,
                       onCard: selectCard,
                       onAction: perform,
-                      onChat: sendChatMessage,
-                      onOpenChat: openChatHistory,
+                      onReaction: sendReaction,
                       onViewCapturedCards: showCapturedCards,
                       onTurnTimeout: handleTurnTimeout,
                       openingDealPhase: openingDealPhase,
@@ -749,11 +788,14 @@ class _Board extends StatelessWidget {
       required this.selected,
       required this.actions,
       required this.submitting,
-      required this.chatMessage,
+      required this.reactions,
+      required this.reactionsOpen,
+      required this.onToggleReactions,
+      required this.onCloseReactions,
+      required this.reactionsEnabled,
       required this.onCard,
       required this.onAction,
-      required this.onChat,
-      required this.onOpenChat,
+      required this.onReaction,
       required this.onViewCapturedCards,
       required this.onTurnTimeout,
       required this.openingDealPhase,
@@ -771,11 +813,12 @@ class _Board extends StatelessWidget {
   final String? selected;
   final List<GameAction> actions;
   final bool submitting;
-  final String? chatMessage;
+  final Map<String, GameReaction> reactions;
+  final bool reactionsOpen, reactionsEnabled;
+  final VoidCallback onToggleReactions, onCloseReactions;
   final ValueChanged<GameCard> onCard;
   final ValueChanged<GameAction> onAction;
-  final ValueChanged<String> onChat;
-  final VoidCallback onOpenChat;
+  final ValueChanged<GameReaction> onReaction;
   final ValueChanged<GamePlayer> onViewCapturedCards;
   final VoidCallback onTurnTimeout;
   final int openingDealPhase;
@@ -862,19 +905,28 @@ class _Board extends StatelessWidget {
     final topStealAction = stealActionFor(topOpponent);
     final leftStealAction = stealActionFor(leftOpponent);
     final rightStealAction = stealActionFor(rightOpponent);
-    Offset? stealSourceFor(String targetPlayerId) {
-      if (session.playerId == targetPlayerId) return const Offset(400, 330);
-      if (topOpponent?.id == targetPlayerId) {
-        return Offset(
-          isFourPlayerMatch ? 430 : 515,
-          isFourPlayerMatch ? 72 : 70,
-        );
+    // Share pile origins with the animation so it follows the visible stacks,
+    // rather than the players' hands or profile medallions.
+    final topPileOrigin = Offset(
+      isFourPlayerMatch ? 332 : 315,
+      isFourPlayerMatch ? 44 : 49,
+    );
+    const leftPileOrigin = Offset(174, 204);
+    const rightPileOrigin = Offset(844 - 69 - 57, 158);
+    const localPileOrigin = Offset(294, 390 - 10 - 82);
+    const pileCardCenter = Offset(47 * .84 / 2, 67 * .84 / 2);
+    Offset? capturedStackCenterFor(String playerId) {
+      if (session.playerId == playerId) {
+        return localPileOrigin + pileCardCenter;
       }
-      if (leftOpponent?.id == targetPlayerId) {
-        return const Offset(145, 275);
+      if (topOpponent?.id == playerId) {
+        return topPileOrigin + pileCardCenter;
       }
-      if (rightOpponent?.id == targetPlayerId) {
-        return const Offset(680, 185);
+      if (leftOpponent?.id == playerId) {
+        return leftPileOrigin + pileCardCenter;
+      }
+      if (rightOpponent?.id == playerId) {
+        return rightPileOrigin + pileCardCenter;
       }
       return null;
     }
@@ -923,22 +975,52 @@ class _Board extends StatelessWidget {
         ),
       ),
       Positioned(
-          left: 8, top: 5, child: GameCloseButton(size: 58, onTap: onExit)),
-      Positioned(
-          left: 70,
-          top: 12,
-          child: _Square(
-              icon: Icons.group,
-              label: '${game.players.length}/${game.maxPlayers}')),
-      Positioned(
           left: 13,
-          top: 65,
+          top: 12,
           child: _Room(room: session.gameId ?? game.gameId, round: game.round)),
-      const Positioned(right: 13, top: 12, child: _Square(icon: Icons.menu)),
-      const Positioned(
-          right: 13, top: 66, child: _Square(icon: Icons.headset_mic)),
-      const Positioned(
-          right: 13, top: 118, child: _Square(icon: Icons.settings)),
+      Positioned(
+        right: 13,
+        top: 12,
+        child: PopupMenuButton<String>(
+          tooltip: 'Match menu',
+          color: _panelGreen,
+          shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+              side: const BorderSide(color: _gold)),
+          onOpened: onCloseReactions,
+          onSelected: (action) {
+            if (action == 'leave') {
+              onExit();
+            } else if (action == 'settings') {
+              Navigator.pushNamed(context, AppRoutes.settings);
+            } else if (action == 'support') {
+              Navigator.pushNamed(context, AppRoutes.support);
+            }
+          },
+          itemBuilder: (_) => [
+            PopupMenuItem<String>(
+                enabled: false,
+                child: Text('Players ${game.players.length}/${game.maxPlayers}',
+                    style: const TextStyle(color: _cream))),
+            const PopupMenuItem(
+                value: 'settings',
+                child: ListTile(
+                    leading: Icon(Icons.settings, color: _cream),
+                    title: Text('Settings'))),
+            const PopupMenuItem(
+                value: 'support',
+                child: ListTile(
+                    leading: Icon(Icons.headset_mic, color: _cream),
+                    title: Text('Support'))),
+            const PopupMenuItem(
+                value: 'leave',
+                child: ListTile(
+                    leading: Icon(Icons.logout, color: _cream),
+                    title: Text('Leave Match'))),
+          ],
+          child: const _Square(icon: Icons.menu),
+        ),
+      ),
       if (topOpponent != null)
         Positioned(
             // The supplied frames use two distinct top lanes: centered in a
@@ -958,6 +1040,7 @@ class _Board extends StatelessWidget {
               alignment: Alignment.topCenter,
               child: _Seat(
                 player: topOpponent,
+                reaction: reactions[topOpponent.id],
                 identity: topIdentity,
                 place: 0,
                 isActive: game.currentPlayerId == topOpponent.id,
@@ -976,8 +1059,8 @@ class _Board extends StatelessWidget {
         Positioned(
             // Travel with the shifted profile, leaving the hidden hand in its
             // approved position and using the space opened on the left.
-            left: isFourPlayerMatch ? 332 : 315,
-            top: isFourPlayerMatch ? 44 : 49,
+            left: topPileOrigin.dx,
+            top: topPileOrigin.dy,
             child: _CapturePile(
               card: topOpponent!.topCard!,
               count: topOpponent.stackCount,
@@ -993,6 +1076,7 @@ class _Board extends StatelessWidget {
               alignment: Alignment.topLeft,
               child: _Seat(
                 player: leftOpponent,
+                reaction: reactions[leftOpponent.id],
                 identity: leftIdentity,
                 place: 1,
                 isActive: game.currentPlayerId == leftOpponent.id,
@@ -1007,8 +1091,8 @@ class _Board extends StatelessWidget {
             )),
       if (leftOpponent?.topCard != null)
         Positioned(
-            left: 174,
-            top: 204,
+            left: leftPileOrigin.dx,
+            top: leftPileOrigin.dy,
             child: _CapturePile(
               card: leftOpponent!.topCard!,
               count: leftOpponent.stackCount,
@@ -1024,6 +1108,7 @@ class _Board extends StatelessWidget {
               alignment: Alignment.topRight,
               child: _Seat(
                 player: rightOpponent,
+                reaction: reactions[rightOpponent.id],
                 identity: rightIdentity,
                 place: 2,
                 isActive: game.currentPlayerId == rightOpponent.id,
@@ -1038,8 +1123,8 @@ class _Board extends StatelessWidget {
             )),
       if (rightOpponent?.topCard != null)
         Positioned(
-            right: 69,
-            top: 158,
+            left: rightPileOrigin.dx,
+            top: rightPileOrigin.dy,
             child: _CapturePile(
               card: rightOpponent!.topCard!,
               count: rightOpponent.stackCount,
@@ -1068,13 +1153,6 @@ class _Board extends StatelessWidget {
                 onOpeningComplete: openingDealPhase == 1 ? onTableDealt : null,
               ),
             )),
-      if (openingDealPhase >= 2)
-        Positioned(
-            right: 108,
-            top: 12,
-            width: 96,
-            child: Center(
-                child: _TurnLabel(isLocalTurn: session.isCurrentPlayersTurn))),
       Positioned(
           // Keep the radial hand in its own lane to the right of the local
           // medallion. The shared fan pivot must never sit behind the avatar.
@@ -1103,8 +1181,8 @@ class _Board extends StatelessWidget {
           )),
       if (player?.topCard != null)
         Positioned(
-            left: 294,
-            bottom: 10,
+            left: localPileOrigin.dx,
+            top: localPileOrigin.dy,
             child: _CapturePile(
               card: player!.topCard!,
               count: player!.stackCount,
@@ -1117,6 +1195,7 @@ class _Board extends StatelessWidget {
           bottom: 2,
           child: _Medallion(
             player: player,
+            reaction: reactions[session.playerId],
             fallbackName: session.playerName ?? 'YOU',
             isActive: session.isCurrentPlayersTurn,
             isLocal: true,
@@ -1125,16 +1204,6 @@ class _Board extends StatelessWidget {
             timerPaused: stealAnimation != null,
             onTimeout: onTurnTimeout,
           )),
-      if (chatMessage != null)
-        Positioned(
-          left: 205,
-          bottom: 54,
-          child: _ChatBubble(chatMessage!),
-        ),
-      Positioned(
-          left: 4,
-          bottom: 12,
-          child: _Chat(onSend: onChat, onOpenHistory: onOpenChat)),
       if (openingDealPhase >= 2 &&
           selected != null &&
           (actions.isNotEmpty || submitting))
@@ -1149,15 +1218,39 @@ class _Board extends StatelessWidget {
             top: 44,
             width: 190,
             child: _Activity(session.activity!)),
+      Positioned(
+        right: 13,
+        bottom: 72,
+        child: Semantics(
+            button: true,
+            label: 'Open reactions',
+            child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  key: const ValueKey('reaction-button'),
+                  onTap: reactionsEnabled ? onToggleReactions : null,
+                  child: const _Square(icon: Icons.emoji_emotions_outlined),
+                ))),
+      ),
+      if (reactionsOpen) ...[
+        Positioned.fill(
+            child: GestureDetector(
+                key: const ValueKey('reaction-dismiss'),
+                behavior: HitTestBehavior.opaque,
+                onTap: onCloseReactions)),
+        Positioned(
+            right: 13,
+            bottom: 72,
+            child: ReactionPicker(
+                onSelect: onReaction, onClose: onCloseReactions)),
+      ],
       if (stealAnimation case final animation?)
         BikeDaketiOverlay(
           key: ValueKey(animation.id),
-          source: stealSourceFor(animation.targetPlayerId) ??
-              const Offset(700, 185),
-          destination: animation.actorPlayerId == session.playerId
-              ? const Offset(400, 330)
-              : stealSourceFor(animation.actorPlayerId) ??
-                  const Offset(515, 89),
+          source: capturedStackCenterFor(animation.targetPlayerId) ??
+              localPileOrigin + pileCardCenter,
+          destination: capturedStackCenterFor(animation.actorPlayerId) ??
+              topPileOrigin + pileCardCenter,
           cardCount: animation.cardCount,
           cards: animation.cards,
           isLocalVictim: animation.targetPlayerId == session.playerId,
@@ -1343,27 +1436,17 @@ class _Panel extends StatelessWidget {
 }
 
 class _Square extends StatelessWidget {
-  const _Square({required this.icon, this.label});
+  const _Square({required this.icon});
   final IconData icon;
-  final String? label;
   @override
   Widget build(BuildContext context) => SizedBox(
-      width: label == null ? 48 : 76,
-      height: 45,
-      child: _Panel(
+        width: 48,
+        height: 45,
+        child: _Panel(
           padding: const EdgeInsets.symmetric(horizontal: 6),
-          child: FittedBox(
-              fit: BoxFit.scaleDown,
-              child:
-                  Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                Icon(icon, color: _cream, size: 23),
-                if (label != null) ...[
-                  const SizedBox(width: 5),
-                  Text(label!,
-                      style: const TextStyle(
-                          fontWeight: FontWeight.w900, fontSize: 14))
-                ]
-              ]))));
+          child: Center(child: Icon(icon, color: _cream, size: 23)),
+        ),
+      );
 }
 
 class _Room extends StatelessWidget {
@@ -1388,6 +1471,7 @@ class _Room extends StatelessWidget {
 class _Seat extends StatelessWidget {
   const _Seat({
     required this.player,
+    this.reaction,
     required this.identity,
     required this.place,
     required this.isActive,
@@ -1402,6 +1486,7 @@ class _Seat extends StatelessWidget {
     this.handTop,
   });
   final GamePlayer player;
+  final GameReaction? reaction;
   final _PlayerIdentity? identity;
   final int place;
   final bool isActive;
@@ -1428,12 +1513,19 @@ class _Seat extends StatelessWidget {
                       ? 0
                       : null,
               right: side && place == 2 ? 0 : null,
-              top: side ? 2 : 0,
+              top: side
+                  ? (place == 2 && reaction != null ? 20 : 2)
+                  : reaction != null
+                      ? 40
+                      : 0,
               child: Transform.scale(
-                scale: identityScale,
+                // Keep the top profile clear of the table while its bubble is visible.
+                scale:
+                    identityScale * (place == 0 && reaction != null ? .65 : 1),
                 alignment: Alignment.topLeft,
                 child: _Medallion(
                   player: player,
+                  reaction: reaction,
                   displayName: identity?.name,
                   avatarAsset: identity?.avatarAsset,
                   isActive: isActive,
@@ -1465,6 +1557,7 @@ class _Seat extends StatelessWidget {
 class _Medallion extends StatefulWidget {
   const _Medallion({
     required this.player,
+    this.reaction,
     required this.isActive,
     required this.isLocal,
     required this.game,
@@ -1477,6 +1570,7 @@ class _Medallion extends StatefulWidget {
   });
 
   final GamePlayer? player;
+  final GameReaction? reaction;
   final bool isActive;
   final bool isLocal;
   final DaketiGame game;
@@ -1635,80 +1729,91 @@ class _MedallionState extends State<_Medallion> with WidgetsBindingObserver {
     return SizedBox(
         width: 96,
         height: 110,
-        child: Stack(alignment: Alignment.topCenter, children: [
-          SizedBox(
-            width: 62,
-            height: 62,
-            child: Stack(alignment: Alignment.center, children: [
-              if (widget.isActive)
-                SizedBox.expand(
-                  child: CustomPaint(
-                    painter: _TurnTimerRingPainter(
-                      progress: progress,
-                      color: ringColor,
-                    ),
-                  ),
-                ),
-              TweenAnimationBuilder<double>(
-                key: ValueKey(widget.isActive),
-                tween: Tween(begin: widget.isActive ? 1.0 : 0.0, end: 0.0),
-                duration: const Duration(milliseconds: 900),
-                curve: Curves.easeOutCubic,
-                builder: (context, emphasis, child) => DecoratedBox(
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: _gold.withValues(alpha: emphasis * .55),
-                        blurRadius: 8 + emphasis * 10,
-                        spreadRadius: emphasis * 3,
-                      )
-                    ],
-                  ),
-                  child: child,
-                ),
-                child: Container(
-                  width: 54,
-                  height: 54,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: const RadialGradient(
-                      colors: [Color(0xFF695B35), _panelBlack],
-                    ),
-                    border: Border.all(color: _gold, width: 1.4),
-                    boxShadow: [
-                      BoxShadow(
-                        color: widget.isActive
-                            ? ringColor.withValues(alpha: .5)
-                            : Colors.black87,
-                        blurRadius: widget.isActive ? 10 : 7,
+        child: Stack(
+            clipBehavior: Clip.none,
+            alignment: Alignment.topCenter,
+            children: [
+              if (widget.reaction != null)
+                Positioned(
+                    top: -40,
+                    left: -29,
+                    child: PlayerReactionBubble(
+                      key: ValueKey('player-reaction-${widget.player?.id}'),
+                      reaction: widget.reaction!,
+                    )),
+              SizedBox(
+                width: 62,
+                height: 62,
+                child: Stack(alignment: Alignment.center, children: [
+                  if (widget.isActive)
+                    SizedBox.expand(
+                      child: CustomPaint(
+                        painter: _TurnTimerRingPainter(
+                          progress: progress,
+                          color: ringColor,
+                        ),
                       ),
-                    ],
-                  ),
-                  child: ClipOval(
-                    child: Image.asset(
-                      widget.avatarAsset ?? AppAssets.playerAvatar,
-                      fit: BoxFit.cover,
-                      filterQuality: FilterQuality.high,
+                    ),
+                  TweenAnimationBuilder<double>(
+                    key: ValueKey(widget.isActive),
+                    tween: Tween(begin: widget.isActive ? 1.0 : 0.0, end: 0.0),
+                    duration: const Duration(milliseconds: 900),
+                    curve: Curves.easeOutCubic,
+                    builder: (context, emphasis, child) => DecoratedBox(
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: _gold.withValues(alpha: emphasis * .55),
+                            blurRadius: 8 + emphasis * 10,
+                            spreadRadius: emphasis * 3,
+                          )
+                        ],
+                      ),
+                      child: child,
+                    ),
+                    child: Container(
+                      width: 54,
+                      height: 54,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        gradient: const RadialGradient(
+                          colors: [Color(0xFF695B35), _panelBlack],
+                        ),
+                        border: Border.all(color: _gold, width: 1.4),
+                        boxShadow: [
+                          BoxShadow(
+                            color: widget.isActive
+                                ? ringColor.withValues(alpha: .5)
+                                : Colors.black87,
+                            blurRadius: widget.isActive ? 10 : 7,
+                          ),
+                        ],
+                      ),
+                      child: ClipOval(
+                        child: Image.asset(
+                          widget.avatarAsset ?? AppAssets.playerAvatar,
+                          fit: BoxFit.cover,
+                          filterQuality: FilterQuality.high,
+                        ),
+                      ),
                     ),
                   ),
-                ),
+                ]),
               ),
-            ]),
-          ),
-          Positioned(
-              // Leave the complete turn-timer ring visible above the compact
-              // identity panel.
-              top: 60,
-              child: SizedBox(
-                  width: 94,
-                  child: _Badge(
-                    name: widget.displayName ??
-                        player?.name ??
-                        widget.fallbackName,
-                    score: player?.score ?? 0,
-                  ))),
-        ]));
+              Positioned(
+                  // Leave the complete turn-timer ring visible above the compact
+                  // identity panel.
+                  top: 60,
+                  child: SizedBox(
+                      width: 94,
+                      child: _Badge(
+                        name: widget.displayName ??
+                            player?.name ??
+                            widget.fallbackName,
+                        score: player?.score ?? 0,
+                      ))),
+            ]));
   }
 }
 
@@ -2323,262 +2428,6 @@ String _cardAsset(GameCard card) {
   return 'assets/images/cards/style01/$suit/$value.png';
 }
 
-class _Chat extends StatefulWidget {
-  const _Chat({required this.onSend, required this.onOpenHistory});
-  final ValueChanged<String> onSend;
-  final VoidCallback onOpenHistory;
-
-  @override
-  State<_Chat> createState() => _ChatState();
-}
-
-class _ChatState extends State<_Chat> {
-  final controller = TextEditingController();
-  final focusNode = FocusNode();
-
-  @override
-  void dispose() {
-    controller.dispose();
-    focusNode.dispose();
-    super.dispose();
-  }
-
-  void send() {
-    final value = controller.text.trim();
-    if (value.isEmpty) return;
-    widget.onSend(value);
-    controller.clear();
-    focusNode.unfocus();
-  }
-
-  @override
-  Widget build(BuildContext context) => SizedBox(
-      width: 145,
-      height: 36,
-      child: _Panel(
-          padding: const EdgeInsets.only(left: 9, right: 5),
-          child: Row(children: [
-            InkWell(
-              onTap: widget.onOpenHistory,
-              borderRadius: BorderRadius.circular(12),
-              child: const Padding(
-                padding: EdgeInsets.all(2),
-                child: Icon(Icons.chat_bubble, size: 16, color: _cream),
-              ),
-            ),
-            const SizedBox(width: 6),
-            Expanded(
-              child: TextField(
-                controller: controller,
-                focusNode: focusNode,
-                textInputAction: TextInputAction.send,
-                onSubmitted: (_) => send(),
-                maxLength: 80,
-                style: const TextStyle(fontSize: 8, color: Colors.white),
-                decoration: const InputDecoration(
-                  hintText: 'Type a message…',
-                  hintStyle: TextStyle(fontSize: 8, color: Colors.white60),
-                  counterText: '',
-                  isDense: true,
-                  border: InputBorder.none,
-                  contentPadding: EdgeInsets.zero,
-                ),
-              ),
-            ),
-            InkWell(
-              onTap: send,
-              borderRadius: BorderRadius.circular(14),
-              child: const Padding(
-                padding: EdgeInsets.all(4),
-                child: Icon(Icons.send, size: 16, color: Color(0xFF6ACA73)),
-              ),
-            )
-          ])));
-}
-
-class _ChatBubble extends StatelessWidget {
-  const _ChatBubble(this.message);
-  final String message;
-
-  @override
-  Widget build(BuildContext context) => Container(
-        constraints: const BoxConstraints(minWidth: 90, maxWidth: 180),
-        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
-        decoration: BoxDecoration(
-          color: const Color(0xF21B1814),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: _gold),
-          boxShadow: const [BoxShadow(color: Colors.black87, blurRadius: 8)],
-        ),
-        child: Text(
-          message,
-          textAlign: TextAlign.center,
-          maxLines: 3,
-          overflow: TextOverflow.ellipsis,
-          style: const TextStyle(color: Colors.white, fontSize: 9, height: 1.3),
-        ),
-      );
-}
-
-class _ChatHistoryDialog extends ConsumerStatefulWidget {
-  const _ChatHistoryDialog({required this.onSend});
-
-  final ValueChanged<String> onSend;
-
-  @override
-  ConsumerState<_ChatHistoryDialog> createState() => _ChatHistoryDialogState();
-}
-
-class _ChatHistoryDialogState extends ConsumerState<_ChatHistoryDialog> {
-  final controller = TextEditingController();
-  final scrollController = ScrollController();
-
-  @override
-  void dispose() {
-    controller.dispose();
-    scrollController.dispose();
-    super.dispose();
-  }
-
-  void send() {
-    final value = controller.text.trim();
-    if (value.isEmpty) return;
-    widget.onSend(value);
-    controller.clear();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (scrollController.hasClients) {
-        scrollController.animateTo(
-          scrollController.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 180),
-          curve: Curves.easeOut,
-        );
-      }
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final messages = ref.watch(
-      gameControllerProvider.select((state) => state.chatMessages),
-    );
-    return Dialog(
-      backgroundColor: Colors.transparent,
-      child: Container(
-        width: 520,
-        height: 320,
-        padding: const EdgeInsets.all(18),
-        decoration: BoxDecoration(
-          color: const Color(0xF5161310),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: _gold),
-          boxShadow: const [
-            BoxShadow(color: Colors.black87, blurRadius: 24),
-          ],
-        ),
-        child: Column(children: [
-          Row(children: [
-            const Icon(Icons.forum, color: _cream, size: 22),
-            const SizedBox(width: 8),
-            const Expanded(
-              child: Text(
-                'MATCH CHAT',
-                style: TextStyle(
-                  fontFamily: 'Dirty Brush',
-                  fontSize: 22,
-                  color: _cream,
-                ),
-              ),
-            ),
-            IconButton(
-              onPressed: Navigator.of(context).pop,
-              icon: const Icon(Icons.close, color: Colors.white70),
-            ),
-          ]),
-          const Divider(color: _darkGold),
-          Expanded(
-            child: messages.isEmpty
-                ? const Center(
-                    child: Text(
-                      'No messages yet. Start the conversation.',
-                      style: TextStyle(color: Colors.white38, fontSize: 11),
-                    ),
-                  )
-                : ListView.builder(
-                    controller: scrollController,
-                    itemCount: messages.length,
-                    itemBuilder: (_, index) {
-                      final entry = messages[index];
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 9),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              entry.senderName.toUpperCase(),
-                              style: const TextStyle(
-                                color: _gold,
-                                fontSize: 9,
-                                fontWeight: FontWeight.w900,
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                                vertical: 7,
-                              ),
-                              decoration: BoxDecoration(
-                                color: const Color(0xB52B251F),
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                              child: Text(
-                                entry.message,
-                                style: const TextStyle(fontSize: 11),
-                              ),
-                            ),
-                          ],
-                        ),
-                      );
-                    },
-                  ),
-          ),
-          const SizedBox(height: 10),
-          Container(
-            height: 42,
-            padding: const EdgeInsets.only(left: 12, right: 4),
-            decoration: BoxDecoration(
-              color: const Color(0xE00C0B09),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: _darkGold),
-            ),
-            child: Row(children: [
-              Expanded(
-                child: TextField(
-                  controller: controller,
-                  autofocus: true,
-                  maxLength: 80,
-                  textInputAction: TextInputAction.send,
-                  onSubmitted: (_) => send(),
-                  style: const TextStyle(fontSize: 11),
-                  decoration: const InputDecoration(
-                    hintText: 'Type a message…',
-                    counterText: '',
-                    border: InputBorder.none,
-                  ),
-                ),
-              ),
-              IconButton(
-                onPressed: send,
-                icon: const Icon(Icons.send, color: Color(0xFF6ACA73)),
-              ),
-            ]),
-          ),
-        ]),
-      ),
-    );
-  }
-}
-
 class _Actions extends StatelessWidget {
   const _Actions(
       {required this.actions, required this.loading, required this.onTap});
@@ -2678,32 +2527,6 @@ class _BrushActionButton extends StatelessWidget {
                 ],
               ),
             ),
-          ),
-        ),
-      );
-}
-
-class _TurnLabel extends StatelessWidget {
-  const _TurnLabel({required this.isLocalTurn});
-  final bool isLocalTurn;
-
-  @override
-  Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-        decoration: BoxDecoration(
-          color: const Color(0xD9000000),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: _darkGold),
-        ),
-        child: Text(
-          isLocalTurn ? 'YOUR TURN' : 'OPPONENT TURN',
-          maxLines: 1,
-          softWrap: false,
-          textAlign: TextAlign.center,
-          style: const TextStyle(
-            fontSize: 7,
-            fontWeight: FontWeight.w900,
-            color: _cream,
           ),
         ),
       );

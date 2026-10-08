@@ -1,6 +1,7 @@
 import 'package:daketi_phase1_modular/features/game/presentation/widgets/bike_daketi_overlay.dart';
 import 'package:daketi_phase1_modular/features/game/domain/models/game_card.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -20,7 +21,7 @@ void main() {
                 cardCount: 3,
                 cards: [
                   GameCard.fromId('7H'),
-                  GameCard.fromId('QS'),
+                  GameCard.fromId('KS'),
                   GameCard.fromId('AC'),
                 ],
                 onComplete: () => completed = true,
@@ -33,6 +34,12 @@ void main() {
 
     await tester.pump(const Duration(milliseconds: 1550));
     expect(find.text('DAKETI!'), findsOneWidget);
+    final assets = (await AssetManifest.loadFromAssetBundle(rootBundle)).listAssets();
+    for (final image in tester.widgetList<Image>(find.byType(Image))) {
+      if (image.image case final AssetImage asset) {
+        expect(assets, contains(asset.assetName));
+      }
+    }
     expect(find.text('3 CARDS STOLEN · MAAL GAYA!'), findsOneWidget);
     expect(tester.takeException(), isNull);
 

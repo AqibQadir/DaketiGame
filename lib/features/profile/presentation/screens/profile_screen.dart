@@ -1,3 +1,4 @@
+import '../../../../core/widgets/game_navigation_footer.dart';
 import '../widgets/profile_edit_dialog.dart';
 import '../widgets/account_options_dialog.dart';
 import 'dart:ui';
@@ -111,19 +112,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             child: GameIconButton(
                 icon: Icons.menu,
                 onTap: () => Navigator.pushNamed(context, AppRoutes.menu))),
-        Positioned(
-            left: 32,
-            bottom: 32,
-            child: Column(children: [
-              GameIconButton(
-                  icon: Icons.headset_mic,
-                  onTap: () => Navigator.pushNamed(context, AppRoutes.support)),
-              const SizedBox(height: 11),
-              GameIconButton(
-                  icon: Icons.settings,
-                  onTap: () =>
-                      Navigator.pushNamed(context, AppRoutes.settings)),
-            ])),
+        const GameNavigationFooter(),
         Positioned(
             left: 192,
             top: 57,

@@ -276,6 +276,7 @@ String _cardAsset(GameCard card) {
   };
   final value = switch (card.value) {
     'A' => 'Ace',
+    'K' when card.suit == 'S' => 'KIng',
     'K' => 'King',
     'Q' => 'Queen',
     'J' => 'Jack',

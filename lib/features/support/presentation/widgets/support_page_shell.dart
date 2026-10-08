@@ -1,3 +1,4 @@
+import '../../../../core/widgets/game_navigation_footer.dart';
 import 'package:flutter/material.dart';
 
 import '../../../../core/routes/app_routes.dart';
@@ -80,27 +81,7 @@ class SupportPageShell extends StatelessWidget {
                       child: child,
                     ),
                   ),
-                  Positioned(
-                    left: 27,
-                    bottom: 24,
-                    child: Column(children: [
-                      GameIconButton(
-                        icon: Icons.person,
-                        onTap: () => Navigator.pushNamed(
-                          context,
-                          AppRoutes.profile,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      GameIconButton(
-                        icon: Icons.settings,
-                        onTap: () => Navigator.pushNamed(
-                          context,
-                          AppRoutes.settings,
-                        ),
-                      ),
-                    ]),
-                  ),
+                  const GameNavigationFooter(),
                 ]),
               ),
             ),

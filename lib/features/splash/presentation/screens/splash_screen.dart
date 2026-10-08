@@ -1,3 +1,5 @@
+import '../../../auth/data/guest_session_storage.dart';
+import '../../../auth/presentation/controllers/guest_name_provider.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -37,6 +39,12 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
 
   Future<void> _loadStartupState() async {
     final accepted = await LegalAcceptanceStorage().isAccepted();
+    String? guest;
+    try {
+      guest = await GuestSessionStorage().read();
+    } catch (_) {}
+    if (!mounted) return;
+    ref.read(guestNameProvider.notifier).state = guest;
     if (!mounted) return;
     _legalAccepted = accepted;
     _timer = Timer(const Duration(seconds: 3), () {
@@ -57,7 +65,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
     _navigated = true;
     final route = _legalAccepted! == false
         ? AppRoutes.terms
-        : auth.isAuthenticated
+        : (auth.isAuthenticated || ref.read(guestNameProvider) != null)
             ? AppRoutes.home
             : AppRoutes.welcome;
     Navigator.pushReplacementNamed(context, route);

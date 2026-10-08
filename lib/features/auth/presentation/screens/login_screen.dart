@@ -1,21 +1,20 @@
-import '../../../../core/widgets/game_styled_dialog.dart';
+import '../../../../core/widgets/game_navigation_footer.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/routes/app_routes.dart';
-import '../../../../core/widgets/game_dialog_title.dart';
 import '../../../../core/widgets/game_background.dart';
 import '../../../../core/widgets/game_alert.dart';
 import '../../../../core/widgets/game_button.dart';
 import '../../../../core/widgets/game_close_button.dart';
-import '../../../../core/widgets/game_icon_button.dart';
 import '../../../../core/widgets/daketi_logo.dart';
 import '../controllers/auth_controller.dart';
-import '../widgets/facebook_login_button.dart';
-import '../../../../core/services/account_links.dart';
+import '../../../runner/presentation/screens/runner_test_screen.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
-  const LoginScreen({super.key});
+  const LoginScreen({super.key, this.showClose = true});
+
+  final bool showClose;
 
   @override
   ConsumerState<LoginScreen> createState() => _LoginScreenState();
@@ -71,34 +70,22 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     height: 390,
                     child: Stack(
                       children: [
-                        Positioned(
-                          left: 18,
-                          top: 18,
-                          child: GameCloseButton(
-                            onTap: Navigator.of(context).pop,
+                        if (widget.showClose)
+                          Positioned(
+                            right: 18,
+                            top: 18,
+                            child: GameCloseButton(
+                              onTap: Navigator.of(context).pop,
+                            ),
                           ),
-                        ),
                         Positioned(
-                          right: 18,
-                          top: 18,
-                          child: GameIconButton(
-                            icon: Icons.menu,
-                            onTap: () {
-                              Navigator.pushNamed(
-                                context,
-                                AppRoutes.menu,
-                              );
-                            },
-                          ),
-                        ),
-                        Positioned(
-                          top: 46,
+                          top: 20,
                           left: 0,
                           right: 0,
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              const DaketiLogo(width: 320, height: 120),
+                              const DaketiLogo(width: 280, height: 105),
                               const SizedBox(height: 18),
                               AnimatedSlide(
                                 offset: Offset(0, keyboardOpen ? -.55 : 0),
@@ -129,94 +116,41 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                     ],
                                   ),
                                   const SizedBox(height: 16),
-                                  if (loading)
-                                    const Padding(
-                                      padding: EdgeInsets.only(bottom: 8),
-                                      child: SizedBox(
-                                          width: 18,
-                                          height: 18,
-                                          child: CircularProgressIndicator(
-                                              strokeWidth: 2)),
-                                    ),
                                   GameButton(
-                                    text: loading ? 'Please wait…' : 'Login',
+                                    text: 'Login',
+                                    isLoading: loading,
                                     onTap: loading ? null : submit,
                                   ),
-                                  const FacebookLoginButton(),
+                                  const SizedBox(height: 10),
                                   Row(
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
-                                        TextButton(
-                                            onPressed: loading
-                                                ? null
-                                                : _forgotPassword,
-                                            child:
-                                                const Text('Forgot password?')),
-                                        TextButton(
-                                            onPressed:
-                                                loading ? null : _openEmailLink,
-                                            child:
-                                                const Text('Open email link')),
+                                        GameButton(
+                                            text: 'Sign Up',
+                                            width: 150,
+                                            onTap: () => Navigator.pushNamed(
+                                                context, AppRoutes.signup)),
+                                        const SizedBox(width: 18),
+                                        GameButton(
+                                            text: 'Play as Guest',
+                                            width: 180,
+                                            onTap: () => Navigator.pushNamed(
+                                                context, AppRoutes.guestName)),
                                       ]),
+                                  const SizedBox(height: 10),
+                                  GameButton(
+                                      text: 'Test Subway',
+                                      width: 200,
+                                      onTap: () => Navigator.of(context).push(
+                                          MaterialPageRoute<void>(
+                                              builder: (_) =>
+                                                  const RunnerTestScreen()))),
                                 ]),
                               ),
                             ],
                           ),
                         ),
-                        Positioned(
-                          left: 18,
-                          bottom: 18,
-                          child: Row(
-                            children: [
-                              GameIconButton(
-                                icon: Icons.settings,
-                                onTap: () {
-                                  Navigator.pushNamed(
-                                    context,
-                                    AppRoutes.settings,
-                                  );
-                                },
-                              ),
-                              const SizedBox(width: 8),
-                              GameIconButton(
-                                icon: Icons.support_agent,
-                                onTap: () {
-                                  Navigator.pushNamed(
-                                    context,
-                                    AppRoutes.support,
-                                  );
-                                },
-                              ),
-                            ],
-                          ),
-                        ),
-                        const Positioned(
-                          right: 18,
-                          bottom: 18,
-                          child: Row(
-                            children: [
-                              GameIconButton(
-                                icon: Icons.facebook,
-                                onTap: null,
-                              ),
-                              SizedBox(width: 8),
-                              GameIconButton(
-                                icon: Icons.camera_alt,
-                                onTap: null,
-                              ),
-                              SizedBox(width: 8),
-                              GameIconButton(
-                                icon: Icons.play_arrow,
-                                onTap: null,
-                              ),
-                              SizedBox(width: 8),
-                              GameIconButton(
-                                icon: Icons.music_note,
-                                onTap: null,
-                              ),
-                            ],
-                          ),
-                        ),
+                        const GameNavigationFooter(),
                       ],
                     )))),
       ),
@@ -255,76 +189,4 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           ),
         ),
       );
-
-  Future<void> _openEmailLink() async {
-    final input = TextEditingController();
-    final value = await showDialog<String>(
-        context: context,
-        builder: (context) => GameStyledDialog(
-              title: const GameDialogTitle('OPEN EMAIL LINK'),
-              content: TextField(
-                  controller: input,
-                  decoration: const InputDecoration(
-                      labelText: 'Paste your reset or verification link')),
-              actions: [
-                TextButton(
-                    onPressed: () => Navigator.pop(context),
-                    child: const Text('Cancel')),
-                TextButton(
-                    onPressed: () => Navigator.pop(context, input.text.trim()),
-                    child: const Text('Open'))
-              ],
-            ));
-    Future<void>.delayed(const Duration(milliseconds: 400), input.dispose);
-    if (!mounted || value == null) return;
-    final uri = Uri.tryParse(value);
-    final link = uri == null ? null : AccountLink.parse(uri);
-    if (link == null || (link.resetToken == null && link.verifyToken == null)) {
-      showGameAlert(
-          context, 'Paste a valid Daketi verification or password reset link.');
-      return;
-    }
-    Navigator.pushNamed(context, AppRoutes.accountLink, arguments: uri);
-  }
-
-  Future<void> _forgotPassword() async {
-    final controller = TextEditingController(text: usernameController.text);
-    final email = await showDialog<String>(
-      context: context,
-      builder: (context) => GameStyledDialog(
-        title: const GameDialogTitle('RESET PASSWORD'),
-        content: TextField(
-            controller: controller,
-            decoration: const InputDecoration(labelText: 'Email')),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel')),
-          FilledButton(
-              onPressed: () => Navigator.pop(context, controller.text),
-              child: const Text('Send')),
-        ],
-      ),
-    );
-    if (email == null || email.trim().isEmpty || !mounted) {
-      Future<void>.delayed(
-        const Duration(milliseconds: 400),
-        controller.dispose,
-      );
-      return;
-    }
-    try {
-      final message =
-          await ref.read(authControllerProvider.notifier).forgotPassword(email);
-      if (mounted) {
-        await showGameAlert(context, message);
-      }
-    } catch (error) {
-      if (mounted) {
-        await showGameAlert(context, error.toString());
-      }
-    } finally {
-      controller.dispose();
-    }
-  }
 }

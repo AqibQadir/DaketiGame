@@ -1,3 +1,4 @@
+import '../../../../core/widgets/game_navigation_footer.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -6,12 +7,10 @@ import '../../../../core/widgets/game_background.dart';
 import '../../../../core/widgets/game_alert.dart';
 import '../../../../core/widgets/game_button.dart';
 import '../../../../core/widgets/game_close_button.dart';
-import '../../../../core/widgets/game_icon_button.dart';
 import '../../../../core/widgets/daketi_logo.dart';
 import '../../../../core/widgets/game_styled_dialog.dart';
 import '../../../../core/widgets/game_dialog_title.dart';
 import '../controllers/auth_controller.dart';
-import '../widgets/facebook_login_button.dart';
 import '../../../access/presentation/access_controller.dart';
 
 class SignupScreen extends ConsumerStatefulWidget {
@@ -31,18 +30,13 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
   }
 
   final TextEditingController emailController = TextEditingController();
-  final TextEditingController usernameController = TextEditingController();
   final TextEditingController passwordController = TextEditingController();
-  final TextEditingController confirmPasswordController =
-      TextEditingController();
 
   @override
   void dispose() {
     referralController.dispose();
     emailController.dispose();
-    usernameController.dispose();
     passwordController.dispose();
-    confirmPasswordController.dispose();
     super.dispose();
   }
 
@@ -50,15 +44,9 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
     if (ref.read(authControllerProvider).isLoading || _validating) return;
     FocusScope.of(context).unfocus();
     final email = emailController.text.trim().toLowerCase();
-    if (passwordController.text != confirmPasswordController.text) {
-      showGameAlert(context, 'Passwords do not match.');
-      return;
-    }
-    if (usernameController.text.trim().isEmpty ||
-        !email.contains('@') ||
-        passwordController.text.length < 8) {
+    if (!email.contains('@') || passwordController.text.length < 8) {
       showGameAlert(context,
-          'Enter your name, a valid email, and a password of at least 8 characters.');
+          'Enter a valid email and a password of at least 8 characters.');
       return;
     }
     if (referralController.text.trim().isNotEmpty) {
@@ -76,7 +64,8 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
       if (!mounted) return;
     }
     final success = await ref.read(authControllerProvider.notifier).signup(
-          name: usernameController.text.trim(),
+          // The existing signup API requires a name; collect the real name next.
+          name: 'Player',
           email: email,
           password: passwordController.text,
           referralCode: referralController.text.trim(),
@@ -110,23 +99,10 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                     child: Stack(
                       children: [
                         Positioned(
-                          left: 18,
+                          right: 18,
                           top: 18,
                           child: GameCloseButton(
                             onTap: Navigator.of(context).pop,
-                          ),
-                        ),
-                        Positioned(
-                          right: 18,
-                          top: 18,
-                          child: GameIconButton(
-                            icon: Icons.menu,
-                            onTap: () {
-                              Navigator.pushNamed(
-                                context,
-                                AppRoutes.menu,
-                              );
-                            },
                           ),
                         ),
                         Positioned(
@@ -144,28 +120,17 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                                 curve: Curves.easeOutCubic,
                                 child: Column(children: [
                                   Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      _signupField(
-                                        hint: 'Email',
-                                        controller: emailController,
-                                        keyboardType:
-                                            TextInputType.emailAddress,
-                                        autofillHints: const [
-                                          AutofillHints.email
-                                        ],
-                                      ),
-                                      const SizedBox(width: 36),
-                                      _signupField(
-                                        hint: 'Username',
-                                        controller: usernameController,
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 18),
-                                  Row(
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
+                                        _signupField(
+                                            hint: 'Email',
+                                            controller: emailController,
+                                            keyboardType:
+                                                TextInputType.emailAddress,
+                                            autofillHints: const [
+                                              AutofillHints.email
+                                            ]),
+                                        const SizedBox(width: 36),
                                         _signupField(
                                             hint: 'Password',
                                             controller: passwordController,
@@ -173,35 +138,20 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                                             autofillHints: const [
                                               AutofillHints.newPassword
                                             ]),
-                                        const SizedBox(width: 36),
-                                        _signupField(
-                                            hint: 'Re-enter Password',
-                                            controller:
-                                                confirmPasswordController,
-                                            obscureText: true,
-                                            autofillHints: const [
-                                              AutofillHints.newPassword
-                                            ]),
                                       ]),
                                   const SizedBox(height: 16),
-                                  SizedBox(
-                                      height: 40,
-                                      child: loading
-                                          ? const Center(
-                                              child: SizedBox(
-                                                  width: 18,
-                                                  height: 18,
-                                                  child:
-                                                      CircularProgressIndicator(
-                                                          strokeWidth: 2)))
-                                          : GameButton(
-                                              text: 'Signup', onTap: submit)),
                                   Row(
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
-                                        FacebookLoginButton(
-                                            referralCode:
-                                                referralController.text),
+                                        SizedBox(
+                                            width: 170,
+                                            height: 40,
+                                            child: GameButton(
+                                                isLoading: loading,
+                                                text: 'Sign Up',
+                                                width: 170,
+                                                onTap: submit)),
+                                        const SizedBox(width: 18),
                                         TextButton(
                                           onPressed:
                                               loading ? null : _editReferral,
@@ -217,60 +167,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                             ],
                           ),
                         ),
-                        Positioned(
-                          left: 18,
-                          bottom: 18,
-                          child: Row(
-                            children: [
-                              GameIconButton(
-                                icon: Icons.settings,
-                                onTap: () {
-                                  Navigator.pushNamed(
-                                    context,
-                                    AppRoutes.settings,
-                                  );
-                                },
-                              ),
-                              const SizedBox(width: 8),
-                              GameIconButton(
-                                icon: Icons.support_agent,
-                                onTap: () {
-                                  Navigator.pushNamed(
-                                    context,
-                                    AppRoutes.support,
-                                  );
-                                },
-                              ),
-                            ],
-                          ),
-                        ),
-                        const Positioned(
-                          right: 18,
-                          bottom: 18,
-                          child: Row(
-                            children: [
-                              GameIconButton(
-                                icon: Icons.facebook,
-                                onTap: null,
-                              ),
-                              SizedBox(width: 8),
-                              GameIconButton(
-                                icon: Icons.camera_alt,
-                                onTap: null,
-                              ),
-                              SizedBox(width: 8),
-                              GameIconButton(
-                                icon: Icons.play_arrow,
-                                onTap: null,
-                              ),
-                              SizedBox(width: 8),
-                              GameIconButton(
-                                icon: Icons.music_note,
-                                onTap: null,
-                              ),
-                            ],
-                          ),
-                        ),
+                        const GameNavigationFooter(),
                       ],
                     )))),
       ),

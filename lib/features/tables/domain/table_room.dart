@@ -1,26 +1,35 @@
-enum TableRoom { oldLahore, karachiClan, dubaiRise, thaiBliss }
+// Preserve the original IDs used by existing table selections.
+enum TableRoom {
+  oldLahore('Lahore', 'lahore'),
+  karachiClan('Karachi', 'karachi'),
+  dubaiRise('Rawalpindi', 'pindi'),
+  thaiBliss('Multan', 'multan'),
+  islamabad('Islamabad', 'pindi'),
+  faisalabad('Faisalabad', 'lahore'),
+  peshawar('Peshawar', 'pindi'),
+  quetta('Quetta', 'pindi'),
+  gujranwala('Gujranwala', 'lahore'),
+  sialkot('Sialkot', 'lahore'),
+  hyderabad('Hyderabad', 'karachi'),
+  bahawalpur('Bahawalpur', 'multan'),
+  sargodha('Sargodha', 'lahore'),
+  sukkur('Sukkur', 'karachi'),
+  murree('Murree', 'pindi'),
+  abbottabad('Abbottabad', 'pindi'),
+  gilgit('Gilgit', 'pindi'),
+  skardu('Skardu', 'pindi'),
+  gwadar('Gwadar', 'karachi'),
+  muzaffarabad('Muzaffarabad', 'pindi');
+
+  const TableRoom(this.cityName, this.artwork);
+  final String cityName;
+  // Reuse the supplied themed artwork until each city has its own asset.
+  final String artwork;
+}
 
 extension TableRoomDetails on TableRoom {
-  String get title => switch (this) {
-        TableRoom.oldLahore => 'LAHORI\nBAAZI',
-        TableRoom.karachiClan => 'KARACHI\nSCENZ',
-        TableRoom.dubaiRise => 'PINDI DA\nADDA',
-        TableRoom.thaiBliss => 'MULTANI\nMEHFIL',
-      };
-
-  String get subtitle => switch (this) {
-        TableRoom.oldLahore => 'LOW STAKES',
-        TableRoom.karachiClan => 'MID STAKES',
-        TableRoom.dubaiRise => 'HIGHEST STAKES',
-        TableRoom.thaiBliss => 'EXCLUSIVE STAKES',
-      };
-
-  bool get locked => this == TableRoom.thaiBliss;
-
-  String get imageAsset => switch (this) {
-        TableRoom.oldLahore => 'assets/images/tables/lobbies/old_lahore.png',
-        TableRoom.karachiClan => 'assets/images/karachi_rain_street.png',
-        TableRoom.dubaiRise => 'assets/images/tables/lobbies/dubai_rise.png',
-        TableRoom.thaiBliss => 'assets/images/tables/lobbies/thai_bliss.png',
-      };
+  String get title => cityName.toUpperCase();
+  String get subtitle => 'CHOOSE YOUR TABLE';
+  bool get locked => false;
+  String get imageAsset => 'assets/images/tables/lobbies/$artwork.png';
 }

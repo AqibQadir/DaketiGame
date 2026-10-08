@@ -13,12 +13,14 @@ class TableCard extends StatelessWidget {
     required this.badge,
     required this.onTap,
     this.imageAsset,
+    this.buttonText = 'Enter Match',
     this.locked = false,
     this.purple = false,
   });
   final String title, subtitle, buyIn, reward, badge;
   final VoidCallback onTap;
   final String? imageAsset;
+  final String buttonText;
   final bool locked, purple;
 
   @override
@@ -97,7 +99,7 @@ class TableCard extends StatelessWidget {
                 child: IgnorePointer(
                     ignoring: locked,
                     child: GameButton(
-                      text: 'Enter Match',
+                      text: buttonText,
                       width: 118,
                       fontSize: 12,
                       backgroundAsset: popular

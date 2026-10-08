@@ -1,3 +1,4 @@
+import '../../data/guest_session_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../controllers/guest_name_provider.dart';
@@ -5,6 +6,8 @@ import '../../../tables/domain/table_match_selection.dart';
 import '../../../../core/routes/app_routes.dart';
 import '../../../../core/widgets/game_background.dart';
 import '../../../../core/widgets/game_button.dart';
+import '../../../../core/widgets/game_close_button.dart';
+import '../../../../core/widgets/daketi_logo.dart';
 
 class GuestNameScreen extends ConsumerStatefulWidget {
   const GuestNameScreen(
@@ -17,18 +20,29 @@ class GuestNameScreen extends ConsumerStatefulWidget {
 }
 
 class _GuestNameScreenState extends ConsumerState<GuestNameScreen> {
+  bool saving = false;
   final form = GlobalKey<FormState>();
   final controller = TextEditingController();
-  int? age;
-  String? gender;
   @override
   void initState() {
     super.initState();
     controller.text = ref.read(guestNameProvider) ?? '';
-    final savedAge = ref.read(guestAgeProvider);
-    age =
-        savedAge != null && savedAge >= 14 && savedAge <= 120 ? savedAge : null;
-    gender = ref.read(guestGenderProvider);
+    if (!widget.returnToPrevious) restoreGuest();
+  }
+
+  Future<void> restoreGuest() async {
+    try {
+      final name = await GuestSessionStorage().read();
+      if (!mounted ||
+          name == null ||
+          (controller.text.isNotEmpty && controller.text != name) ||
+          saving) {
+        return;
+      }
+      controller.text = name;
+      ref.read(guestNameProvider.notifier).state = name;
+      navigateToRooms();
+    } catch (_) {/* Allow manual guest entry if storage is unavailable. */}
   }
 
   @override
@@ -37,11 +51,26 @@ class _GuestNameScreenState extends ConsumerState<GuestNameScreen> {
     super.dispose();
   }
 
-  void continueToRooms() {
-    if (!form.currentState!.validate()) return;
+  Future<void> continueToRooms() async {
+    if (saving || !form.currentState!.validate()) return;
+    setState(() => saving = true);
+    try {
+      await GuestSessionStorage().save(controller.text.trim());
+    } catch (_) {
+      if (mounted) {
+        setState(() => saving = false);
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('Could not save your guest session. Please retry.')));
+      }
+      return;
+    }
+    if (!mounted) return;
     ref.read(guestNameProvider.notifier).state = controller.text.trim();
-    ref.read(guestAgeProvider.notifier).state = age;
-    ref.read(guestGenderProvider.notifier).state = gender;
+    FocusScope.of(context).unfocus();
+    navigateToRooms();
+  }
+
+  void navigateToRooms() {
     if (widget.returnToPrevious) {
       Navigator.pop(context, true);
       return;
@@ -58,84 +87,95 @@ class _GuestNameScreenState extends ConsumerState<GuestNameScreen> {
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-        body: GameBackground(
-            child: Center(
-                child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 30),
+  Widget build(BuildContext context) {
+    final keyboardOpen = MediaQuery.viewInsetsOf(context).bottom > 0;
+    return Scaffold(
+      resizeToAvoidBottomInset: false,
+      body: GameBackground(
+        child: Center(
+            child: FittedBox(
+          fit: BoxFit.contain,
           child: SizedBox(
-              width: 440,
-              child: Form(
-                  key: form,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Text('PLAY AS GUEST',
-                          style: TextStyle(
-                              fontFamily: 'Dirty Brush',
-                              fontSize: 28,
-                              color: Colors.white)),
-                      const SizedBox(height: 16),
-                      TextFormField(
-                          controller: controller,
-                          maxLength: 24,
-                          textCapitalization: TextCapitalization.words,
-                          decoration: const InputDecoration(
-                              labelText: 'Name', counterText: ''),
-                          validator: (value) =>
-                              value == null || value.trim().isEmpty
-                                  ? 'Enter your name'
-                                  : null),
-                      const SizedBox(height: 12),
-                      Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Expanded(
-                                child: DropdownButtonFormField<int>(
-                                    initialValue: age,
-                                    isExpanded: true,
-                                    decoration:
-                                        const InputDecoration(labelText: 'Age'),
-                                    menuMaxHeight: 200,
-                                    items: List.generate(
-                                        107,
-                                        (index) => DropdownMenuItem(
-                                            value: index + 14,
-                                            child: Text('${index + 14}'))),
-                                    onChanged: (value) =>
-                                        setState(() => age = value),
-                                    validator: (value) =>
-                                        value == null ? 'Select age' : null)),
-                            const SizedBox(width: 18),
-                            Expanded(
-                                child: DropdownButtonFormField<String>(
-                                    initialValue: gender,
-                                    isExpanded: true,
-                                    decoration: const InputDecoration(
-                                        labelText: 'Gender'),
-                                    items: [
-                                      'Male',
-                                      'Female',
-                                      'Other',
-                                      'Prefer not to say'
-                                    ]
-                                        .map((value) => DropdownMenuItem(
-                                            value: value,
-                                            child: Text(value,
-                                                style: const TextStyle(
-                                                    fontSize: 13))))
-                                        .toList(),
-                                    onChanged: (value) =>
-                                        setState(() => gender = value),
-                                    validator: (value) => value == null
-                                        ? 'Select gender'
-                                        : null)),
-                          ]),
-                      const SizedBox(height: 22),
-                      GameButton(
-                          text: 'Continue', width: 170, onTap: continueToRooms),
-                    ],
-                  ))),
-        ))),
-      );
+              width: 844,
+              height: 390,
+              child: Stack(children: [
+                Positioned(
+                    right: 18,
+                    top: 18,
+                    child: GameCloseButton(onTap: () {
+                      final navigator = Navigator.of(context);
+                      if (navigator.canPop()) {
+                        navigator.pop();
+                      } else {
+                        navigator.pushReplacementNamed(AppRoutes.welcome);
+                      }
+                    })),
+                Positioned(
+                    top: 46,
+                    left: 0,
+                    right: 0,
+                    child: Column(children: [
+                      const DaketiLogo(width: 320, height: 120),
+                      const SizedBox(height: 18),
+                      AnimatedSlide(
+                        offset: Offset(0, keyboardOpen ? -.65 : 0),
+                        duration: const Duration(milliseconds: 220),
+                        curve: Curves.easeOutCubic,
+                        child: SizedBox(
+                            width: 280,
+                            child: Form(
+                                key: form,
+                                child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      TextFormField(
+                                        controller: controller,
+                                        maxLength: 24,
+                                        textCapitalization:
+                                            TextCapitalization.words,
+                                        textInputAction: TextInputAction.done,
+                                        onFieldSubmitted: (_) =>
+                                            continueToRooms(),
+                                        style: const TextStyle(fontSize: 14),
+                                        decoration: InputDecoration(
+                                          hintText: 'Your name',
+                                          counterText: '',
+                                          hintStyle: const TextStyle(
+                                              color: Colors.white38),
+                                          filled: true,
+                                          fillColor: const Color(0x773C3A36),
+                                          contentPadding:
+                                              const EdgeInsets.symmetric(
+                                                  horizontal: 20, vertical: 10),
+                                          enabledBorder: OutlineInputBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(30),
+                                              borderSide: const BorderSide(
+                                                  color: Colors.white30)),
+                                          focusedBorder: OutlineInputBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(30),
+                                              borderSide: const BorderSide(
+                                                  color: Color(0xFFFF8500))),
+                                        ),
+                                        validator: (value) => value == null ||
+                                                value.trim().isEmpty
+                                            ? 'Enter your name'
+                                            : null,
+                                      ),
+                                      const SizedBox(height: 16),
+                                      GameButton(
+                                          text: 'Play as Guest',
+                                          isLoading: saving,
+                                          width: 200,
+                                          onTap:
+                                              saving ? null : continueToRooms),
+                                    ]))),
+                      ),
+                    ])),
+              ])),
+        )),
+      ),
+    );
+  }
 }

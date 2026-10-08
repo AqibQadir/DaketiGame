@@ -1,9 +1,8 @@
+import '../../../../core/widgets/game_navigation_footer.dart';
 import 'package:flutter/material.dart';
 
-import '../../../../core/routes/app_routes.dart';
 import '../../../../core/widgets/game_background.dart';
 import '../../../../core/widgets/game_close_button.dart';
-import '../../../../core/widgets/game_icon_button.dart';
 import '../../../tables/presentation/widgets/table_top_bar.dart';
 
 class BaithakPageShell extends StatelessWidget {
@@ -56,35 +55,7 @@ class BaithakPageShell extends StatelessWidget {
                     ),
                   Positioned(
                       left: 35, right: 35, top: 78, bottom: 68, child: child),
-                  Positioned(
-                    left: 27,
-                    bottom: 21,
-                    child: Row(children: [
-                      GameIconButton(
-                        icon: Icons.settings,
-                        onTap: () => Navigator.pushNamed(
-                          context,
-                          AppRoutes.settings,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      GameIconButton(
-                        icon: Icons.person,
-                        onTap: () => Navigator.pushNamed(
-                          context,
-                          AppRoutes.profile,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      GameIconButton(
-                        icon: Icons.support_agent,
-                        onTap: () => Navigator.pushNamed(
-                          context,
-                          AppRoutes.support,
-                        ),
-                      ),
-                    ]),
-                  ),
+                  const GameNavigationFooter(),
                 ]),
               ),
             ),

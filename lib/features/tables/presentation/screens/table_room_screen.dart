@@ -20,7 +20,7 @@ class TableRoomScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     const stakes = TableTier.values;
     return TablePageShell(
-      title: 'CHAAL',
+      title: room.cityName.toUpperCase(),
       child: Row(
         children: [
           for (var index = 0; index < stakes.length; index++) ...[
@@ -32,8 +32,9 @@ class TableRoomScreen extends ConsumerWidget {
                 reward: stakes[index].reward,
                 badge: stakes[index].badge,
                 locked: stakes[index].locked,
-                imageAsset: 'assets/images/karachi_rain_street.png',
+                imageAsset: stakes[index].imageAsset,
                 onTap: () {
+                  if (stakes[index].locked) return;
                   final name = ref.read(authControllerProvider).user?.name ??
                       ref.read(guestNameProvider);
                   Navigator.pushNamed(

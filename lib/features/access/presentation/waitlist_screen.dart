@@ -199,6 +199,7 @@ class _WaitlistScreenState extends ConsumerState<WaitlistScreen> {
                       if (data?.status == 'none')
                         GameButton(
                             text: 'Join list',
+                            isLoading: state.loading,
                             onTap: state.loading
                                 ? null
                                 : () => ref

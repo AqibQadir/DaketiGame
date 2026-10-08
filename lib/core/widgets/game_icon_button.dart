@@ -24,7 +24,6 @@ class GameIconButton extends StatelessWidget {
     if (ModalRoute.of(context) is GamePopupRoute) {
       return const SizedBox.shrink();
     }
-    final enabled = onTap != null;
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -38,16 +37,15 @@ class GameIconButton extends StatelessWidget {
                 width: 42,
                 height: 42,
                 decoration: BoxDecoration(
-                  color: enabled ? AppColors.tile : Colors.grey.shade800,
+                  color: AppColors.tile,
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(
-                    color:
-                        enabled ? AppColors.tileBorder : Colors.grey.shade600,
+                    color: AppColors.tileBorder,
                   ),
                 ),
                 child: Icon(
                   icon,
-                  color: enabled ? AppColors.cream : Colors.grey.shade500,
+                  color: AppColors.cream,
                   size: 23,
                 ),
               ),
@@ -77,9 +75,9 @@ class GameIconButton extends StatelessWidget {
           const SizedBox(height: 4),
           Text(
             label!.toUpperCase(),
-            style: TextStyle(
+            style: const TextStyle(
               fontSize: 8,
-              color: enabled ? AppColors.cream : Colors.grey.shade500,
+              color: AppColors.cream,
             ),
           ),
         ],

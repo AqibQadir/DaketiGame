@@ -4,6 +4,7 @@ import 'package:daketi_phase1_modular/features/game/data/game_socket_service.dar
 import 'package:daketi_phase1_modular/features/game/presentation/controllers/game_controller.dart';
 import 'package:daketi_phase1_modular/features/game/presentation/screens/game_results_screen.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -46,6 +47,13 @@ void main() {
             child: const GameResultsScreen()));
         await tester.pumpAndSettle();
         expect(tester.takeException(), isNull);
+        // Manifest lookup is case-sensitive even on macOS test filesystems.
+        final assets = (await AssetManifest.loadFromAssetBundle(rootBundle)).listAssets();
+        for (final image in tester.widgetList<Image>(find.byType(Image))) {
+          if (image.image case final AssetImage asset) {
+            expect(assets, contains(asset.assetName));
+          }
+        }
         for (final label in ['REPLAY', 'HOME']) {
           expect(find.text(label).hitTestable(), findsOneWidget);
           final rect = tester.getRect(find.text(label));

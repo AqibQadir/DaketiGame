@@ -203,7 +203,8 @@ class _MultiplayerScreenState extends ConsumerState<MultiplayerScreen> {
                           ),
                           const SizedBox(width: 12),
                           GameButton(
-                            text: loading ? 'Please wait' : 'Create room',
+                            text: 'Create room',
+                            isLoading: loading,
                             width: 170,
                             onTap: loading ? null : createRoom,
                           ),
@@ -223,7 +224,8 @@ class _MultiplayerScreenState extends ConsumerState<MultiplayerScreen> {
                           ),
                           const SizedBox(width: 12),
                           GameButton(
-                            text: loading ? 'Please wait' : 'Join room',
+                            text: 'Join room',
+                            isLoading: loading,
                             width: 170,
                             onTap: loading ? null : joinRoom,
                           ),
