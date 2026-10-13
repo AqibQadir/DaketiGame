@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'audio_settings.dart';
 
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/foundation.dart';
@@ -17,6 +18,19 @@ class GameSoundService {
   static bool _countdownEnabled = false;
   static Future<void> _countdownQueue = Future<void>.value();
   static final Future<void> _configured = _configureAudioSession();
+
+  static final bool _listening = _listenForMute();
+  static bool _listenForMute() {
+    AudioSettings.media.addListener(() {
+      if (!AudioSettings.media.value) {
+        setCountdownWarning(false);
+        for (final player in [_gamePlayer, _stealPlayer, _alertPlayer]) {
+          unawaited(player.stop().catchError((Object _) {}));
+        }
+      }
+    });
+    return true;
+  }
 
   static const _assetRoot = 'audio/game/';
   static const _masterVolumeBoost = 1.4;
@@ -39,6 +53,7 @@ class GameSoundService {
   /// the final-three-second warning. Serialize transitions so a late start
   /// cannot race a turn-ending stop.
   static void setCountdownWarning(bool enabled) {
+    if (!_listening || !AudioSettings.media.value) enabled = false;
     if (_countdownEnabled == enabled) return;
     _countdownEnabled = enabled;
     _countdownQueue = _countdownQueue.then((_) async {
@@ -73,6 +88,7 @@ class GameSoundService {
     String asset, {
     required double volume,
   }) {
+    if (!_listening || !AudioSettings.media.value) return;
     unawaited(_replace(player, asset, volume));
   }
 
@@ -84,6 +100,7 @@ class GameSoundService {
     try {
       await _configured;
       await player.stop();
+      if (!AudioSettings.media.value) return;
       final boostedVolume = (volume * _masterVolumeBoost).clamp(0.0, 1.0);
       await player.play(
         AssetSource('$_assetRoot$asset'),

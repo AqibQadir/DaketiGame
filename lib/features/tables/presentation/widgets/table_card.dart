@@ -14,6 +14,7 @@ class TableCard extends StatelessWidget {
     required this.onTap,
     this.imageAsset,
     this.buttonText = 'Enter Match',
+    this.wholeCardClickable = false,
     this.locked = false,
     this.purple = false,
   });
@@ -22,12 +23,13 @@ class TableCard extends StatelessWidget {
   final String? imageAsset;
   final String buttonText;
   final bool locked, purple;
+  final bool wholeCardClickable;
 
   @override
   Widget build(BuildContext context) {
     final popular = badge == 'POPULAR';
     final frame = popular ? const Color(0xFFAD4A08) : const Color(0xFF77736A);
-    return Container(
+    final card = Container(
       height: 226,
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
@@ -64,17 +66,21 @@ class TableCard extends StatelessWidget {
                   textAlign: TextAlign.center,
                   style: const TextStyle(
                       fontFamily: 'Dirty Brush',
-                      fontSize: 22,
+                      fontSize: 18,
                       height: 1.02,
                       color: Colors.white)),
               const SizedBox(height: 5),
-              Text(subtitle,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(fontSize: 8, color: Colors.white)),
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(subtitle,
+                    maxLines: 1,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(fontSize: 10, color: Colors.white)),
+              ),
             ]),
           ),
           Positioned(
-            bottom: 54,
+            bottom: wholeCardClickable ? 24 : 54,
             left: 8,
             right: 8,
             child: Row(children: [
@@ -91,23 +97,24 @@ class TableCard extends StatelessWidget {
                       value: reward)),
             ]),
           ),
-          Positioned(
-            bottom: 17,
-            left: 10,
-            right: 10,
-            child: Center(
-                child: IgnorePointer(
-                    ignoring: locked,
-                    child: GameButton(
-                      text: buttonText,
-                      width: 118,
-                      fontSize: 12,
-                      backgroundAsset: popular
-                          ? AppAssets.buttonBrush
-                          : AppAssets.actionButtonBrush,
-                      onTap: onTap,
-                    ))),
-          ),
+          if (!wholeCardClickable)
+            Positioned(
+              bottom: 17,
+              left: 10,
+              right: 10,
+              child: Center(
+                  child: IgnorePointer(
+                      ignoring: locked,
+                      child: GameButton(
+                        text: buttonText,
+                        width: 118,
+                        fontSize: 10,
+                        backgroundAsset: popular
+                            ? AppAssets.buttonBrush
+                            : AppAssets.actionButtonBrush,
+                        onTap: onTap,
+                      ))),
+            ),
           if (badge.isNotEmpty)
             Positioned(
               top: 0,
@@ -131,7 +138,7 @@ class TableCard extends StatelessWidget {
                 child: Text(badge,
                     style: const TextStyle(
                         fontFamily: 'Dirty Brush',
-                        fontSize: 12,
+                        fontSize: 10,
                         color: Colors.white)),
               ),
             ),
@@ -145,6 +152,20 @@ class TableCard extends StatelessWidget {
         ]),
       ),
     );
+    if (!wholeCardClickable) return card;
+    return Semantics(
+      button: true,
+      enabled: !locked,
+      label: 'Enter $title',
+      child: MouseRegion(
+        cursor: locked ? SystemMouseCursors.basic : SystemMouseCursors.click,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: locked ? null : onTap,
+          child: card,
+        ),
+      ),
+    );
   }
 }
 
@@ -154,7 +175,8 @@ class _Value extends StatelessWidget {
   final IconData icon;
   @override
   Widget build(BuildContext context) => Column(children: [
-        Text(label, style: const TextStyle(fontSize: 7, color: Colors.white60)),
+        Text(label,
+            style: const TextStyle(fontSize: 10, color: Colors.white60)),
         const SizedBox(height: 2),
         FittedBox(
             fit: BoxFit.scaleDown,
@@ -162,7 +184,7 @@ class _Value extends StatelessWidget {
               Icon(icon, size: 16, color: AppColors.orange),
               const SizedBox(width: 3),
               Text(value,
-                  style: const TextStyle(fontSize: 17, color: Colors.white70)),
+                  style: const TextStyle(fontSize: 18, color: Colors.white70)),
             ])),
       ]);
 }

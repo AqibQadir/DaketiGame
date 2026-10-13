@@ -11,7 +11,8 @@ The app uses only documented gameplay APIs. Multiplayer Ready sends `{gameId}`;
 Unready was removed after a live server probe confirmed that `isReady:false`
 does not reverse readiness. No leave-room or server-timeout endpoint is invented.
 Leaving the active session disposes its socket so old room events cannot leak
-into the next game. A saved seat remains available from Home.
+into the next game. An interrupted match remains available from Home. Explicit Leave Match clears
+the saved seat and suppresses the rejoin prompt.
 
 ## Observed AI / reconnect race
 
@@ -42,3 +43,16 @@ Checks for the backend owner:
    cleared; retain resumable seats through temporary connectivity failures.
 
 See `api-guide-integration.md` for live smoke-test results and setup requirements.
+
+## Redacted local hands during AI updates
+
+An AI/room broadcast may contain `hidden` entries or only `handCount` for the
+local player. The client must never publish that as a playable local hand.
+It retains the last confirmed private snapshot, disables moves while recovering,
+and requests the original seat through `join_game`. Join/reclaim responses must
+include the local player's full private hand. Opponents remain redacted.
+
+Before release, verify live AI draw/capture/discard broadcasts are scoped to each
+recipient and include that recipient's real hand. Test reconnect acknowledgements
+and delayed AI broadcasts together. The client regression tests simulate this
+fault; they do not establish that the production server emits correct snapshots.

@@ -45,23 +45,35 @@ class _CityTableCardsState extends State<CityTableCards> {
           itemBuilder: (context, index) {
             final cities =
                 TableRoom.values.skip(index * perPage).take(perPage).toList();
-            return Row(children: [
-              for (var i = 0; i < cities.length; i++) ...[
-                if (i > 0) const SizedBox(width: 12),
-                Expanded(
-                    child: TableCard(
-                  title: cities[i].title,
-                  subtitle: cities[i].subtitle,
-                  buyIn: '100',
-                  reward: '100',
-                  badge: '',
-                  buttonText: 'Select City',
-                  imageAsset: cities[i].imageAsset,
-                  onTap: () => Navigator.pushNamed(context, AppRoutes.tableRoom,
-                      arguments: cities[i]),
-                )),
-              ],
-            ]);
+            return Padding(
+              padding: const EdgeInsets.only(right: 12),
+              child: LayoutBuilder(builder: (context, constraints) {
+                final cardWidth =
+                    (constraints.maxWidth - 12 * (perPage - 1)) / perPage;
+                return Row(
+                    mainAxisAlignment: MainAxisAlignment.start,
+                    children: [
+                      for (var i = 0; i < cities.length; i++) ...[
+                        if (i > 0) const SizedBox(width: 12),
+                        SizedBox(
+                            width: cardWidth,
+                            child: TableCard(
+                              title: cities[i].title,
+                              subtitle: cities[i].subtitle,
+                              buyIn: '100',
+                              reward: '100',
+                              badge: '',
+                              wholeCardClickable: true,
+                              imageAsset:
+                                  cities[i].backgroundAsset(portrait: true),
+                              onTap: () => Navigator.pushNamed(
+                                  context, AppRoutes.tableRoom,
+                                  arguments: cities[i]),
+                            )),
+                      ],
+                    ]);
+              }),
+            );
           },
         )),
         SizedBox(
@@ -69,7 +81,7 @@ class _CityTableCardsState extends State<CityTableCards> {
             child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
               pageArrow(false),
               const Text('CITIES',
-                  style: TextStyle(fontSize: 9, color: Color(0xFFE9D1A0))),
+                  style: TextStyle(fontSize: 10, color: Color(0xFFE9D1A0))),
               const SizedBox(width: 8),
               for (var i = 0; i < pageCount; i++)
                 Semantics(
@@ -96,7 +108,7 @@ class _CityTableCardsState extends State<CityTableCards> {
               const SizedBox(width: 8),
               Text('${page + 1} / $pageCount',
                   style:
-                      const TextStyle(fontSize: 9, color: Color(0xFFE9D1A0))),
+                      const TextStyle(fontSize: 10, color: Color(0xFFE9D1A0))),
               pageArrow(true),
             ])),
       ]);

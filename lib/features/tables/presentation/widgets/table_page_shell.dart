@@ -11,16 +11,21 @@ class TablePageShell extends StatelessWidget {
     super.key,
     required this.title,
     required this.child,
+    this.backgroundAsset,
+    this.titlePlateAsset,
   });
 
   final String title;
   final Widget child;
+  final String? backgroundAsset;
+  final String? titlePlateAsset;
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: GameBackground(
         overlayOpacity: .19,
+        imageAsset: backgroundAsset,
         child: SizedBox.expand(
           child: GameViewport(
             child: SizedBox(
@@ -29,16 +34,24 @@ class TablePageShell extends StatelessWidget {
                   Positioned(
                     left: 26,
                     top: 24,
-                    child: Row(children: [
-                      Text(
-                        title,
-                        style: const TextStyle(
-                          fontFamily: 'Dirty Brush',
-                          fontSize: 22,
-                          height: 1,
-                        ),
-                      ),
-                    ]),
+                    child: titlePlateAsset != null
+                        ? Image.asset(
+                            titlePlateAsset!,
+                            width: 140,
+                            height: 48,
+                            fit: BoxFit.contain,
+                            semanticLabel: title,
+                          )
+                        : Row(children: [
+                            Text(
+                              title,
+                              style: const TextStyle(
+                                fontFamily: 'Dirty Brush',
+                                fontSize: 18,
+                                height: 1,
+                              ),
+                            ),
+                          ]),
                   ),
                   Positioned(
                       right: 18,

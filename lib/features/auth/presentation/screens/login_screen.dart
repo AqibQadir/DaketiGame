@@ -57,7 +57,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final keyboardOpen = MediaQuery.viewInsetsOf(context).bottom > 0;
     final loading = ref.watch(authControllerProvider).isLoading;
     return Scaffold(
       resizeToAvoidBottomInset: false,
@@ -87,66 +86,58 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             children: [
                               const DaketiLogo(width: 280, height: 105),
                               const SizedBox(height: 18),
-                              AnimatedSlide(
-                                offset: Offset(0, keyboardOpen ? -.55 : 0),
-                                duration: const Duration(milliseconds: 220),
-                                curve: Curves.easeOutCubic,
-                                child: Column(children: [
-                                  Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      _loginField(
-                                        hint: 'Email',
-                                        controller: usernameController,
-                                        keyboardType:
-                                            TextInputType.emailAddress,
-                                        autofillHints: const [
-                                          AutofillHints.email
-                                        ],
-                                      ),
-                                      const SizedBox(width: 36),
-                                      _loginField(
-                                        hint: 'Password',
-                                        obscureText: true,
-                                        controller: passwordController,
-                                        autofillHints: const [
-                                          AutofillHints.password
-                                        ],
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 16),
+                              Column(children: [
+                                Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    _loginField(
+                                      hint: 'Email',
+                                      controller: usernameController,
+                                      keyboardType: TextInputType.emailAddress,
+                                      autofillHints: const [
+                                        AutofillHints.email
+                                      ],
+                                    ),
+                                    const SizedBox(width: 36),
+                                    _loginField(
+                                      hint: 'Password',
+                                      obscureText: true,
+                                      controller: passwordController,
+                                      autofillHints: const [
+                                        AutofillHints.password
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 16),
+                                GameButton(
+                                  text: 'Login',
+                                  isLoading: loading,
+                                  onTap: loading ? null : submit,
+                                ),
+                                const SizedBox(height: 10),
+                                Row(mainAxisSize: MainAxisSize.min, children: [
                                   GameButton(
-                                    text: 'Login',
-                                    isLoading: loading,
-                                    onTap: loading ? null : submit,
-                                  ),
-                                  const SizedBox(height: 10),
-                                  Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        GameButton(
-                                            text: 'Sign Up',
-                                            width: 150,
-                                            onTap: () => Navigator.pushNamed(
-                                                context, AppRoutes.signup)),
-                                        const SizedBox(width: 18),
-                                        GameButton(
-                                            text: 'Play as Guest',
-                                            width: 180,
-                                            onTap: () => Navigator.pushNamed(
-                                                context, AppRoutes.guestName)),
-                                      ]),
-                                  const SizedBox(height: 10),
+                                      text: 'Sign Up',
+                                      width: 150,
+                                      onTap: () => Navigator.pushNamed(
+                                          context, AppRoutes.signup)),
+                                  const SizedBox(width: 18),
                                   GameButton(
-                                      text: 'Test Subway',
-                                      width: 200,
-                                      onTap: () => Navigator.of(context).push(
-                                          MaterialPageRoute<void>(
-                                              builder: (_) =>
-                                                  const RunnerTestScreen()))),
+                                      text: 'Play as Guest',
+                                      width: 180,
+                                      onTap: () => Navigator.pushNamed(
+                                          context, AppRoutes.guestName)),
                                 ]),
-                              ),
+                                const SizedBox(height: 10),
+                                GameButton(
+                                    text: 'Test Subway',
+                                    width: 200,
+                                    onTap: () => Navigator.of(context).push(
+                                        MaterialPageRoute<void>(
+                                            builder: (_) =>
+                                                const RunnerTestScreen()))),
+                              ]),
                             ],
                           ),
                         ),

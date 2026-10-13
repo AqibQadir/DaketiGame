@@ -1,9 +1,11 @@
 import 'dart:async';
 import 'package:app_links/app_links.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/routes/app_router.dart';
+import '../core/widgets/keyboard_safe_viewport.dart';
 import '../core/widgets/looping_video_background.dart';
 import '../core/routes/app_routes.dart';
 import '../core/theme/app_theme.dart';
@@ -31,7 +33,11 @@ class _DaketiAppState extends ConsumerState<DaketiApp>
   Uri? _lastLink;
   String? _currentRoute;
   late final NavigatorObserver _observer = _NavigationObserver((name) {
+    if (name == null) return; // Dialogs keep the underlying screen orientation.
     _currentRoute = name;
+    unawaited(SystemChrome.setPreferredOrientations(name == AppRoutes.waitlist
+        ? [DeviceOrientation.portraitUp]
+        : [DeviceOrientation.landscapeLeft, DeviceOrientation.landscapeRight]));
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _openPendingLink();
       if (mounted &&
@@ -113,7 +119,9 @@ class _DaketiAppState extends ConsumerState<DaketiApp>
     // Never interrupt an active match just because a notification was tapped.
     if (_currentRoute == AppRoutes.game) return;
     navigatorKey.currentState?.pushNamed(
-        payload['type'] == 'app_live' ? AppRoutes.home : AppRoutes.waitlist);
+        ref.read(accessControllerProvider).waitlist?.canPlay == true
+            ? AppRoutes.home
+            : AppRoutes.waitlist);
   }
 
   @override
@@ -183,7 +191,7 @@ class _DaketiAppState extends ConsumerState<DaketiApp>
       builder: (context, child) => PersistentBackgroundScope(
         child: Stack(fit: StackFit.expand, children: [
           const LoopingVideoBackground(),
-          if (child != null) child,
+          if (child != null) KeyboardSafeViewport(child: child),
         ]),
       ),
       navigatorKey: navigatorKey,

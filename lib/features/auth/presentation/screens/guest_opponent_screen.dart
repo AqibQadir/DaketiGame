@@ -46,6 +46,7 @@ class _GuestOpponentScreenState extends ConsumerState<GuestOpponentScreen> {
         (route) =>
             route.settings.name == AppRoutes.tables ||
             route.settings.name == AppRoutes.home,
+        arguments: widget.tableSelection,
       );
       return;
     }

@@ -1,3 +1,5 @@
+import '../../../tables/domain/table_match_selection.dart';
+import '../../../tables/domain/table_room.dart';
 import '../../../../core/widgets/looping_video_background.dart';
 import '../../../../core/widgets/game_styled_dialog.dart';
 import 'dart:async';
@@ -570,6 +572,8 @@ class _GameScreenState extends ConsumerState<GameScreen> {
       ),
     );
     if (confirmed != true || !mounted) return;
+    await ref.read(gameControllerProvider.notifier).leaveMatch();
+    if (!mounted) return;
     Navigator.pushNamedAndRemoveUntil(
       context,
       AppRoutes.home,
@@ -626,15 +630,25 @@ class _GameScreenState extends ConsumerState<GameScreen> {
     final actions = session.availableActions
         .where((action) => action.cardId == selectedCardId)
         .toList(growable: false);
+    final tableSelection = ModalRoute.of(context)?.settings.arguments;
+    final city =
+        tableSelection is TableMatchSelection ? tableSelection.room : null;
     return Scaffold(
       backgroundColor: Colors.black,
       body: Stack(
         fit: StackFit.expand,
         children: [
-          const LoopingVideoBackground(
-            videoAsset: AppAssets.gameTableVideo,
-            posterAsset: AppAssets.gameTableVideoPoster,
-          ),
+          if (city != null)
+            Image.asset(
+              city.imageAsset,
+              fit: BoxFit.cover,
+              filterQuality: FilterQuality.high,
+            )
+          else
+            const LoopingVideoBackground(
+              videoAsset: AppAssets.gameTableVideo,
+              posterAsset: AppAssets.gameTableVideoPoster,
+            ),
           const ColoredBox(color: Color(0x18000000)),
           Positioned.fill(
             child: GameViewport(
@@ -648,6 +662,7 @@ class _GameScreenState extends ConsumerState<GameScreen> {
                       selected: selectedCardId,
                       actions: actions,
                       submitting: isSubmitting ||
+                          liveSession.isLoading ||
                           stealAnimation != null ||
                           drawAnimation != null ||
                           presentationTimer != null,
@@ -978,6 +993,30 @@ class _Board extends StatelessWidget {
           left: 13,
           top: 12,
           child: _Room(room: session.gameId ?? game.gameId, round: game.round)),
+      if (ModalRoute.of(context)?.settings.arguments
+          case TableMatchSelection selection)
+        Positioned(
+          right: 65,
+          top: 8,
+          width: 120,
+          height: 44,
+          child: IgnorePointer(
+            child: selection.room == TableRoom.islamabad
+                ? Center(
+                    child: Text(selection.room.title,
+                        style: const TextStyle(
+                            fontFamily: 'Dirty Brush',
+                            fontSize: 20,
+                            color: _cream)),
+                  )
+                : Image.asset(
+                    'assets/images/cities/plates/${selection.room.artwork}.png',
+                    fit: BoxFit.contain,
+                    semanticLabel: selection.room.cityName,
+                    filterQuality: FilterQuality.high,
+                  ),
+          ),
+        ),
       Positioned(
         right: 13,
         top: 12,

@@ -14,13 +14,17 @@ class TableRoomScreen extends ConsumerWidget {
 
   final TableRoom room;
 
-  bool get purple => room == TableRoom.dubaiRise;
-
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     const stakes = TableTier.values;
     return TablePageShell(
       title: room.cityName.toUpperCase(),
+      titlePlateAsset: room == TableRoom.islamabad
+          ? null
+          : 'assets/images/cities/plates/${room.artwork}.png',
+      backgroundAsset: room.backgroundAsset(
+          portrait: MediaQuery.sizeOf(context).height >
+              MediaQuery.sizeOf(context).width),
       child: Row(
         children: [
           for (var index = 0; index < stakes.length; index++) ...[
@@ -32,6 +36,7 @@ class TableRoomScreen extends ConsumerWidget {
                 reward: stakes[index].reward,
                 badge: stakes[index].badge,
                 locked: stakes[index].locked,
+                wholeCardClickable: true,
                 imageAsset: stakes[index].imageAsset,
                 onTap: () {
                   if (stakes[index].locked) return;

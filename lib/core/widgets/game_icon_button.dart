@@ -9,12 +9,14 @@ class GameIconButton extends StatelessWidget {
     required this.icon,
     required this.onTap,
     this.label,
+    this.showLabel = true,
     this.badge,
   });
 
   final IconData icon;
   final VoidCallback? onTap;
   final String? label;
+  final bool showLabel;
   final String? badge;
 
   @override
@@ -24,64 +26,68 @@ class GameIconButton extends StatelessWidget {
     if (ModalRoute.of(context) is GamePopupRoute) {
       return const SizedBox.shrink();
     }
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Stack(
-          clipBehavior: Clip.none,
-          children: [
-            InkWell(
-              onTap: onTap,
-              borderRadius: BorderRadius.circular(8),
-              child: Container(
-                width: 42,
-                height: 42,
-                decoration: BoxDecoration(
-                  color: AppColors.tile,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(
-                    color: AppColors.tileBorder,
-                  ),
-                ),
-                child: Icon(
-                  icon,
-                  color: AppColors.cream,
-                  size: 23,
-                ),
-              ),
-            ),
-            if (badge != null)
-              Positioned(
-                right: -5,
-                top: -5,
+    return Semantics(
+      label: showLabel ? null : label,
+      button: true,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Stack(
+            clipBehavior: Clip.none,
+            children: [
+              InkWell(
+                onTap: onTap,
+                borderRadius: BorderRadius.circular(8),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 5,
-                    vertical: 2,
-                  ),
+                  width: 42,
+                  height: 42,
                   decoration: BoxDecoration(
-                    color: AppColors.orange,
-                    borderRadius: BorderRadius.circular(10),
+                    color: AppColors.tile,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: AppColors.tileBorder,
+                    ),
                   ),
-                  child: Text(
-                    badge!,
-                    style: const TextStyle(fontSize: 8),
+                  child: Icon(
+                    icon,
+                    color: AppColors.cream,
+                    size: 23,
                   ),
                 ),
               ),
-          ],
-        ),
-        if (label != null) ...[
-          const SizedBox(height: 4),
-          Text(
-            label!.toUpperCase(),
-            style: const TextStyle(
-              fontSize: 8,
-              color: AppColors.cream,
-            ),
+              if (badge != null)
+                Positioned(
+                  right: -5,
+                  top: -5,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 5,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppColors.orange,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(
+                      badge!,
+                      style: const TextStyle(fontSize: 8),
+                    ),
+                  ),
+                ),
+            ],
           ),
+          if (showLabel && label != null) ...[
+            const SizedBox(height: 4),
+            Text(
+              label!.toUpperCase(),
+              style: const TextStyle(
+                fontSize: 8,
+                color: AppColors.cream,
+              ),
+            ),
+          ],
         ],
-      ],
+      ),
     );
   }
 }

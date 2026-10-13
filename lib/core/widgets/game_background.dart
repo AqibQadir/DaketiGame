@@ -10,12 +10,14 @@ class GameBackground extends StatelessWidget {
     required this.child,
     this.variant = 0,
     this.overlayOpacity,
+    this.imageAsset,
   });
 
   /// 1 = bike/police background, 0 = client-supplied Chai Hotel background.
   final int variant;
   final Widget child;
   final double? overlayOpacity;
+  final String? imageAsset;
 
   @override
   Widget build(BuildContext context) {
@@ -30,11 +32,13 @@ class GameBackground extends StatelessWidget {
     return Stack(
       fit: StackFit.expand,
       children: [
-        if (!useChaseBackground && !PersistentBackgroundScope.present(context))
+        if (imageAsset == null &&
+            !useChaseBackground &&
+            !PersistentBackgroundScope.present(context))
           const LoopingVideoBackground(),
-        if (useChaseBackground)
+        if (imageAsset != null || useChaseBackground)
           Image.asset(
-            asset,
+            imageAsset ?? asset,
             fit: BoxFit.cover,
             alignment: Alignment.center,
             filterQuality: FilterQuality.high,

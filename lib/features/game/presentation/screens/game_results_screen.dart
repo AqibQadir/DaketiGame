@@ -1,3 +1,4 @@
+import '../widgets/winner_note_rain.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -40,7 +41,7 @@ class _GameResultsScreenState extends ConsumerState<GameResultsScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       final session = ref.read(gameControllerProvider);
-      if (session.winner == session.playerId) {
+      if (session.playerId != null && session.winner == session.playerId) {
         GameSoundService.roundWon();
       } else if (session.winner != 'draw') {
         GameSoundService.gameLost();
@@ -69,7 +70,7 @@ class _GameResultsScreenState extends ConsumerState<GameResultsScreen> {
     }
     final winnerText = session.winner == 'draw'
         ? 'DRAW'
-        : session.winner == session.playerId
+        : session.playerId != null && session.winner == session.playerId
             ? 'YOU WIN'
             : 'GAME OVER';
     final rawScores = session.scores.isNotEmpty
@@ -109,6 +110,9 @@ class _GameResultsScreenState extends ConsumerState<GameResultsScreen> {
                   height: 350,
                   child: Stack(
                     children: [
+                      if (session.playerId != null &&
+                          session.winner == session.playerId)
+                        const Positioned.fill(child: WinnerNoteRain()),
                       const Positioned(
                           left: 102,
                           top: 115,

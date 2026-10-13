@@ -236,9 +236,12 @@ class GameController extends StateNotifier<GameSessionState> {
   static const _reconnectDeadline = Duration(seconds: 15);
 
   Future<void> _restorePreviousGame() async {
+    final revision = _sessionRevision;
     try {
       final previous = await _previousGameStorage?.read();
-      if (mounted && state.gameId == null && state.previousGame == null) {
+      if (_isSession(revision) &&
+          state.gameId == null &&
+          state.previousGame == null) {
         state = state.copyWith(previousGame: previous);
       }
     } catch (_) {
@@ -285,6 +288,37 @@ class GameController extends StateNotifier<GameSessionState> {
     } catch (_) {}
   }
 
+  /// Only offer recovery for an active match belonging to this identity.
+  Future<bool> hasActivePreviousGame() async {
+    final previous = state.previousGame;
+    if (previous == null || state.isLoading) return false;
+    final revision = _sessionRevision;
+    try {
+      final token = await _validatedTokenForGame();
+      final ownsGame = previous.ownerAccountId != null
+          ? token != null && _accountIdLoader?.call() == previous.ownerAccountId
+          : token == previous.ownerToken;
+      if (!ownsGame) return false;
+      final game = await _restClient.getGame(previous.gameId);
+      if (!_isSession(revision) || state.previousGame != previous) return false;
+      if (game.status == DaketiGameStatus.finished ||
+          game.playerById(previous.playerId) == null) {
+        await _forgetPreviousGame();
+        return false;
+      }
+      return game.status == DaketiGameStatus.playing && game.winner == null;
+    } catch (error) {
+      if (_isSession(revision) &&
+          state.previousGame == previous &&
+          error is GameApiException &&
+          error.statusCode == 404) {
+        await _forgetPreviousGame();
+      }
+      // Keep recovery data during outages, but don't offer an unverified match.
+      return false;
+    }
+  }
+
   Future<bool> resumePreviousGame() async {
     final previous = state.previousGame;
     if (previous == null || state.isLoading) return false;
@@ -323,6 +357,8 @@ class GameController extends StateNotifier<GameSessionState> {
       final restored = _gameFrom(response['gameState']);
       if (restored == null ||
           restored.gameId != previous.gameId ||
+          restored.playerById(response['playerId']?.toString()) == null ||
+          _hasRedactedHand(restored, response['playerId']?.toString()) ||
           (response['reclaimed'] != true &&
               response['playerId']?.toString() != previous.playerId)) {
         throw const GameApiException(
@@ -449,7 +485,8 @@ class GameController extends StateNotifier<GameSessionState> {
     final playerId = response['playerId']?.toString();
     if (snapshot == null ||
         snapshot.gameId != gameId ||
-        snapshot.playerById(playerId) == null) {
+        snapshot.playerById(playerId) == null ||
+        _hasRedactedHand(snapshot, playerId)) {
       throw const GameApiException(
           'The server could not confirm your game seat.');
     }
@@ -484,11 +521,12 @@ class GameController extends StateNotifier<GameSessionState> {
       if (!_isSession(session) || state.gameId != gameId) return;
       // Broadcasts can precede the acknowledgement, including game_started.
       // Never replace their newer state with the request's waiting snapshot.
+      final snapshot = revision == _roomStateRevision
+          ? _currentSeatSnapshot(response['gameState'])
+          : null;
       state = state.copyWith(
-        isLoading: false,
-        game: revision == _roomStateRevision
-            ? _gameFrom(response['gameState']) ?? state.game
-            : state.game,
+        isLoading: _rejoinOperation != null,
+        game: snapshot ?? state.game,
         error: null,
       );
     } catch (error) {
@@ -523,6 +561,12 @@ class GameController extends StateNotifier<GameSessionState> {
       aiCount: state.lastAiCount,
       difficulty: state.lastDifficulty,
     );
+  }
+
+  /// Explicit departure abandons recovery; interruptions keep the saved room.
+  Future<void> leaveMatch() async {
+    resetSession();
+    await _forgetPreviousGame();
   }
 
   void resetSession() {
@@ -583,6 +627,7 @@ class GameController extends StateNotifier<GameSessionState> {
 
   Future<bool> performAction(GameAction action) async {
     if (_actionInFlight ||
+        state.isLoading ||
         !state.isCurrentPlayersTurn ||
         state.recoveryFailed ||
         state.winner != null ||
@@ -727,10 +772,11 @@ class GameController extends StateNotifier<GameSessionState> {
     try {
       final response = await operation();
       if (!_isSession(session) || state.gameId != gameId) return false;
+      final snapshot = revision == _roomStateRevision
+          ? _currentSeatSnapshot(response['gameState'])
+          : null;
       state = state.copyWith(
-        game: revision == _roomStateRevision
-            ? _gameFrom(response['gameState']) ?? state.game
-            : state.game,
+        game: snapshot ?? state.game,
         availableActions: const [],
         error: null,
       );
@@ -859,7 +905,7 @@ class GameController extends StateNotifier<GameSessionState> {
         activity: '$name disconnected',
       );
     }
-    final game = _gameFrom(event.data['gameState']);
+    final game = _currentSeatSnapshot(event.data['gameState']);
     if (game != null && game.gameId == state.gameId) {
       _roomStateRevision++;
       state = state.copyWith(game: game, availableActions: const []);
@@ -915,7 +961,8 @@ class GameController extends StateNotifier<GameSessionState> {
       final restored = _gameFrom(response['gameState']);
       if (restored == null ||
           restored.gameId != gameId ||
-          restored.playerById(response['playerId']?.toString()) == null) {
+          restored.playerById(response['playerId']?.toString()) == null ||
+          _hasRedactedHand(restored, response['playerId']?.toString())) {
         throw const GameApiException(
             'The server could not confirm your game seat.');
       }
@@ -971,6 +1018,34 @@ class GameController extends StateNotifier<GameSessionState> {
       recoveryFailed: true,
       error: 'Connection lost. Use Join previous game to try again.',
     );
+  }
+
+  bool _hasRedactedHand(DaketiGame game, String? playerId) {
+    final player = game.playerById(playerId);
+    return player != null &&
+        (player.hand.any((card) => card.isHidden) ||
+            player.handCount > player.hand.length);
+  }
+
+  /// Room-wide/AI snapshots must not replace the local private hand.
+  DaketiGame? _currentSeatSnapshot(Object? value) {
+    final game = _gameFrom(value);
+    if (game == null || game.gameId != state.gameId) return null;
+    if (game.status == DaketiGameStatus.playing &&
+        state.playerId != null &&
+        (game.playerById(state.playerId) == null ||
+            _hasRedactedHand(game, state.playerId))) {
+      if (!_resuming && !state.recoveryFailed && _rejoinOperation == null) {
+        state = state.copyWith(
+          isLoading: true,
+          availableActions: const [],
+          activity: 'Restoring your hand…',
+        );
+        unawaited(_attemptRejoin());
+      }
+      return null;
+    }
+    return game;
   }
 
   DaketiGame? _gameFrom(Object? value) {

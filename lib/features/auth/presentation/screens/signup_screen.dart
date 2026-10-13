@@ -85,7 +85,6 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final keyboardOpen = MediaQuery.viewInsetsOf(context).bottom > 0;
     final loading = ref.watch(authControllerProvider).isLoading || _validating;
     return Scaffold(
       resizeToAvoidBottomInset: false,
@@ -114,56 +113,44 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                             children: [
                               const DaketiLogo(width: 320, height: 120),
                               const SizedBox(height: 20),
-                              AnimatedSlide(
-                                offset: Offset(0, keyboardOpen ? -.55 : 0),
-                                duration: const Duration(milliseconds: 220),
-                                curve: Curves.easeOutCubic,
-                                child: Column(children: [
-                                  Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        _signupField(
-                                            hint: 'Email',
-                                            controller: emailController,
-                                            keyboardType:
-                                                TextInputType.emailAddress,
-                                            autofillHints: const [
-                                              AutofillHints.email
-                                            ]),
-                                        const SizedBox(width: 36),
-                                        _signupField(
-                                            hint: 'Password',
-                                            controller: passwordController,
-                                            obscureText: true,
-                                            autofillHints: const [
-                                              AutofillHints.newPassword
-                                            ]),
+                              Column(children: [
+                                Row(mainAxisSize: MainAxisSize.min, children: [
+                                  _signupField(
+                                      hint: 'Email',
+                                      controller: emailController,
+                                      keyboardType: TextInputType.emailAddress,
+                                      autofillHints: const [
+                                        AutofillHints.email
                                       ]),
-                                  const SizedBox(height: 16),
-                                  Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        SizedBox(
-                                            width: 170,
-                                            height: 40,
-                                            child: GameButton(
-                                                isLoading: loading,
-                                                text: 'Sign Up',
-                                                width: 170,
-                                                onTap: submit)),
-                                        const SizedBox(width: 18),
-                                        TextButton(
-                                          onPressed:
-                                              loading ? null : _editReferral,
-                                          child: Text(referralController.text
-                                                  .trim()
-                                                  .isEmpty
-                                              ? 'Have an invitation code?'
-                                              : 'Invitation code added'),
-                                        ),
+                                  const SizedBox(width: 36),
+                                  _signupField(
+                                      hint: 'Password',
+                                      controller: passwordController,
+                                      obscureText: true,
+                                      autofillHints: const [
+                                        AutofillHints.newPassword
                                       ]),
                                 ]),
-                              ),
+                                const SizedBox(height: 16),
+                                Row(mainAxisSize: MainAxisSize.min, children: [
+                                  SizedBox(
+                                      width: 170,
+                                      height: 40,
+                                      child: GameButton(
+                                          isLoading: loading,
+                                          text: 'Sign Up',
+                                          width: 170,
+                                          onTap: submit)),
+                                  const SizedBox(width: 18),
+                                  TextButton(
+                                    onPressed: loading ? null : _editReferral,
+                                    child: Text(
+                                        referralController.text.trim().isEmpty
+                                            ? 'Have an invitation code?'
+                                            : 'Invitation code added'),
+                                  ),
+                                ]),
+                              ]),
                             ],
                           ),
                         ),

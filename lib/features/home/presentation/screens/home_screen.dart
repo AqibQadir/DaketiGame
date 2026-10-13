@@ -28,6 +28,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   Future<void> offerRecentGame() async {
     if (!mounted || ModalRoute.of(context)?.isCurrent != true) return;
+    final active =
+        await ref.read(gameControllerProvider.notifier).hasActivePreviousGame();
+    if (!active || !mounted || ModalRoute.of(context)?.isCurrent != true)
+      return;
     final join = await showGameConfirmation(
       context,
       title: 'BACK TO THE TABLE?',
@@ -115,7 +119,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   bottom: 14,
                   child: TextButton.icon(
                       icon: const Icon(Icons.group_add),
-                      label: const Text('Invite friends'),
+                      label: const Text('Invite friends',
+                          style: TextStyle(fontSize: 10)),
                       onPressed: () =>
                           Navigator.pushNamed(context, AppRoutes.waitlist))),
             Positioned(
@@ -149,12 +154,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                             style: const TextStyle(
                               color: AppColors.orange,
                               fontWeight: FontWeight.w900,
-                              fontSize: 11,
+                              fontSize: 10,
                             ),
                           ),
                           Text(
                             user == null ? 'GUEST' : 'PERSONAL',
-                            style: const TextStyle(fontSize: 8),
+                            style: const TextStyle(fontSize: 10),
                           ),
                         ],
                       ),
@@ -212,6 +217,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   GameIconButton(
                     icon: Icons.emoji_events,
                     label: 'Missions',
+                    showLabel: false,
                     onTap: () {
                       Navigator.pushNamed(context, AppRoutes.sideQuests);
                     },
@@ -227,6 +233,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   GameIconButton(
                     icon: Icons.storefront,
                     label: 'Shop',
+                    showLabel: false,
                     onTap: () {
                       Navigator.pushNamed(context, AppRoutes.dukan);
                     },
@@ -243,6 +250,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   GameIconButton(
                     icon: Icons.groups,
                     label: 'Teams',
+                    showLabel: false,
                     onTap: () {
                       if (auth.isAuthenticated && user == null) {
                         ref
@@ -265,6 +273,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   GameIconButton(
                     icon: Icons.workspace_premium,
                     label: 'Ranking',
+                    showLabel: false,
                     onTap: () => Navigator.pushNamed(
                       context,
                       AppRoutes.leaderboard,

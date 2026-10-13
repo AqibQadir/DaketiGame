@@ -71,7 +71,7 @@ class _Counter extends StatelessWidget {
             const SizedBox(width: 5),
             Text(
               text,
-              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800),
+              style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800),
             ),
             if (add) ...[
               const SizedBox(width: 7),

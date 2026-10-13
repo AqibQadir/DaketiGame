@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
 
 import '../constants/app_assets.dart';
+import '../services/audio_settings.dart';
 
 /// Video fills the background only; route transitions belong to the foreground.
 class LoopingVideoBackground extends StatefulWidget {
@@ -33,6 +34,7 @@ class _LoopingVideoBackgroundState extends State<LoopingVideoBackground>
       widget.videoAsset,
       videoPlayerOptions: VideoPlayerOptions(mixWithOthers: true),
     );
+    AudioSettings.music.addListener(_updateMusic);
     unawaited(_initialize());
   }
 
@@ -40,13 +42,19 @@ class _LoopingVideoBackgroundState extends State<LoopingVideoBackground>
     try {
       await _controller.initialize();
       if (!mounted) return;
-      await _controller.setVolume(0);
+      await _controller.setVolume(AudioSettings.music.value ? 1 : 0);
       await _controller.setLooping(true);
       if (!mounted) return;
       setState(() => _ready = true);
       await _syncPlayback();
     } catch (_) {
       // The matching still remains visible if video playback is unavailable.
+    }
+  }
+
+  void _updateMusic() {
+    if (_ready) {
+      unawaited(_controller.setVolume(AudioSettings.music.value ? 1 : 0));
     }
   }
 
@@ -78,6 +86,7 @@ class _LoopingVideoBackgroundState extends State<LoopingVideoBackground>
 
   @override
   void dispose() {
+    AudioSettings.music.removeListener(_updateMusic);
     WidgetsBinding.instance.removeObserver(this);
     unawaited(_controller.dispose());
     super.dispose();

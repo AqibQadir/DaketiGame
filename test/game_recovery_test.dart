@@ -59,12 +59,16 @@ class RecoverySocket extends GameSocketService {
   int joins = 0;
   String playerId = 'p0';
   bool reclaimed = false;
+  bool redactJoinHand = false;
   bool loseMembershipOnce = false;
   String? receivedReconnectToken;
   Map<String, dynamic> currentSnapshot() {
     final value = snapshot();
     value['currentPlayerId'] = playerId;
     (value['players'] as List).first['id'] = playerId;
+    if (redactJoinHand) {
+      (value['players'] as List).first['hand'] = ['hidden', 'hidden', 'hidden'];
+    }
     return value;
   }
 
@@ -148,6 +152,35 @@ void main() {
         await controller.joinExistingGame(gameId: '0093', playerName: 'Player'),
         isTrue);
   }
+
+  test('recovery prompt requires a verified playing match', () async {
+    expect(await controller.hasActivePreviousGame(), isFalse);
+    await join();
+    rest.status = 'waiting';
+    expect(await controller.hasActivePreviousGame(), isFalse);
+    rest.status = 'playing';
+    expect(await controller.hasActivePreviousGame(), isTrue);
+    rest.offline = true;
+    expect(await controller.hasActivePreviousGame(), isFalse);
+    expect(storage.saved, isNotNull);
+    rest.offline = false;
+    rest.status = 'finished';
+    expect(await controller.hasActivePreviousGame(), isFalse);
+    expect(storage.saved, isNull);
+  });
+
+  test('explicit leave clears recovery now and after app restart', () async {
+    await join();
+    await controller.leaveMatch();
+    expect(controller.state.gameId, isNull);
+    expect(controller.state.previousGame, isNull);
+    expect(storage.saved, isNull);
+    expect(await controller.resumePreviousGame(), isFalse);
+    controller.dispose();
+    controller = makeController();
+    await Future<void>.delayed(Duration.zero);
+    expect(controller.state.previousGame, isNull);
+  });
 
   test('room survives app restart and rejoins the original seat once',
       () async {
@@ -234,6 +267,64 @@ void main() {
     expect(controller.state.availableActions.length, 3);
   });
 
+  test('AI redacted hand never replaces local cards and restores private seat',
+      () async {
+    await join();
+    final original = controller.state.game;
+    socket.updates.add(GameSocketEvent('ai_action', {
+      'action': 'draw',
+      'gameState': {
+        ...snapshot(),
+        'players': [
+          {
+            'id': 'p0',
+            'name': 'Player',
+            'type': 'human',
+            'hand': ['hidden', 'hidden', 'hidden'],
+            'handCount': 3,
+          }
+        ],
+      },
+    }));
+    expect(controller.state.game, same(original));
+    expect(
+        controller.state.game!.playerById('p0')!.hand.every((c) => !c.isHidden),
+        isTrue);
+    expect(controller.state.isLoading, isTrue);
+    await Future<void>.delayed(Duration.zero);
+    expect(socket.joins, 2);
+    expect(controller.state.isLoading, isFalse);
+    expect(controller.state.game!.playerById('p0')!.hand.map((c) => c.id),
+        ['KH', '2D', '8C']);
+  });
+
+  test('recovery refuses a redacted private-seat acknowledgement', () async {
+    await join();
+    final original = controller.state.game;
+    socket.redactJoinHand = true;
+    expect(await controller.resumePreviousGame(), isFalse);
+    expect(controller.state.game, same(original));
+    expect(storage.saved, isNotNull);
+  });
+
+  test('count-only local hand triggers recovery without publishing empty cards',
+      () async {
+    await join();
+    final original = controller.state.game;
+    socket.updates.add(GameSocketEvent('game_state', {
+      'gameState': {
+        ...snapshot(),
+        'players': [
+          {'id': 'p0', 'name': 'Player', 'type': 'human', 'handCount': 4}
+        ],
+      },
+    }));
+    expect(controller.state.game, same(original));
+    await Future<void>.delayed(Duration.zero);
+    expect(socket.joins, 2);
+    expect(controller.state.isLoading, isFalse);
+  });
+
   test('opponent reconnect replaces stale target IDs and available actions',
       () async {
     await join();
@@ -260,7 +351,7 @@ void main() {
   });
 
   testWidgets(
-      'Home offers a reachable top-right rejoin into the shared game route',
+      'Home prompts to rejoin an interrupted match into the shared game route',
       (tester) async {
     await tester.binding.setSurfaceSize(const Size(844, 390));
     addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -272,10 +363,10 @@ void main() {
       }),
     ));
     await tester.pump();
-    final button = find.text('JOIN PREVIOUS GAME');
+    await tester.pumpAndSettle();
+    expect(find.text('BACK TO THE TABLE?'), findsOneWidget);
+    final button = find.text('JOIN');
     expect(button, findsOneWidget);
-    expect(tester.getCenter(button).dx, greaterThan(600));
-    expect(tester.getCenter(button).dy, lessThan(60));
     expect(tester.takeException(), isNull);
     await tester.tap(button);
     await tester.pumpAndSettle();

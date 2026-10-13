@@ -88,7 +88,6 @@ class _GuestNameScreenState extends ConsumerState<GuestNameScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final keyboardOpen = MediaQuery.viewInsetsOf(context).bottom > 0;
     return Scaffold(
       resizeToAvoidBottomInset: false,
       body: GameBackground(
@@ -117,61 +116,55 @@ class _GuestNameScreenState extends ConsumerState<GuestNameScreen> {
                     child: Column(children: [
                       const DaketiLogo(width: 320, height: 120),
                       const SizedBox(height: 18),
-                      AnimatedSlide(
-                        offset: Offset(0, keyboardOpen ? -.65 : 0),
-                        duration: const Duration(milliseconds: 220),
-                        curve: Curves.easeOutCubic,
-                        child: SizedBox(
-                            width: 280,
-                            child: Form(
-                                key: form,
-                                child: Column(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      TextFormField(
-                                        controller: controller,
-                                        maxLength: 24,
-                                        textCapitalization:
-                                            TextCapitalization.words,
-                                        textInputAction: TextInputAction.done,
-                                        onFieldSubmitted: (_) =>
-                                            continueToRooms(),
-                                        style: const TextStyle(fontSize: 14),
-                                        decoration: InputDecoration(
-                                          hintText: 'Your name',
-                                          counterText: '',
-                                          hintStyle: const TextStyle(
-                                              color: Colors.white38),
-                                          filled: true,
-                                          fillColor: const Color(0x773C3A36),
-                                          contentPadding:
-                                              const EdgeInsets.symmetric(
-                                                  horizontal: 20, vertical: 10),
-                                          enabledBorder: OutlineInputBorder(
-                                              borderRadius:
-                                                  BorderRadius.circular(30),
-                                              borderSide: const BorderSide(
-                                                  color: Colors.white30)),
-                                          focusedBorder: OutlineInputBorder(
-                                              borderRadius:
-                                                  BorderRadius.circular(30),
-                                              borderSide: const BorderSide(
-                                                  color: Color(0xFFFF8500))),
-                                        ),
-                                        validator: (value) => value == null ||
-                                                value.trim().isEmpty
-                                            ? 'Enter your name'
-                                            : null,
+                      SizedBox(
+                          width: 280,
+                          child: Form(
+                              key: form,
+                              child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    TextFormField(
+                                      controller: controller,
+                                      maxLength: 24,
+                                      textCapitalization:
+                                          TextCapitalization.words,
+                                      textInputAction: TextInputAction.done,
+                                      onFieldSubmitted: (_) =>
+                                          continueToRooms(),
+                                      style: const TextStyle(fontSize: 14),
+                                      decoration: InputDecoration(
+                                        hintText: 'Your name',
+                                        counterText: '',
+                                        hintStyle: const TextStyle(
+                                            color: Colors.white38),
+                                        filled: true,
+                                        fillColor: const Color(0x773C3A36),
+                                        contentPadding:
+                                            const EdgeInsets.symmetric(
+                                                horizontal: 20, vertical: 10),
+                                        enabledBorder: OutlineInputBorder(
+                                            borderRadius:
+                                                BorderRadius.circular(30),
+                                            borderSide: const BorderSide(
+                                                color: Colors.white30)),
+                                        focusedBorder: OutlineInputBorder(
+                                            borderRadius:
+                                                BorderRadius.circular(30),
+                                            borderSide: const BorderSide(
+                                                color: Color(0xFFFF8500))),
                                       ),
-                                      const SizedBox(height: 16),
-                                      GameButton(
-                                          text: 'Play as Guest',
-                                          isLoading: saving,
-                                          width: 200,
-                                          onTap:
-                                              saving ? null : continueToRooms),
-                                    ]))),
-                      ),
+                                      validator: (value) =>
+                                          value == null || value.trim().isEmpty
+                                              ? 'Enter your name'
+                                              : null,
+                                    ),
+                                    const SizedBox(height: 16),
+                                    GameButton(
+                                        text: 'Play as Guest',
+                                        isLoading: saving,
+                                        width: 200,
+                                        onTap: saving ? null : continueToRooms),
+                                  ]))),
                     ])),
               ])),
         )),

@@ -5,7 +5,7 @@ import 'package:daketi_phase1_modular/core/routes/app_routes.dart';
 import 'package:daketi_phase1_modular/features/auth/data/auth_rest_client.dart';
 import 'package:daketi_phase1_modular/features/auth/data/auth_token_storage.dart';
 import 'package:daketi_phase1_modular/features/auth/presentation/controllers/auth_controller.dart';
-import 'package:daketi_phase1_modular/features/home/presentation/screens/home_screen.dart';
+import 'package:daketi_phase1_modular/features/access/presentation/waitlist_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -30,7 +30,7 @@ class _Storage extends AuthTokenStorage {
 void main() {
   for (final signup in [false, true]) {
     testWidgets(
-        '${signup ? "signup" : "login"} shows progress and opens rooms on success',
+        '${signup ? "signup" : "login"} shows progress and opens waiting list on success',
         (tester) async {
       await tester.binding.setSurfaceSize(const Size(844, 390));
       addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -39,12 +39,42 @@ void main() {
       final client = AuthRestClient(
           baseUrl: 'https://game.daketi.pk',
           client: MockClient((request) {
+            if (request.url.path == '/api/auth/me') {
+              return Future.value(http.Response(
+                  jsonEncode({
+                    'success': true,
+                    'user': {
+                      'id': '1',
+                      'name': 'Tester',
+                      'email': 'tester@example.com',
+                    },
+                    'stats': {}
+                  }),
+                  200));
+            }
+            if (request.url.path == '/api/referrals/me') {
+              return Future.value(http.Response(
+                  jsonEncode({'success': true, 'referrals': []}), 200));
+            }
+            if (request.url.path.startsWith('/api/waitlist/')) {
+              return Future.value(http.Response(
+                  jsonEncode({
+                    'success': true,
+                    'waitlist': {
+                      'status': 'waiting',
+                      'canPlay': false,
+                      'position': 12,
+                      'totalWaiting': 100,
+                    }
+                  }),
+                  200));
+            }
             expect(request.url.path,
                 signup ? '/api/auth/signup' : '/api/auth/login');
             final body = jsonDecode(request.body) as Map;
             expect(body['email'], 'tester@example.com');
             expect(body['password'], 'valid-password');
-            if (signup) expect(body['name'], 'Tester');
+            if (signup) expect(body['name'], 'Player');
             return response.future;
           }));
       final nav = GlobalKey<NavigatorState>();
@@ -62,14 +92,8 @@ void main() {
       await tester.pumpAndSettle();
       final fields = find.byType(TextField);
       await tester.enterText(fields.at(0), 'tester@example.com');
-      if (signup) {
-        await tester.enterText(fields.at(1), 'Tester');
-        await tester.enterText(fields.at(2), 'valid-password');
-        await tester.enterText(fields.at(3), 'valid-password');
-      } else {
-        await tester.enterText(fields.at(1), 'valid-password');
-      }
-      await tester.tap(find.text(signup ? 'SIGNUP' : 'LOGIN').last);
+      await tester.enterText(fields.at(1), 'valid-password');
+      await tester.tap(find.text(signup ? 'SIGN UP' : 'LOGIN').last);
       await tester.pump();
       expect(find.byType(CircularProgressIndicator), findsOneWidget);
       response.complete(http.Response(
@@ -86,7 +110,7 @@ void main() {
           }),
           signup ? 201 : 200));
       await tester.pumpAndSettle();
-      expect(find.byType(HomeScreen), findsOneWidget);
+      expect(find.byType(WaitlistScreen), findsOneWidget);
       expect(storage.token, 'test-jwt');
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox());

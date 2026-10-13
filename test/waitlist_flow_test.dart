@@ -1,4 +1,6 @@
+import 'package:daketi_phase1_modular/core/theme/app_theme.dart';
 import 'package:flutter/material.dart';
+import 'package:daketi_phase1_modular/core/routes/app_routes.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/testing.dart';
@@ -11,57 +13,81 @@ import 'api_guide_integration_test.dart'
 
 void main() {
   for (final status in ['waiting', 'invited', 'ready']) {
-    testWidgets(
-        'waitlist $status fits small landscape and respects eligibility',
-        (tester) async {
-      await tester.binding.setSurfaceSize(const Size(667, 375));
-      addTearDown(() => tester.binding.setSurfaceSize(null));
-      final api = AuthRestClient(
-          baseUrl: 'https://example.test',
-          client: MockClient((r) async {
-            if (r.url.path == '/api/auth/me') {
-              return jsonResponse({'success': true, 'user': user, 'stats': {}});
-            }
-            if (r.url.path == '/api/referrals/me') {
+    for (final size in [const Size(402, 874), const Size(667, 375)]) {
+      testWidgets('waitlist $status fits $size and respects eligibility',
+          (tester) async {
+        await tester.binding.setSurfaceSize(size);
+        addTearDown(() => tester.binding.setSurfaceSize(null));
+        final api = AuthRestClient(
+            baseUrl: 'https://example.test',
+            client: MockClient((r) async {
+              if (r.url.path == '/api/auth/me') {
+                return jsonResponse(
+                    {'success': true, 'user': user, 'stats': {}});
+              }
+              if (r.url.path == '/api/referrals/me') {
+                return jsonResponse({
+                  'success': true,
+                  'referrals': [
+                    {'name': 'Sara', 'verified': true},
+                    {'name': 'Omar', 'verified': false}
+                  ]
+                });
+              }
               return jsonResponse({
                 'success': true,
-                'referrals': [
-                  {'name': 'Sara', 'verified': true},
-                  {'name': 'Omar', 'verified': false}
-                ]
+                'waitlist': {
+                  'status': status,
+                  'position': 45,
+                  'totalWaiting': 500,
+                  'canPlay': status == 'ready',
+                  'referralCode': 'ABCD2345',
+                  'referralLink': 'https://game.daketi.pk/?ref=ABCD2345',
+                  'referralCount': 0,
+                  'pendingReferralCount': 1,
+                }
               });
-            }
-            return jsonResponse({
-              'success': true,
-              'waitlist': {
-                'status': status,
-                'position': 45,
-                'totalWaiting': 500,
-                'canPlay': status == 'ready',
-                'referralCode': 'ABCD2345',
-                'referralLink': 'https://game.daketi.pk/?ref=ABCD2345',
-                'referralCount': 1,
-                'pendingReferralCount': 1,
-              }
-            });
-          }));
-      addTearDown(api.dispose);
-      await tester.pumpWidget(ProviderScope(overrides: [
-        authRestClientProvider.overrideWithValue(api),
-        authTokenStorageProvider.overrideWithValue(MemoryAuthStorage()),
-      ], child: const MaterialApp(home: WaitlistScreen())));
-      await tester.pumpAndSettle();
-      expect(find.text('Your code: ABCD2345'), findsOneWidget);
-      expect(find.text('Invite friends'), findsOneWidget);
-      expect(find.text('1 verified referrals · 1 pending'), findsOneWidget);
-      if (status == 'waiting') {
-        expect(find.text('#45 · 500 waiting'), findsOneWidget);
-      }
-      if (status == 'invited') expect(find.text('HOME'), findsNothing);
-      if (status == 'ready') expect(find.text('HOME'), findsOneWidget);
-      expect(tester.takeException(), isNull);
-      await tester.pumpWidget(const SizedBox());
-    });
+            }));
+        addTearDown(api.dispose);
+        await tester.pumpWidget(ProviderScope(
+            overrides: [
+              authRestClientProvider.overrideWithValue(api),
+              authTokenStorageProvider.overrideWithValue(MemoryAuthStorage()),
+            ],
+            child: MaterialApp(
+              debugShowCheckedModeBanner: false,
+              theme: AppTheme.darkTheme,
+              home: const WaitlistScreen(),
+              routes: {
+                AppRoutes.login: (_) =>
+                    const Scaffold(body: Text('LOGIN SCREEN')),
+                AppRoutes.home: (_) =>
+                    const Scaffold(body: Text('APPROVED HOME'))
+              },
+            )));
+        await tester.pumpAndSettle();
+        if (status == 'ready') {
+          expect(find.text('APPROVED HOME'), findsOneWidget);
+        } else {
+          expect(find.text('Your code: ABCD2345'), findsOneWidget);
+          expect(find.text('Invite friends'), findsOneWidget);
+          expect(find.text('0 verified referrals · 1 pending'), findsOneWidget);
+          expect(find.text('200'), findsOneWidget);
+          expect(find.text('APPROVED HOME'), findsNothing);
+          if (status == 'waiting') {
+            expect(find.text('#45 · 500 waiting'), findsOneWidget);
+          }
+        }
+        if (status != 'ready') {
+          await tester.tap(find.text('Back to login'));
+          await tester.pumpAndSettle();
+          expect(find.text('LOGIN SCREEN'), findsOneWidget);
+          expect(find.byType(WaitlistScreen), findsNothing);
+        }
+        expect(tester.takeException(), isNull);
+        await tester.pumpWidget(const SizedBox());
+      });
+    }
   }
   testWidgets(
       'reset link validates passwords then submits token and offers login',

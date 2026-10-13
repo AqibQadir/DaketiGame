@@ -1,3 +1,4 @@
+import '../../features/access/presentation/launch_access_gate.dart';
 import '../../features/auth/presentation/screens/profile_setup_gate.dart';
 import '../../features/friends/presentation/friends_screen.dart';
 import 'package:flutter/material.dart';
@@ -136,7 +137,8 @@ class AppRouter {
       case AppRoutes.faqs:
         return page(const FaqScreen());
       case AppRoutes.home:
-        return page(const ProfileSetupGate(child: HomeScreen()));
+        return page(const LaunchAccessGate(
+            child: ProfileSetupGate(child: HomeScreen())));
       case AppRoutes.game:
         return page(const GameScreen());
       case AppRoutes.gameTutorial:

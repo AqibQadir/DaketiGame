@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../../core/services/audio_settings.dart';
 
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/widgets/game_background.dart';
@@ -13,11 +14,10 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  bool music = true;
-  bool media = false;
+  bool music = AudioSettings.music.value;
+  bool media = AudioSettings.media.value;
   bool vibration = false;
   bool notification = true;
-  String language = 'English';
 
   Widget toggleRow({
     required String label,
@@ -81,6 +81,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                 onChanged: (value) {
                                   setState(() {
                                     music = value;
+                                    AudioSettings.setMusic(value);
                                   });
                                 },
                               ),
@@ -90,6 +91,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                 onChanged: (value) {
                                   setState(() {
                                     media = value;
+                                    AudioSettings.setMedia(value);
                                   });
                                 },
                               ),
@@ -120,40 +122,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               ),
                             ],
                           ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        const Expanded(
-                          child: Text(
-                            'LANGUAGE',
-                            style: TextStyle(
-                              fontWeight: FontWeight.w900,
-                            ),
-                          ),
-                        ),
-                        DropdownButton<String>(
-                          value: language,
-                          dropdownColor: Colors.black,
-                          items: const [
-                            DropdownMenuItem(
-                              value: 'English',
-                              child: Text('English'),
-                            ),
-                            DropdownMenuItem(
-                              value: 'Urdu',
-                              child: Text('Urdu'),
-                            ),
-                          ],
-                          onChanged: (String? value) {
-                            if (value == null) return;
-
-                            setState(() {
-                              language = value;
-                            });
-                          },
                         ),
                       ],
                     ),

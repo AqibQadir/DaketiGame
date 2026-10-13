@@ -1,3 +1,5 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../features/game/presentation/controllers/game_controller.dart';
 import '../constants/app_assets.dart';
 import 'package:flutter/material.dart';
 import '../widgets/looping_video_background.dart';
@@ -58,6 +60,14 @@ class GamePopupRoute<T> extends PopupRoute<T> {
                           tooltip: 'Close popup',
                           onPressed: () {
                             final navigator = Navigator.of(context);
+                            if (settings.name == AppRoutes.results) {
+                              ProviderScope.containerOf(context, listen: false)
+                                  .read(gameControllerProvider.notifier)
+                                  .resetSession();
+                              navigator.pushNamedAndRemoveUntil(
+                                  AppRoutes.home, (_) => false);
+                              return;
+                            }
                             if (navigator.canPop()) {
                               navigator.pop();
                             } else {
