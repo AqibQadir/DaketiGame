@@ -47,10 +47,10 @@ Official setup: https://facebook.meedu.app/docs/7.x.x/android/ and https://faceb
 
 ### Firebase / push
 
-1. Supply actual per-platform `FIREBASE_API_KEY`, `FIREBASE_APP_ID`, `FIREBASE_SENDER_ID`, `FIREBASE_PROJECT_ID` and iOS bundle ID. The service initializes with explicit FirebaseOptions, so Android can use these without a google-services Gradle plugin. Alternatively configure native GoogleService files and leave API_KEY blank.
+1. Supply actual per-platform `FIREBASE_API_KEY`, `FIREBASE_APP_ID`, `FIREBASE_SENDER_ID`, `FIREBASE_PROJECT_ID` and iOS bundle ID. The service initializes with explicit FirebaseOptions, so Android can use these without a google-services Gradle plugin. Alternatively configure native GoogleService files and leave API_KEY blank; Android also requires the Google Services Gradle plugin when using google-services.json.
 2. Enable Firebase Cloud Messaging and configure the backend credentials (the guide says these are still missing).
 3. iOS: enable Push Notifications and Associated Domains for the Apple app ID/provisioning profile; upload the APNs key/certificate to Firebase. Entitlements and remote-notification background mode are included; Debug uses development APNs and Release/Profile uses production.
-4. Set `FIREBASE_ENABLED=true`, sign in, then tap Enable notifications on the invitation/referrals screen. Permission is not required to play. APNs token delay or permission refusal is recoverable on resume/retry.
+4. Set `FIREBASE_ENABLED=true`, sign in, then tap Enable notifications on the invitation/referrals screen or Account Settings. Permission is not required to play. APNs token delay or permission refusal is recoverable on resume/retry.
 5. This implementation targets Android/iOS. Web FCM additionally requires a real web Firebase configuration, VAPID key, and a deployed service worker; these are not supplied or deployed here.
 
 Official setup: https://firebase.google.com/docs/cloud-messaging/flutter/get-started and https://firebase.google.com/docs/cloud-messaging/flutter/receive-messages.

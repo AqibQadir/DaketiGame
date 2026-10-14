@@ -76,3 +76,9 @@ dart run tool/backend_smoke.dart
 
 Override the server for staging with
 `flutter run --dart-define=DAKETI_SERVER_URL=https://your-staging-server`.
+
+For the latest push audit and activation steps, see [Push notification readiness](docs/push-notification-readiness.md).
+
+Import supplied Firebase client files with `python3 scripts/configure_push.py --android /path/to/google-services.json --ios /path/to/GoogleService-Info.plist`. See [the developer request](docs/push-setup-request.md) for the missing external setup.
+
+Mobile builds now include the Daketi Firebase client configuration by default. For TestFlight use `flutter build ipa --release`; the generated archive uses the configured Apple team and production APNs environment. Permission remains opt-in through Enable notifications. Backend sending and device delivery must still be verified.

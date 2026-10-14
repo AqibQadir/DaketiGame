@@ -25,6 +25,7 @@ class DaketiApp extends ConsumerStatefulWidget {
 class _DaketiAppState extends ConsumerState<DaketiApp>
     with WidgetsBindingObserver {
   final navigatorKey = GlobalKey<NavigatorState>();
+  final messengerKey = GlobalKey<ScaffoldMessengerState>();
   bool hadAuthenticatedSession = false;
   StreamSubscription<Uri>? _links;
   StreamSubscription<Map<String, String>>? _push;
@@ -46,7 +47,7 @@ class _DaketiAppState extends ConsumerState<DaketiApp>
           _pendingPush != null) {
         final payload = _pendingPush!;
         _pendingPush = null;
-        unawaited(_onPush(payload));
+        unawaited(_onPushSafely(payload));
       }
     });
   });
@@ -100,8 +101,13 @@ class _DaketiAppState extends ConsumerState<DaketiApp>
       return;
     }
     final access = ref.read(accessControllerProvider.notifier);
+    final accountToken = ref.read(authControllerProvider).token;
+    bool? eligibility;
     switch (payload['type']) {
       case 'play_unlocked':
+        eligibility = await access.checkEligibility();
+        await access.refresh();
+        break;
       case 'waitlist_status':
         await access.refresh();
         break;
@@ -115,13 +121,28 @@ class _DaketiAppState extends ConsumerState<DaketiApp>
       default:
         return;
     }
-    if (!mounted || payload['opened'] != 'true') return;
+    if (!mounted || ref.read(authControllerProvider).token != accountToken) {
+      return;
+    }
+    if (payload['opened'] != 'true') {
+      final title = payload['notificationTitle'];
+      final body = payload['notificationBody'];
+      final text = [title, body]
+          .whereType<String>()
+          .where((s) => s.isNotEmpty)
+          .join('\n');
+      if (text.isNotEmpty) {
+        messengerKey.currentState?.showSnackBar(SnackBar(content: Text(text)));
+      }
+      return;
+    }
+    if (ref.read(accessControllerProvider).error != null) return;
     // Never interrupt an active match just because a notification was tapped.
     if (_currentRoute == AppRoutes.game) return;
-    navigatorKey.currentState?.pushNamed(
-        ref.read(accessControllerProvider).waitlist?.canPlay == true
-            ? AppRoutes.home
-            : AppRoutes.waitlist);
+    navigatorKey.currentState?.pushNamed(eligibility != false &&
+            ref.read(accessControllerProvider).waitlist?.canPlay == true
+        ? AppRoutes.home
+        : AppRoutes.waitlist);
   }
 
   @override
@@ -132,7 +153,16 @@ class _DaketiAppState extends ConsumerState<DaketiApp>
     _push = ref
         .read(pushNotificationServiceProvider)
         .events
-        .listen((payload) => unawaited(_onPush(payload)));
+        .listen((payload) => unawaited(_onPushSafely(payload)));
+  }
+
+  Future<void> _onPushSafely(Map<String, String> payload) async {
+    try {
+      await _onPush(payload);
+    } catch (_) {
+      // Resume refresh retries network failures; notification hints cannot
+      // grant access or leave an unhandled asynchronous exception.
+    }
   }
 
   @override
@@ -195,6 +225,7 @@ class _DaketiAppState extends ConsumerState<DaketiApp>
         ]),
       ),
       navigatorKey: navigatorKey,
+      scaffoldMessengerKey: messengerKey,
       navigatorObservers: [_observer],
       debugShowCheckedModeBanner: false,
       title: 'Daketi',

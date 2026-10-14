@@ -4,6 +4,7 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../features/auth/data/auth_rest_client.dart';
+import '../config/daketi_firebase_options.dart';
 import '../../features/auth/presentation/controllers/auth_controller.dart';
 
 final pushNotificationServiceProvider =
@@ -13,12 +14,19 @@ final pushNotificationServiceProvider =
   return service;
 });
 
-/// Opt-in until the real Firebase project configuration is supplied. No fake
-/// credentials, startup network dependency, or change to game availability.
+/// Mobile push is configured for Daketi. Permission remains an explicit opt-in.
 class PushNotificationService {
   PushNotificationService(this.api);
   final AuthRestClient api;
-  static const enabled = bool.fromEnvironment('FIREBASE_ENABLED');
+  static const enabled =
+      bool.fromEnvironment('FIREBASE_ENABLED', defaultValue: true);
+  bool get isAvailable =>
+      enabled &&
+      ((kIsWeb &&
+              const String.fromEnvironment('FIREBASE_API_KEY').isNotEmpty) ||
+          (!kIsWeb &&
+              (defaultTargetPlatform == TargetPlatform.android ||
+                  defaultTargetPlatform == TargetPlatform.iOS)));
   final _events = StreamController<Map<String, String>>.broadcast();
   Stream<Map<String, String>> get events => _events.stream;
   final _subscriptions = <StreamSubscription<dynamic>>[];
@@ -29,11 +37,12 @@ class PushNotificationService {
   Future<void> _initialize() =>
       _initializing ??= _setup().whenComplete(() => _initializing = null);
   Future<void> _setup() async {
-    if (_ready || !enabled || _disposed) return;
+    if (_ready || !isAvailable || _disposed) return;
     if (Firebase.apps.isEmpty) {
       const apiKey = String.fromEnvironment('FIREBASE_API_KEY');
       if (apiKey.isEmpty) {
-        await Firebase.initializeApp(); // Native GoogleService configuration.
+        await Firebase.initializeApp(
+            options: DaketiFirebaseOptions.currentPlatform);
       } else {
         await Firebase.initializeApp(
             options: const FirebaseOptions(
@@ -64,13 +73,17 @@ class PushNotificationService {
     if (_disposed) return;
     _events.add({
       ...message.data.map((k, v) => MapEntry(k, v.toString())),
-      'opened': '$opened'
+      'opened': '$opened',
+      if (message.notification?.title != null)
+        'notificationTitle': message.notification!.title!,
+      if (message.notification?.body != null)
+        'notificationBody': message.notification!.body!,
     });
   }
 
   Future<void> bindAccount(String? token) async {
     _accountToken = token;
-    if (token == null || !enabled) return;
+    if (token == null || !isAvailable) return;
     try {
       await _initialize();
       if (_disposed || _accountToken != token) return;
@@ -88,7 +101,7 @@ class PushNotificationService {
   }
 
   Future<bool> enableNotifications() async {
-    if (!enabled || _accountToken == null) return false;
+    if (!isAvailable || _accountToken == null || _disposed) return false;
     await _initialize();
     final settings = await FirebaseMessaging.instance.requestPermission();
     if (settings.authorizationStatus != AuthorizationStatus.authorized &&

@@ -4,6 +4,7 @@ import '../../../auth/presentation/controllers/auth_controller.dart';
 
 import '../../../../core/routes/app_routes.dart';
 import '../../../../core/widgets/game_button.dart';
+import '../../../../core/widgets/enable_notifications_button.dart';
 import '../../../support/presentation/widgets/support_page_shell.dart';
 
 class GeneralSettingsScreen extends ConsumerWidget {
@@ -13,7 +14,7 @@ class GeneralSettingsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) => SupportPageShell(
         title: 'Account Settings',
         width: 470,
-        height: 245,
+        height: 285,
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
@@ -24,6 +25,7 @@ class GeneralSettingsScreen extends ConsumerWidget {
                 ref.watch(authControllerProvider).user?.email ??
                     'Not signed in'),
             const _AccountRow('Password', '••••••••'),
+            const EnableNotificationsButton(),
             const SizedBox(height: 15),
             GameButton(
               text: 'Logout',

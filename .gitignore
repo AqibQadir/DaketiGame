@@ -47,3 +47,9 @@ app.*.map.json
 # Local provider configuration
 ios/Flutter/Social.local.xcconfig
 config/providers.local.json
+
+# Generated per-platform Firebase client configuration
+config/providers.*.local.json
+
+# Private App Store review account credentials
+config/app-review.local.json

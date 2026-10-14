@@ -5,7 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../../core/routes/app_routes.dart';
-import '../../../../core/services/push_notification_service.dart';
+import '../../../../core/widgets/enable_notifications_button.dart';
 import '../../../../core/widgets/game_background.dart';
 import '../../../../core/widgets/game_alert.dart';
 import '../../../../core/widgets/game_button.dart';
@@ -276,30 +276,7 @@ class _WaitlistScreenState extends ConsumerState<WaitlistScreen> {
                                   'https://tiktok.com/@daketi.pk'),
                               _social('X', null, 'https://x.com/daketipk'),
                             ]),
-                        if (PushNotificationService.enabled)
-                          TextButton.icon(
-                              icon: const Icon(
-                                  Icons.notifications_active_outlined),
-                              label: const Text('Enable notifications'),
-                              onPressed: () async {
-                                try {
-                                  final ok = await ref
-                                      .read(pushNotificationServiceProvider)
-                                      .enableNotifications();
-                                  if (context.mounted) {
-                                    showGameAlert(
-                                        context,
-                                        ok
-                                            ? 'Notifications enabled.'
-                                            : 'Notifications are not ready. Please try again.');
-                                  }
-                                } catch (_) {
-                                  if (context.mounted) {
-                                    showGameAlert(context,
-                                        'Unable to enable notifications. Please try again.');
-                                  }
-                                }
-                              }),
+                        const EnableNotificationsButton(),
                         TextButton(
                             onPressed: () async {
                               await ref
