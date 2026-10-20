@@ -1,6 +1,5 @@
 import '../../features/access/presentation/launch_access_gate.dart';
 import '../../features/auth/presentation/screens/profile_setup_gate.dart';
-import '../../features/friends/presentation/friends_screen.dart';
 import 'package:flutter/material.dart';
 
 import '../../features/auth/presentation/screens/auth_choice_screen.dart';
@@ -147,7 +146,7 @@ class AppRouter {
           returnRoute: arguments is String ? arguments : AppRoutes.welcome,
         ));
       case AppRoutes.friends:
-        return page(const FriendsScreen());
+        return page(const MultiplayerScreen());
       case AppRoutes.baithak:
         return page(const BaithakScreen());
       case AppRoutes.myClan:

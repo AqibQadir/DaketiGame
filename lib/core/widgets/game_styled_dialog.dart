@@ -1,6 +1,5 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
-import '../constants/app_assets.dart';
 import 'game_button.dart';
 import 'game_dialog_title.dart';
 
@@ -35,7 +34,6 @@ class GameStyledDialog extends StatelessWidget {
         onTap: action.onPressed,
         width: text.length > 15 ? 155 : 120,
         fontSize: 16,
-        backgroundAsset: AppAssets.actionButtonBrush,
         backgroundTint: destructive ? const Color(0xFFBC201B) : null);
   }
 

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:daketi_phase1_modular/core/widgets/game_button.dart';
 import 'package:daketi_phase1_modular/core/services/push_notification_service.dart';
 import 'package:daketi_phase1_modular/core/widgets/enable_notifications_button.dart';
 import 'package:daketi_phase1_modular/features/auth/data/auth_rest_client.dart';
@@ -51,14 +52,13 @@ void main() {
           child: const MaterialApp(
               home: Scaffold(body: EnableNotificationsButton()))));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Enable notifications'));
+      await tester.tap(find.text('ENABLE NOTIFICATIONS'));
       await tester.pump();
       if (available) {
         expect(push.bound, 'jwt');
         expect(push.requests, 1);
-        expect(
-            tester.widget<TextButton>(find.byType(TextButton).first).onPressed,
-            isNull);
+        expect(tester.widget<GameButton>(find.byType(GameButton)).isLoading,
+            isTrue);
         push.result.complete(true);
         await tester.pumpAndSettle();
         expect(find.text('NOTIFICATIONS ENABLED.'), findsOneWidget);

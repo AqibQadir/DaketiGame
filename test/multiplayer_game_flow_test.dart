@@ -1,3 +1,5 @@
+import 'package:daketi_phase1_modular/features/auth/presentation/controllers/auth_controller.dart';
+import 'profile_setup_gate_test.dart' show FakeAuth;
 import 'package:daketi_phase1_modular/core/routes/app_router.dart';
 import 'package:daketi_phase1_modular/core/routes/app_routes.dart';
 import 'package:daketi_phase1_modular/features/auth/presentation/controllers/guest_name_provider.dart';
@@ -13,6 +15,8 @@ import 'package:daketi_phase1_modular/features/game/presentation/widgets/fanned_
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:daketi_phase1_modular/features/game/presentation/controllers/custom_room_details.dart';
 
 class FlowController extends GameController {
   FlowController({int count = 4, bool resumed = false, bool expired = false})
@@ -205,13 +209,16 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('guest identity returns to room setup and continues create',
+  testWidgets('signed in player creates a room with its name and city',
       (tester) async {
+    SharedPreferences.setMockInitialValues({});
     await tester.binding.setSurfaceSize(const Size(844, 390));
     addTearDown(() => tester.binding.setSurfaceSize(null));
     final controller = FlowController();
     final container = ProviderContainer(overrides: [
       gameControllerProvider.overrideWith((ref) => controller),
+      authControllerProvider.overrideWith((ref) =>
+          FakeAuth(const AuthState(token: 'test', isRestoring: false))),
     ]);
     addTearDown(container.dispose);
     container.read(guestAgeProvider.notifier).state = 25;
@@ -219,21 +226,23 @@ void main() {
     await tester.pumpWidget(UncontrolledProviderScope(
       container: container,
       child: MaterialApp(
-          home: const MultiplayerScreen(),
+          home: const MultiplayerScreen(initialPlayerName: 'Member'),
           onGenerateRoute: AppRouter.onGenerateRoute,
           routes: {
             AppRoutes.game: (_) => const Scaffold(body: Text('Game opened'))
           }),
     ));
     await tester.pump();
+    await tester.enterText(find.byType(TextFormField), 'Friday room');
+    await tester.tap(find.text('LAHORE'));
+    await tester.ensureVisible(find.text('3 PLAYERS'));
     await tester.tap(find.text('3 PLAYERS'));
+    await tester.ensureVisible(find.text('CREATE ROOM'));
     await tester.tap(find.text('CREATE ROOM'));
     await tester.pumpAndSettle();
-    expect(find.text('PLAY AS GUEST'), findsOneWidget);
-    await tester.enterText(find.byType(TextFormField), 'Guest human');
-    await tester.tap(find.text('CONTINUE'));
-    await tester.pumpAndSettle();
     expect(controller.requestedCapacity, 3);
+    expect(container.read(customRoomDetailsProvider)?.name, 'Friday room');
+    expect(container.read(customRoomDetailsProvider)?.city.cityName, 'Lahore');
     expect(find.text('Game opened'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });

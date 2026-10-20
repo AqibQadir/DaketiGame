@@ -2,6 +2,7 @@ import '../../../tables/domain/table_match_selection.dart';
 import '../../../tables/domain/table_room.dart';
 import '../../../../core/widgets/looping_video_background.dart';
 import '../../../../core/widgets/game_styled_dialog.dart';
+import '../../../../core/widgets/game_button.dart';
 import 'dart:async';
 import 'dart:math' as math;
 
@@ -43,11 +44,36 @@ class _PlayerIdentity {
 }
 
 const _pakistaniBotRoster = <_PlayerIdentity>[
-  _PlayerIdentity('Hamza Malik', AppAssets.playerHamza),
-  _PlayerIdentity('Ayesha Khan', AppAssets.playerAyesha),
-  _PlayerIdentity('Bilal Ahmed', AppAssets.playerBilal),
-  _PlayerIdentity('Mahnoor Fatima', AppAssets.playerMahnoor),
-  _PlayerIdentity('Saad Qureshi', AppAssets.playerSaad),
+  _PlayerIdentity('Ahad', 'assets/images/players/ai/ahad.jpg'),
+  _PlayerIdentity('Aiza', 'assets/images/players/ai/aiza.jpg'),
+  _PlayerIdentity('Alishba', 'assets/images/players/ai/alishba.jpg'),
+  _PlayerIdentity('Anaya', 'assets/images/players/ai/anaya.jpg'),
+  _PlayerIdentity('Areeba', 'assets/images/players/ai/areeba.jpg'),
+  _PlayerIdentity('Arham', 'assets/images/players/ai/arham.jpg'),
+  _PlayerIdentity('Ayan', 'assets/images/players/ai/ayan.jpg'),
+  _PlayerIdentity('Ayesha', 'assets/images/players/ai/ayesha.jpg'),
+  _PlayerIdentity('Daniyal', 'assets/images/players/ai/daniyal.jpg'),
+  _PlayerIdentity('Dua', 'assets/images/players/ai/dua.jpg'),
+  _PlayerIdentity('Eshal', 'assets/images/players/ai/eshal.jpg'),
+  _PlayerIdentity('Hamza', 'assets/images/players/ai/hamza.jpg'),
+  _PlayerIdentity('Hania', 'assets/images/players/ai/hania.jpg'),
+  _PlayerIdentity('Huzaifa', 'assets/images/players/ai/huzaifa.jpg'),
+  _PlayerIdentity('Ibrahim', 'assets/images/players/ai/ibrahim.jpg'),
+  _PlayerIdentity('Inaya', 'assets/images/players/ai/inaya.jpg'),
+  _PlayerIdentity('Iqra', 'assets/images/players/ai/iqra.jpg'),
+  _PlayerIdentity('Kinza', 'assets/images/players/ai/kinza.jpg'),
+  _PlayerIdentity('Laiba', 'assets/images/players/ai/laiba.jpg'),
+  _PlayerIdentity('Mahnoor', 'assets/images/players/ai/mahnoor.jpg'),
+  _PlayerIdentity('Meher', 'assets/images/players/ai/meher.jpg'),
+  _PlayerIdentity('Mikaal', 'assets/images/players/ai/mikaal.jpg'),
+  _PlayerIdentity('Rayyan', 'assets/images/players/ai/rayyan.jpg'),
+  _PlayerIdentity('Saad', 'assets/images/players/ai/saad.jpg'),
+  _PlayerIdentity('Shahmeer', 'assets/images/players/ai/shahmeer.jpg'),
+  _PlayerIdentity('Shayan', 'assets/images/players/ai/shayan.jpg'),
+  _PlayerIdentity('Taha', 'assets/images/players/ai/taha.jpg'),
+  _PlayerIdentity('Zain', 'assets/images/players/ai/zain.jpg'),
+  _PlayerIdentity('Zayan', 'assets/images/players/ai/zayan.jpg'),
+  _PlayerIdentity('Zoya', 'assets/images/players/ai/zoya.jpg'),
 ];
 
 int _stableIdentitySeed(String value) {
@@ -996,8 +1022,8 @@ class _Board extends StatelessWidget {
       if (ModalRoute.of(context)?.settings.arguments
           case TableMatchSelection selection)
         Positioned(
-          right: 65,
-          top: 8,
+          left: 13,
+          bottom: 12,
           width: 120,
           height: 44,
           child: IgnorePointer(
@@ -1022,40 +1048,61 @@ class _Board extends StatelessWidget {
         top: 12,
         child: PopupMenuButton<String>(
           tooltip: 'Match menu',
-          color: _panelGreen,
+          color: const Color(0xF21B140D),
+          surfaceTintColor: Colors.transparent,
+          elevation: 12,
+          offset: const Offset(0, 52),
+          constraints: const BoxConstraints(minWidth: 204, maxWidth: 204),
+          menuPadding: const EdgeInsets.symmetric(vertical: 12),
           shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-              side: const BorderSide(color: _gold)),
+              borderRadius: BorderRadius.circular(18),
+              side: const BorderSide(color: _gold, width: 1.2)),
           onOpened: onCloseReactions,
           onSelected: (action) {
             if (action == 'leave') {
               onExit();
             } else if (action == 'settings') {
               Navigator.pushNamed(context, AppRoutes.settings);
-            } else if (action == 'support') {
-              Navigator.pushNamed(context, AppRoutes.support);
             }
           },
           itemBuilder: (_) => [
             PopupMenuItem<String>(
-                enabled: false,
-                child: Text('Players ${game.players.length}/${game.maxPlayers}',
-                    style: const TextStyle(color: _cream))),
+              enabled: false,
+              height: 32,
+              child: Center(
+                child: Text('PLAYERS ${game.players.length}/${game.maxPlayers}',
+                    style: const TextStyle(
+                        color: _gold,
+                        fontSize: 11,
+                        letterSpacing: 1.6,
+                        fontWeight: FontWeight.w600)),
+              ),
+            ),
             const PopupMenuItem(
-                value: 'settings',
-                child: ListTile(
-                    leading: Icon(Icons.settings, color: _cream),
-                    title: Text('Settings'))),
+              value: 'settings',
+              height: 54,
+              child: IgnorePointer(
+                  child: GameButton(
+                text: 'Settings',
+                icon: Icons.settings_outlined,
+                width: 172,
+                fontSize: 17,
+                onTap: null,
+              )),
+            ),
             const PopupMenuItem(
-                value: 'support',
-                child: ListTile(
-                    leading: Icon(Icons.headset_mic, color: _cream),
-                    title: Text('Support'))),
-            const PopupMenuItem(
-                value: 'leave',
-                child: ListTile(
-                    leading: Icon(Icons.logout, color: _cream),
-                    title: Text('Leave Match'))),
+              value: 'leave',
+              height: 54,
+              child: IgnorePointer(
+                  child: GameButton(
+                text: 'Leave Match',
+                icon: Icons.logout,
+                width: 172,
+                fontSize: 17,
+                onTap: null,
+                backgroundTint: Color(0xFFAC3826),
+              )),
+            ),
           ],
           child: const _Square(icon: Icons.menu),
         ),
@@ -1258,8 +1305,8 @@ class _Board extends StatelessWidget {
             width: 190,
             child: _Activity(session.activity!)),
       Positioned(
-        right: 13,
-        bottom: 72,
+        left: 313,
+        bottom: 48,
         child: Semantics(
             button: true,
             label: 'Open reactions',
@@ -1268,7 +1315,18 @@ class _Board extends StatelessWidget {
                 child: InkWell(
                   key: const ValueKey('reaction-button'),
                   onTap: reactionsEnabled ? onToggleReactions : null,
-                  child: const _Square(icon: Icons.emoji_emotions_outlined),
+                  borderRadius: BorderRadius.circular(16),
+                  child: Container(
+                    width: 30,
+                    height: 30,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: _panelGreen,
+                      border: Border.all(color: _gold, width: 1.2),
+                    ),
+                    child: const Icon(Icons.sentiment_satisfied_alt,
+                        size: 20, color: _cream),
+                  ),
                 ))),
       ),
       if (reactionsOpen) ...[
@@ -1278,8 +1336,8 @@ class _Board extends StatelessWidget {
                 behavior: HitTestBehavior.opaque,
                 onTap: onCloseReactions)),
         Positioned(
-            right: 13,
-            bottom: 72,
+            left: 270,
+            bottom: 88,
             child: ReactionPicker(
                 onSelect: onReaction, onClose: onCloseReactions)),
       ],

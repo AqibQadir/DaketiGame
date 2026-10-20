@@ -35,6 +35,7 @@ class _LoopingVideoBackgroundState extends State<LoopingVideoBackground>
       videoPlayerOptions: VideoPlayerOptions(mixWithOthers: true),
     );
     AudioSettings.music.addListener(_updateMusic);
+    AudioSettings.musicVolume.addListener(_updateMusic);
     unawaited(_initialize());
   }
 
@@ -42,7 +43,7 @@ class _LoopingVideoBackgroundState extends State<LoopingVideoBackground>
     try {
       await _controller.initialize();
       if (!mounted) return;
-      await _controller.setVolume(AudioSettings.music.value ? 1 : 0);
+      await _controller.setVolume(AudioSettings.effectiveMusicVolume);
       await _controller.setLooping(true);
       if (!mounted) return;
       setState(() => _ready = true);
@@ -54,7 +55,7 @@ class _LoopingVideoBackgroundState extends State<LoopingVideoBackground>
 
   void _updateMusic() {
     if (_ready) {
-      unawaited(_controller.setVolume(AudioSettings.music.value ? 1 : 0));
+      unawaited(_controller.setVolume(AudioSettings.effectiveMusicVolume));
     }
   }
 
@@ -87,6 +88,7 @@ class _LoopingVideoBackgroundState extends State<LoopingVideoBackground>
   @override
   void dispose() {
     AudioSettings.music.removeListener(_updateMusic);
+    AudioSettings.musicVolume.removeListener(_updateMusic);
     WidgetsBinding.instance.removeObserver(this);
     unawaited(_controller.dispose());
     super.dispose();

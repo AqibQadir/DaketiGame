@@ -40,6 +40,8 @@ flutter:
     - assets/images/cities/plates/
     - assets/images/tables/lobbies/
     - assets/images/players/
+    - assets/images/players/ai/
+    - assets/images/winner_cards/
     - assets/images/cards/style01/Clubs/
     - assets/images/cards/style01/Diamonds/
     - assets/images/cards/style01/Hearts/

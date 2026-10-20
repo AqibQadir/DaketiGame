@@ -14,8 +14,7 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  bool music = AudioSettings.music.value;
-  bool media = AudioSettings.media.value;
+  double musicVolume = AudioSettings.effectiveMusicVolume;
   bool vibration = false;
   bool notification = true;
 
@@ -75,24 +74,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         Expanded(
                           child: Column(
                             children: [
-                              toggleRow(
-                                label: 'Music',
-                                value: music,
+                              Row(children: [
+                                const Icon(Icons.music_note, size: 19),
+                                const SizedBox(width: 6),
+                                const Expanded(
+                                    child: Text('MUSIC',
+                                        style: TextStyle(
+                                            fontWeight: FontWeight.w900,
+                                            fontStyle: FontStyle.italic))),
+                                Text('${(musicVolume * 100).round()}%'),
+                              ]),
+                              Slider(
+                                value: musicVolume,
+                                activeColor: AppColors.green,
+                                label: '${(musicVolume * 100).round()}%',
+                                semanticFormatterCallback: (value) =>
+                                    'Music volume ${(value * 100).round()} percent',
                                 onChanged: (value) {
-                                  setState(() {
-                                    music = value;
-                                    AudioSettings.setMusic(value);
-                                  });
-                                },
-                              ),
-                              toggleRow(
-                                label: 'Media',
-                                value: media,
-                                onChanged: (value) {
-                                  setState(() {
-                                    media = value;
-                                    AudioSettings.setMedia(value);
-                                  });
+                                  setState(() => musicVolume = value);
+                                  AudioSettings.setMusicVolume(value);
                                 },
                               ),
                             ],

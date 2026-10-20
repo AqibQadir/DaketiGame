@@ -7,6 +7,7 @@ import '../../../auth/presentation/controllers/guest_name_provider.dart';
 import '../../domain/table_room.dart';
 import '../../domain/table_match_selection.dart';
 import '../widgets/table_card.dart';
+import '../widgets/focused_card_carousel.dart';
 import '../widgets/table_page_shell.dart';
 
 class TableRoomScreen extends ConsumerWidget {
@@ -25,41 +26,34 @@ class TableRoomScreen extends ConsumerWidget {
       backgroundAsset: room.backgroundAsset(
           portrait: MediaQuery.sizeOf(context).height >
               MediaQuery.sizeOf(context).width),
-      child: Row(
-        children: [
-          for (var index = 0; index < stakes.length; index++) ...[
-            Expanded(
-              child: TableCard(
-                title: stakes[index].title,
-                subtitle: stakes[index].subtitle,
-                buyIn: stakes[index].buyIn,
-                reward: stakes[index].reward,
-                badge: stakes[index].badge,
-                locked: stakes[index].locked,
-                wholeCardClickable: true,
-                imageAsset: stakes[index].imageAsset,
-                onTap: () {
-                  if (stakes[index].locked) return;
-                  final name = ref.read(authControllerProvider).user?.name ??
-                      ref.read(guestNameProvider);
-                  Navigator.pushNamed(
-                      context,
-                      name == null
-                          ? AppRoutes.guestName
-                          : AppRoutes.guestOpponents,
-                      arguments: name == null
-                          ? TableMatchSelection(room: room, tier: stakes[index])
-                          : TableMatchArguments(
-                              playerName: name,
-                              selection: TableMatchSelection(
-                                  room: room, tier: stakes[index]),
-                            ));
-                },
-              ),
-            ),
-            if (index != stakes.length - 1) const SizedBox(width: 12),
-          ],
-        ],
+      child: FocusedCardCarousel(
+        pageKey: const ValueKey('table-tier-pages'),
+        label: 'Tables',
+        itemCount: stakes.length,
+        itemBuilder: (context, index) => TableCard(
+          title: stakes[index].title,
+          subtitle: stakes[index].subtitle,
+          buyIn: stakes[index].buyIn,
+          reward: stakes[index].reward,
+          badge: stakes[index].badge,
+          locked: stakes[index].locked,
+          wholeCardClickable: true,
+          imageAsset: stakes[index].imageAsset,
+          onTap: () {
+            if (stakes[index].locked) return;
+            final name = ref.read(authControllerProvider).user?.name ??
+                ref.read(guestNameProvider);
+            Navigator.pushNamed(context,
+                name == null ? AppRoutes.guestName : AppRoutes.guestOpponents,
+                arguments: name == null
+                    ? TableMatchSelection(room: room, tier: stakes[index])
+                    : TableMatchArguments(
+                        playerName: name,
+                        selection: TableMatchSelection(
+                            room: room, tier: stakes[index]),
+                      ));
+          },
+        ),
       ),
     );
   }

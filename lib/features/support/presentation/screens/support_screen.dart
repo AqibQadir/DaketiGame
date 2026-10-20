@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/routes/app_routes.dart';
-import '../../../../core/constants/app_assets.dart';
 import '../../../../core/widgets/game_button.dart';
 import '../widgets/support_page_shell.dart';
 
@@ -19,22 +18,19 @@ class SupportScreen extends StatelessWidget {
           children: [
             GameButton(
               text: 'Contact us',
-              width: 170,
-              backgroundAsset: AppAssets.actionButtonBrush,
+              width: 180,
               onTap: () => Navigator.pushNamed(context, AppRoutes.contactUs),
             ),
             const SizedBox(height: 18),
             GameButton(
               text: 'Report',
-              width: 170,
-              backgroundAsset: AppAssets.actionButtonBrush,
+              width: 180,
               onTap: () => Navigator.pushNamed(context, AppRoutes.reportIssue),
             ),
             const SizedBox(height: 18),
             GameButton(
               text: 'FAQs',
-              width: 170,
-              backgroundAsset: AppAssets.actionButtonBrush,
+              width: 180,
               onTap: () => Navigator.pushNamed(context, AppRoutes.faqs),
             ),
           ],

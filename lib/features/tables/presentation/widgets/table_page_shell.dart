@@ -71,7 +71,7 @@ class TablePageShell extends StatelessWidget {
                       )),
                   const Positioned(right: 84, top: 32, child: TableTopBar()),
                   Positioned(
-                      left: 42, right: 32, top: 80, bottom: 64, child: child),
+                      left: 0, right: 0, top: 80, bottom: 64, child: child),
                   const GameNavigationFooter(),
                 ],
               ),

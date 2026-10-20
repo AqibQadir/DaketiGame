@@ -7,7 +7,6 @@ import '../../../../core/constants/app_colors.dart';
 import '../../../../core/routes/app_routes.dart';
 import '../../../../core/widgets/game_background.dart';
 import '../../../../core/widgets/game_alert.dart';
-import '../../../../core/widgets/game_button.dart';
 import '../../../../core/widgets/game_icon_button.dart';
 import '../../../auth/presentation/controllers/auth_controller.dart';
 import '../../../access/presentation/access_controller.dart';
@@ -16,6 +15,9 @@ import '../../../auth/presentation/controllers/guest_name_provider.dart';
 import '../../../tables/presentation/widgets/city_table_cards.dart';
 import '../../../game/presentation/controllers/game_controller.dart';
 import '../../../game/domain/models/daketi_game.dart';
+import '../controllers/online_players_provider.dart';
+import '../../../wallet/domain/starting_balance.dart';
+import '../../../auth/presentation/widgets/account_required_screen.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -30,8 +32,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     if (!mounted || ModalRoute.of(context)?.isCurrent != true) return;
     final active =
         await ref.read(gameControllerProvider.notifier).hasActivePreviousGame();
-    if (!active || !mounted || ModalRoute.of(context)?.isCurrent != true)
+    if (!active || !mounted || ModalRoute.of(context)?.isCurrent != true) {
       return;
+    }
     final join = await showGameConfirmation(
       context,
       title: 'BACK TO THE TABLE?',
@@ -55,6 +58,21 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         game?.status == DaketiGameStatus.waiting
             ? AppRoutes.waitingRoom
             : AppRoutes.game);
+  }
+
+  void _openFriends() {
+    final auth = ref.read(authControllerProvider);
+    if (!auth.isAuthenticated) {
+      showFriendsSignupAlert(context);
+      return;
+    }
+    if (auth.isAuthenticated && auth.user == null) {
+      ref.read(authControllerProvider.notifier).refreshSession();
+      showGameAlert(context, 'Loading your profile. Try again.');
+      return;
+    }
+    Navigator.pushNamed(context, AppRoutes.multiplayer,
+        arguments: auth.user?.name ?? '');
   }
 
   Widget buildCounter({
@@ -101,6 +119,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       return const WaitlistScreen();
     }
     final user = auth.user;
+    final balance = ref.watch(startingBalanceProvider);
     final session = ref.watch(gameControllerProvider);
     if (session.previousGame != null && promptedGame != session.previousGame) {
       promptedGame = session.previousGame;
@@ -113,16 +132,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         child: GameViewport(
             child: Stack(
           children: [
-            if (auth.isAuthenticated)
-              Positioned(
-                  right: 75,
-                  bottom: 14,
-                  child: TextButton.icon(
-                      icon: const Icon(Icons.group_add),
-                      label: const Text('Invite friends',
-                          style: TextStyle(fontSize: 10)),
-                      onPressed: () =>
-                          Navigator.pushNamed(context, AppRoutes.waitlist))),
             Positioned(
               left: 16,
               top: 12,
@@ -170,73 +179,18 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ),
             Positioned(
               top: 12,
-              left: 310,
-              right: 90,
+              right: 18,
               child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   buildCounter(
-                    icon: Icons.shopping_cart,
-                    value: 'BUY COINS',
-                  ),
-                  const SizedBox(width: 10),
-                  buildCounter(
                     icon: Icons.monetization_on,
-                    value: auth.isAuthenticated
-                        ? auth.stats.totalScore.toString().replaceAllMapped(
-                            RegExp(r'(\d)(?=(\d{3})+(?!\d))'),
-                            (m) => '${m[1]},')
-                        : '—',
+                    value: balance.coins.toString(),
                   ),
                   const SizedBox(width: 10),
                   buildCounter(
                     icon: Icons.account_balance_wallet,
-                    value: '—',
-                  ),
-                ],
-              ),
-            ),
-            Positioned(
-              right: 16,
-              top: 12,
-              child: GameIconButton(
-                icon: Icons.menu,
-                onTap: () {
-                  Navigator.pushNamed(
-                    context,
-                    AppRoutes.menu,
-                  );
-                },
-              ),
-            ),
-            Positioned(
-              left: 18,
-              top: 88,
-              child: Column(
-                children: [
-                  GameIconButton(
-                    icon: Icons.emoji_events,
-                    label: 'Missions',
-                    showLabel: false,
-                    onTap: () {
-                      Navigator.pushNamed(context, AppRoutes.sideQuests);
-                    },
-                  ),
-                ],
-              ),
-            ),
-            Positioned(
-              right: 18,
-              top: 88,
-              child: Column(
-                children: [
-                  GameIconButton(
-                    icon: Icons.storefront,
-                    label: 'Shop',
-                    showLabel: false,
-                    onTap: () {
-                      Navigator.pushNamed(context, AppRoutes.dukan);
-                    },
+                    value: 'Rs ${balance.rupees}',
                   ),
                 ],
               ),
@@ -244,82 +198,61 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             const GameNavigationFooter(),
             Positioned(
               right: 18,
-              bottom: 8,
-              child: Row(
-                children: [
-                  GameIconButton(
+              bottom: 18,
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                GameIconButton(
                     icon: Icons.groups,
-                    label: 'Teams',
+                    label: 'Play with friends',
                     showLabel: false,
-                    onTap: () {
-                      if (auth.isAuthenticated && user == null) {
-                        ref
-                            .read(authControllerProvider.notifier)
-                            .refreshSession();
-                        showGameAlert(
-                          context,
-                          'Loading your profile. Try again.',
-                        );
-                        return;
-                      }
-                      Navigator.pushNamed(
-                        context,
-                        AppRoutes.multiplayer,
-                        arguments: user?.name ?? '',
-                      );
-                    },
-                  ),
-                  const SizedBox(width: 12),
-                  GameIconButton(
-                    icon: Icons.workspace_premium,
-                    label: 'Ranking',
-                    showLabel: false,
-                    onTap: () => Navigator.pushNamed(
-                      context,
-                      AppRoutes.leaderboard,
-                    ),
-                  ),
-                ],
-              ),
+                    onTap: _openFriends),
+              ]),
             ),
+            Positioned(
+                left: 210,
+                right: 210,
+                bottom: 22,
+                child: Center(child: _OnlinePlayersCount())),
             const Positioned(
-              left: 84,
-              right: 84,
+              left: 0,
+              right: 0,
               top: 72,
               bottom: 66,
-              child: Center(
-                child: FittedBox(
-                  fit: BoxFit.contain,
-                  child: SizedBox(
-                    width: 712,
-                    height: 245,
-                    child: CityTableCards(),
-                  ),
-                ),
-              ),
+              child: CityTableCards(),
             ),
-            if (!auth.isAuthenticated)
-              Positioned(
-                left: 0,
-                right: 0,
-                bottom: 8,
-                child: Center(
-                  child: GameButton(
-                    text: 'Guest play',
-                    width: 150,
-                    onTap: () => Navigator.pushNamed(
-                      context,
-                      hasGuestIdentity
-                          ? AppRoutes.guestOpponents
-                          : AppRoutes.guestName,
-                      arguments: guestName,
-                    ),
-                  ),
-                ),
-              ),
           ],
         )),
       ),
     );
+  }
+}
+
+class _OnlinePlayersCount extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final online = ref.watch(onlinePlayersProvider);
+    final text = online.when(
+      data: (count) => '$count players online',
+      loading: () => 'Checking online players…',
+      error: (_, __) => 'Online players unavailable',
+    );
+    return Semantics(
+        liveRegion: true,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+              color: Colors.black54,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: Colors.white12)),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            Icon(Icons.circle,
+                size: 7,
+                color: online.hasValue && !online.hasError
+                    ? const Color(0xFF74CE8B)
+                    : Colors.white38),
+            const SizedBox(width: 7),
+            Text(text,
+                style: const TextStyle(fontSize: 11, color: Colors.white70)),
+          ]),
+        ));
   }
 }

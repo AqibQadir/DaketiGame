@@ -1,7 +1,7 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
-/// Lightweight illustrated Pakistani rupee notes, without asset downloads.
+/// Winner celebration combining rupee notes with supplied angled card artwork.
 class WinnerNoteRain extends StatefulWidget {
   const WinnerNoteRain({super.key});
   @override
@@ -10,8 +10,14 @@ class WinnerNoteRain extends StatefulWidget {
 
 class _WinnerNoteRainState extends State<WinnerNoteRain>
     with SingleTickerProviderStateMixin {
-  late final AnimationController controller =
-      AnimationController(vsync: this, duration: const Duration(seconds: 9));
+  late final AnimationController controller;
+  @override
+  void initState() {
+    super.initState();
+    controller =
+        AnimationController(vsync: this, duration: const Duration(seconds: 9));
+  }
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
@@ -29,11 +35,57 @@ class _WinnerNoteRainState extends State<WinnerNoteRain>
   }
 
   @override
-  Widget build(BuildContext context) => IgnorePointer(
-          child: ExcludeSemantics(
+  Widget build(BuildContext context) {
+    if (MediaQuery.disableAnimationsOf(context)) return const SizedBox.shrink();
+    return IgnorePointer(
+      child: ExcludeSemantics(
         child: RepaintBoundary(
-            child: CustomPaint(painter: _NotesPainter(controller))),
-      ));
+          child: ClipRect(
+            child: LayoutBuilder(builder: (context, constraints) {
+              return AnimatedBuilder(
+                animation: controller,
+                builder: (context, _) {
+                  final seconds = controller.value * 9;
+                  final random = math.Random(89);
+                  final cards = <Widget>[];
+                  for (var i = 0; i < 18; i++) {
+                    final x = random.nextDouble() * constraints.maxWidth;
+                    final delay = random.nextDouble() * 3.5;
+                    final duration = 3.5 + random.nextDouble() * 2;
+                    final sway = random.nextDouble() * math.pi * 2;
+                    final size = 54 + random.nextDouble() * 34;
+                    final phase = (seconds - delay) / duration;
+                    if (phase < 0 || phase > 1) continue;
+                    cards.add(Positioned(
+                      left: x - size / 2 + math.sin(phase * 5 + sway) * 24,
+                      top: -size + phase * (constraints.maxHeight + size * 2),
+                      child: Transform.rotate(
+                        angle: math.sin(phase * 4 + sway) * .45,
+                        child: Image.asset(
+                          'assets/images/winner_cards/${i % 12 + 1}.png',
+                          width: size,
+                          height: size,
+                          cacheWidth: 192,
+                          filterQuality: FilterQuality.medium,
+                          gaplessPlayback: true,
+                        ),
+                      ),
+                    ));
+                  }
+                  return Stack(children: [
+                    ...cards,
+                    Positioned.fill(
+                      child: CustomPaint(painter: _NotesPainter(controller)),
+                    ),
+                  ]);
+                },
+              );
+            }),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class _NotesPainter extends CustomPainter {

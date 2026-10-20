@@ -9,7 +9,6 @@ import '../../../../core/widgets/game_button.dart';
 import '../../../../core/widgets/game_close_button.dart';
 import '../../../../core/widgets/daketi_logo.dart';
 import '../controllers/auth_controller.dart';
-import '../../../runner/presentation/screens/runner_test_screen.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key, this.showClose = true});
@@ -78,7 +77,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             ),
                           ),
                         Positioned(
-                          top: 20,
+                          top: 74,
                           left: 0,
                           right: 0,
                           child: Column(
@@ -107,15 +106,17 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                         AutofillHints.password
                                       ],
                                     ),
+                                    const SizedBox(width: 24),
+                                    GameButton(
+                                      text: 'Login',
+                                      width: 108,
+                                      fontSize: 16,
+                                      isLoading: loading,
+                                      onTap: loading ? null : submit,
+                                    ),
                                   ],
                                 ),
-                                const SizedBox(height: 16),
-                                GameButton(
-                                  text: 'Login',
-                                  isLoading: loading,
-                                  onTap: loading ? null : submit,
-                                ),
-                                const SizedBox(height: 10),
+                                const SizedBox(height: 20),
                                 Row(mainAxisSize: MainAxisSize.min, children: [
                                   GameButton(
                                       text: 'Sign Up',
@@ -129,14 +130,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                       onTap: () => Navigator.pushNamed(
                                           context, AppRoutes.guestName)),
                                 ]),
-                                const SizedBox(height: 10),
-                                GameButton(
-                                    text: 'Test Subway',
-                                    width: 200,
-                                    onTap: () => Navigator.of(context).push(
-                                        MaterialPageRoute<void>(
-                                            builder: (_) =>
-                                                const RunnerTestScreen()))),
                               ]),
                             ],
                           ),

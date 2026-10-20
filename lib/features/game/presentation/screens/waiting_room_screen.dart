@@ -12,6 +12,7 @@ import '../../../../core/widgets/game_close_button.dart';
 import '../../../../core/widgets/glass_panel.dart';
 import '../../domain/models/daketi_game.dart';
 import '../controllers/game_controller.dart';
+import '../controllers/custom_room_details.dart';
 
 class WaitingRoomScreen extends ConsumerStatefulWidget {
   const WaitingRoomScreen({super.key});
@@ -63,6 +64,8 @@ class _WaitingRoomScreenState extends ConsumerState<WaitingRoomScreen> {
     });
     final session = ref.watch(gameControllerProvider);
     final game = session.game;
+    final details = ref.watch(customRoomDetailsProvider);
+    final roomDetails = details?.gameId == session.gameId ? details : null;
     final currentPlayer = game?.playerById(session.playerId);
     final isReady = currentPlayer?.isReady ?? false;
     final playerCount = game?.players.length ?? 0;
@@ -86,6 +89,15 @@ class _WaitingRoomScreenState extends ConsumerState<WaitingRoomScreen> {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
+                        if (roomDetails != null) ...[
+                          Text(roomDetails.name,
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                  fontFamily: 'Dirty Brush', fontSize: 24)),
+                          Text(roomDetails.city.cityName,
+                              style: const TextStyle(color: AppColors.orange)),
+                          const SizedBox(height: 8),
+                        ],
                         const Text(
                           'PRIVATE TEAM ROOM',
                           style: TextStyle(

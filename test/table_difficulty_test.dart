@@ -56,6 +56,10 @@ void main() {
           ),
         ));
         await tester.pumpAndSettle();
+        final carousel = tester
+            .widget<PageView>(find.byKey(const ValueKey('table-tier-pages')));
+        carousel.controller!.jumpToPage(tier.index);
+        await tester.pumpAndSettle();
         final card = find.byWidgetPredicate(
             (widget) => widget is TableCard && widget.title == tier.title);
         expect(find.text('ENTER MATCH'), findsNothing);

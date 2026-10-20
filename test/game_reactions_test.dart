@@ -51,6 +51,20 @@ Future<void> mountGame(
 }
 
 void main() {
+  testWidgets('match menu has themed settings and leave actions only',
+      (tester) async {
+    await mountGame(tester, ReactionController());
+    await tester.tap(find.byTooltip('Match menu'));
+    await tester.pumpAndSettle();
+    expect(find.text('SETTINGS'), findsOneWidget);
+    expect(find.text('Support'), findsNothing);
+    await tester.tap(find.widgetWithText(PopupMenuItem<String>, 'LEAVE MATCH'));
+    await tester.pumpAndSettle();
+    expect(find.text('LEAVE MATCH?'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox());
+  });
+
   testWidgets(
       'picker replaces text chat and local echo does not extend four seconds',
       (tester) async {

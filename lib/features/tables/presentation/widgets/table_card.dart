@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../../core/constants/app_assets.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/widgets/game_button.dart';
+import 'focused_card_carousel.dart';
 
 class TableCard extends StatelessWidget {
   const TableCard({
@@ -27,17 +28,20 @@ class TableCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final popular = badge == 'POPULAR';
-    final frame = popular ? const Color(0xFFAD4A08) : const Color(0xFF77736A);
+    final highlighted = CardCarouselSelection.of(context) && !locked;
+    final frame = highlighted ? AppColors.orange : const Color(0xFF77736A);
     final card = Container(
       height: 226,
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
         color: const Color(0xAF080808),
         borderRadius: BorderRadius.circular(3),
-        border: Border.all(color: frame, width: popular ? 2 : 1),
-        boxShadow: const [
-          BoxShadow(color: Colors.black87, blurRadius: 8, offset: Offset(0, 4))
+        border: Border.all(color: frame, width: highlighted ? 2 : 1),
+        boxShadow: [
+          const BoxShadow(
+              color: Colors.black87, blurRadius: 8, offset: Offset(0, 4)),
+          if (highlighted)
+            const BoxShadow(color: Color(0x55FF9800), blurRadius: 12),
         ],
       ),
       child: ClipRRect(
@@ -109,38 +113,11 @@ class TableCard extends StatelessWidget {
                         text: buttonText,
                         width: 118,
                         fontSize: 10,
-                        backgroundAsset: popular
+                        backgroundAsset: highlighted
                             ? AppAssets.buttonBrush
                             : AppAssets.actionButtonBrush,
                         onTap: onTap,
                       ))),
-            ),
-          if (badge.isNotEmpty)
-            Positioned(
-              top: 0,
-              right: -2,
-              child: Container(
-                width: 66,
-                height: 18,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  image: DecorationImage(
-                    image: const AssetImage(AppAssets.actionButtonBrush),
-                    fit: BoxFit.fill,
-                    colorFilter: ColorFilter.mode(
-                      popular
-                          ? const Color(0xFFAA4400)
-                          : const Color(0xFFD99B52),
-                      BlendMode.srcIn,
-                    ),
-                  ),
-                ),
-                child: Text(badge,
-                    style: const TextStyle(
-                        fontFamily: 'Dirty Brush',
-                        fontSize: 10,
-                        color: Colors.white)),
-              ),
             ),
           if (locked) ...[
             const Positioned.fill(

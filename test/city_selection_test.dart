@@ -1,6 +1,7 @@
 import 'package:daketi_phase1_modular/core/routes/app_router.dart';
 import 'package:daketi_phase1_modular/core/routes/app_routes.dart';
 import 'package:daketi_phase1_modular/features/tables/domain/table_room.dart';
+import 'package:daketi_phase1_modular/features/tables/presentation/screens/tables_screen.dart';
 import 'package:daketi_phase1_modular/features/tables/presentation/widgets/city_table_cards.dart';
 import 'package:daketi_phase1_modular/features/tables/presentation/widgets/table_card.dart';
 import 'package:flutter/material.dart';
@@ -8,83 +9,79 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  testWidgets('10 supplied cities page into a separate tier screen with close',
+  testWidgets(
+      'full width city carousel grows the focused card and retains navigation',
       (tester) async {
     await tester.binding.setSurfaceSize(const Size(844, 390));
     addTearDown(() => tester.binding.setSurfaceSize(null));
-    await tester.pumpWidget(ProviderScope(
+    await tester.pumpWidget(const ProviderScope(
         child: MaterialApp(
-      onGenerateRoute: AppRouter.onGenerateRoute,
-      home: const Scaffold(
-          body: Center(
-              child: SizedBox(
-        width: 712,
-        height: 245,
-        child: CityTableCards(),
-      ))),
-    )));
+            onGenerateRoute: AppRouter.onGenerateRoute, home: TablesScreen())));
     await tester.pumpAndSettle();
-    expect(TableRoom.values.length, 10);
-    expect(TableRoom.values.every((city) => !city.locked), isTrue);
-    final firstCardSize = tester.getSize(find.byType(TableCard).first);
-    for (var page = 0; page < 3; page++) {
-      for (final city in TableRoom.values.skip(page * 4).take(4)) {
-        expect(find.text(city.title), findsOneWidget);
-      }
-      for (final city in TableRoom.values.skip(page * 4).take(4)) {
-        final card = find.byWidgetPredicate(
-            (widget) => widget is TableCard && widget.title == city.title);
-        expect(tester.getSize(card), firstCardSize);
-      }
-      if (page == 2) {
-        final firstCity = find.byWidgetPredicate(
-            (widget) => widget is TableCard && widget.title == 'SIALKOT');
-        expect(tester.getTopLeft(firstCity).dx,
-            tester.getTopLeft(find.byKey(const ValueKey('city-pages'))).dx);
-      }
-      expect(find.byIcon(Icons.lock), findsNothing);
-      expect(tester.takeException(), isNull);
-      if (page < 2) {
-        await tester.drag(
-            find.byKey(const ValueKey('city-pages')), const Offset(-650, 0));
-        await tester.pumpAndSettle();
-      }
+    final pages = find.byKey(const ValueKey('city-pages'));
+    expect(tester.getSize(pages).width, 844);
+    double scale(int index) => tester
+        .widget<Transform>(find.byKey(ValueKey('Cities-scale-$index')))
+        .transform
+        .storage[0];
+    final previousCity = find.byWidgetPredicate(
+        (w) => w is TableCard && w.title == TableRoom.values.last.title);
+    expect(previousCity, findsOneWidget);
+    expect(tester.getRect(previousCity).left, lessThan(422));
+    expect(scale(0), 1);
+    expect(scale(1), lessThan(scale(0)));
+    await tester.drag(pages, const Offset(-350, 0));
+    await tester.pumpAndSettle();
+    final controller = tester.widget<PageView>(pages).controller!;
+    final selected = controller.page!.round() % TableRoom.values.length;
+    expect(selected, greaterThan(0));
+    expect(scale(selected), 1);
+    expect(scale(selected - 1), lessThan(1));
+    controller.jumpToPage(2);
+    await tester.pumpAndSettle();
+    for (final city in TableRoom.values.take(5)) {
+      final card = find
+          .byWidgetPredicate((w) => w is TableCard && w.title == city.title);
+      expect(card, findsOneWidget);
+      final bounds = tester.getRect(card);
+      expect(bounds.right, greaterThan(0));
+      expect(bounds.left, lessThan(844));
     }
-    final pages =
-        tester.widget<PageView>(find.byKey(const ValueKey('city-pages')));
-    pages.controller!.jumpTo(712 * 1.75);
-    await tester.pump();
-    final gujranwala = tester.getRect(find.byWidgetPredicate(
-        (widget) => widget is TableCard && widget.title == 'GUJRANWALA'));
-    final sialkot = tester.getRect(find.byWidgetPredicate(
-        (widget) => widget is TableCard && widget.title == 'SIALKOT'));
-    expect(sialkot.left - gujranwala.right, closeTo(12, 0.01));
-    pages.controller!.jumpToPage(2);
-    await tester.pumpAndSettle();
-    expect(find.text('SELECT CITY'), findsNothing);
-    final cityCard = find.byWidgetPredicate(
-        (widget) => widget is TableCard && widget.title == 'HYDERABAD');
-    final box = tester.getRect(cityCard);
-    await tester.tapAt(box.bottomRight - const Offset(8, 8));
+    for (var i = 0; i < TableRoom.values.length; i++) {
+      controller.jumpToPage(i);
+      await tester.pumpAndSettle();
+      expect(
+          find.byWidgetPredicate(
+              (w) => w is TableCard && w.title == TableRoom.values[i].title),
+          findsOneWidget);
+      expect(tester.takeException(), isNull);
+    }
+    final city = TableRoom.values.last;
+    await tester.tap(
+        find.byWidgetPredicate((w) => w is TableCard && w.title == city.title));
     await tester.pumpAndSettle();
     expect(find.byType(CityTableCards), findsNothing);
     expect(
-        find.byWidgetPredicate(
-            (widget) => widget is Image && widget.semanticLabel == 'HYDERABAD'),
-        findsOneWidget);
-    expect(find.byTooltip('Close tables'), findsOneWidget);
-    expect(find.byIcon(Icons.close_rounded), findsOneWidget);
-    expect(find.byIcon(Icons.arrow_back_ios_new), findsNothing);
-    final cards = tester.widgetList<TableCard>(find.byType(TableCard)).toList();
-    expect(cards.where((card) => !card.locked).single.title, 'ADDA');
-    expect(find.byIcon(Icons.lock), findsNWidgets(3));
-    final route = ModalRoute.of(tester.element(find.byType(TableCard).first))!;
-    expect(route.settings.name, AppRoutes.tableRoom);
-    expect(route.opaque, isTrue);
+        ModalRoute.of(tester.element(find.byType(TableCard).first))!
+            .settings
+            .name,
+        AppRoutes.tableRoom);
+    expect(
+        tester
+            .widgetList<TableCard>(find.byType(TableCard))
+            .where((card) => !card.locked)
+            .single
+            .title,
+        'ADDA');
+    final tiers =
+        tester.widget<PageView>(find.byKey(const ValueKey('table-tier-pages')));
+    tiers.controller!.jumpToPage(1);
+    await tester.pumpAndSettle();
+    expect(find.byIcon(Icons.lock), findsWidgets);
     expect(tester.takeException(), isNull);
     await tester.tap(find.byTooltip('Close tables'));
     await tester.pumpAndSettle();
-    expect(find.byType(CityTableCards), findsOneWidget);
-    expect(find.text('3 / 3'), findsOneWidget);
+    expect(find.text('10 / 10'), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 }

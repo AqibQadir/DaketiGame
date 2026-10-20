@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../services/push_notification_service.dart';
 import '../../features/auth/presentation/controllers/auth_controller.dart';
 import 'game_alert.dart';
+import 'game_button.dart';
 
 /// Available both before invitation and after the account gains play access.
 class EnableNotificationsButton extends ConsumerStatefulWidget {
@@ -44,10 +45,13 @@ class _EnableNotificationsButtonState
   @override
   Widget build(BuildContext context) {
     final signedIn = ref.watch(authControllerProvider).isAuthenticated;
-    return TextButton.icon(
-      icon: const Icon(Icons.notifications_active_outlined),
-      label: Text(_busy ? 'Enabling notifications…' : 'Enable notifications'),
-      onPressed: signedIn && !_busy ? _enable : null,
+    return GameButton(
+      text: 'Enable notifications',
+      width: 195,
+      fontSize: 15,
+      icon: Icons.notifications_active_outlined,
+      isLoading: _busy,
+      onTap: signedIn && !_busy ? _enable : null,
     );
   }
 }

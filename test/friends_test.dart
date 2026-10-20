@@ -1,3 +1,5 @@
+import 'package:daketi_phase1_modular/features/auth/presentation/controllers/auth_controller.dart';
+import 'profile_setup_gate_test.dart' show FakeAuth;
 import 'package:daketi_phase1_modular/features/friends/domain/friends_controller.dart';
 import 'package:daketi_phase1_modular/features/friends/presentation/friends_screen.dart';
 import 'package:flutter/material.dart';
@@ -34,33 +36,37 @@ void main() {
     addTearDown(() => tester.binding.setSurfaceSize(null));
     final controller = FriendsController();
     await tester.pumpWidget(ProviderScope(
-      overrides: [friendsProvider.overrideWith((ref) => controller)],
+      overrides: [
+        friendsProvider.overrideWith((ref) => controller),
+        authControllerProvider.overrideWith((ref) =>
+            FakeAuth(const AuthState(token: 'test', isRestoring: false)))
+      ],
       child: const MaterialApp(home: FriendsScreen()),
     ));
     await tester.pumpAndSettle();
-    expect(find.text('My friends (2)'), findsOneWidget);
-    await tester.tap(find.text('Find friends'));
+    expect(find.text('MY FRIENDS (2)'), findsOneWidget);
+    await tester.tap(find.text('FIND FRIENDS'));
     await tester.enterText(find.byType(TextField), '  #dk1005  ');
     await tester.pumpAndSettle();
     expect(find.text('Saad Qureshi'), findsOneWidget);
-    await tester.tap(find.text('Add friend'));
+    await tester.tap(find.text('ADD FRIEND'));
     await tester.pumpAndSettle();
     expect(find.text('Request sent'), findsOneWidget);
-    expect(find.text('Add friend'), findsNothing);
-    await tester.tap(find.text('Cancel'));
+    expect(find.text('ADD FRIEND'), findsNothing);
+    await tester.tap(find.text('CANCEL'));
     await tester.pumpAndSettle();
-    expect(find.text('Add friend'), findsOneWidget);
+    expect(find.text('ADD FRIEND'), findsOneWidget);
     await tester.enterText(find.byType(TextField), 'does not exist');
     await tester.pumpAndSettle();
     expect(find.text('No players found'), findsOneWidget);
-    await tester.tap(find.text('Requests (2)'));
+    await tester.tap(find.text('REQUESTS (2)'));
     await tester.pumpAndSettle();
     final bilal = find.byKey(const ValueKey('DK1003'));
-    await tester.tap(find.descendant(of: bilal, matching: find.text('Accept')));
+    await tester.tap(find.descendant(of: bilal, matching: find.text('ACCEPT')));
     await tester.pumpAndSettle();
-    expect(find.text('My friends (3)'), findsOneWidget);
-    expect(find.text('Requests (1)'), findsOneWidget);
-    await tester.tap(find.text('My friends (3)'));
+    expect(find.text('MY FRIENDS (3)'), findsOneWidget);
+    expect(find.text('REQUESTS (1)'), findsOneWidget);
+    await tester.tap(find.text('MY FRIENDS (3)'));
     await tester.enterText(find.byType(TextField), 'bilal');
     await tester.pumpAndSettle();
     await tester.tap(find.text('Bilal Ahmed'));
@@ -68,16 +74,16 @@ void main() {
     expect(find.text('PLAYER PROFILE'), findsOneWidget);
     await tester.tap(find.text('CLOSE'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Remove'));
+    await tester.tap(find.text('REMOVE'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('CANCEL'));
     await tester.pumpAndSettle();
-    expect(find.text('My friends (3)'), findsOneWidget);
-    await tester.tap(find.text('Remove'));
-    await tester.pumpAndSettle();
+    expect(find.text('MY FRIENDS (3)'), findsOneWidget);
     await tester.tap(find.text('REMOVE'));
     await tester.pumpAndSettle();
-    expect(find.text('My friends (2)'), findsOneWidget);
+    await tester.tap(find.text('REMOVE').last);
+    await tester.pumpAndSettle();
+    expect(find.text('MY FRIENDS (2)'), findsOneWidget);
     expect(find.text('No players found'), findsOneWidget);
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox());
