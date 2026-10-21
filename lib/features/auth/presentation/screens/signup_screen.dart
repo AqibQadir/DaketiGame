@@ -1,3 +1,4 @@
+import '../../../../core/widgets/game_viewport.dart';
 import '../../../../core/widgets/game_navigation_footer.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -89,74 +90,63 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
     return Scaffold(
       resizeToAvoidBottomInset: false,
       body: GameBackground(
-        child: Center(
-            child: FittedBox(
-                fit: BoxFit.contain,
-                child: SizedBox(
-                    width: 844,
-                    height: 390,
-                    child: Stack(
-                      children: [
-                        Positioned(
-                          right: 18,
-                          top: 18,
-                          child: GameCloseButton(
-                            onTap: Navigator.of(context).pop,
-                          ),
-                        ),
-                        Positioned(
-                          top: 36,
-                          left: 0,
-                          right: 0,
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const DaketiLogo(width: 320, height: 120),
-                              const SizedBox(height: 20),
-                              Column(children: [
-                                Row(mainAxisSize: MainAxisSize.min, children: [
-                                  _signupField(
-                                      hint: 'Email',
-                                      controller: emailController,
-                                      keyboardType: TextInputType.emailAddress,
-                                      autofillHints: const [
-                                        AutofillHints.email
-                                      ]),
-                                  const SizedBox(width: 36),
-                                  _signupField(
-                                      hint: 'Password',
-                                      controller: passwordController,
-                                      obscureText: true,
-                                      autofillHints: const [
-                                        AutofillHints.newPassword
-                                      ]),
-                                ]),
-                                const SizedBox(height: 16),
-                                Row(mainAxisSize: MainAxisSize.min, children: [
-                                  SizedBox(
-                                      width: 170,
-                                      height: 40,
-                                      child: GameButton(
-                                          isLoading: loading,
-                                          text: 'Sign Up',
-                                          width: 170,
-                                          onTap: submit)),
-                                  const SizedBox(width: 18),
-                                  TextButton(
-                                    onPressed: loading ? null : _editReferral,
-                                    child: Text(
-                                        referralController.text.trim().isEmpty
-                                            ? 'Have an invitation code?'
-                                            : 'Invitation code added'),
-                                  ),
-                                ]),
-                              ]),
-                            ],
-                          ),
-                        ),
-                        const GameNavigationFooter(),
-                      ],
-                    )))),
+        child: GameViewport(
+          child: Stack(children: [
+            Positioned(
+              right: 18,
+              top: 18,
+              child: GameCloseButton(onTap: Navigator.of(context).pop),
+            ),
+            const Positioned(
+              top: 86,
+              left: 0,
+              right: 0,
+              child: Center(child: DaketiLogo(width: 280, height: 105)),
+            ),
+            Positioned(
+              top: 210,
+              left: 176,
+              right: 76,
+              child: Row(children: [
+                _signupField(
+                  hint: 'Email',
+                  controller: emailController,
+                  keyboardType: TextInputType.emailAddress,
+                  autofillHints: const [AutofillHints.email],
+                ),
+                const SizedBox(width: 10),
+                _signupField(
+                  hint: 'Password',
+                  controller: passwordController,
+                  obscureText: true,
+                  autofillHints: const [AutofillHints.newPassword],
+                ),
+                const SizedBox(width: 10),
+                GameButton(
+                  isLoading: loading,
+                  text: 'Sign Up',
+                  width: 150,
+                  fontSize: 16,
+                  onTap: loading ? null : submit,
+                ),
+              ]),
+            ),
+            Positioned(
+              top: 274,
+              left: 0,
+              right: 0,
+              child: Center(
+                child: TextButton(
+                  onPressed: loading ? null : _editReferral,
+                  child: Text(referralController.text.trim().isEmpty
+                      ? 'Have an invitation code?'
+                      : 'Invitation code added'),
+                ),
+              ),
+            ),
+            const GameNavigationFooter(),
+          ]),
+        ),
       ),
     );
   }
@@ -169,7 +159,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
     Iterable<String>? autofillHints,
   }) =>
       SizedBox(
-        width: 198,
+        width: 211,
         height: 34,
         child: TextField(
           controller: controller,

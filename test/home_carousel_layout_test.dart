@@ -1,3 +1,4 @@
+import 'package:daketi_phase1_modular/core/widgets/game_viewport.dart';
 import 'package:daketi_phase1_modular/features/home/presentation/screens/home_screen.dart';
 import 'package:daketi_phase1_modular/features/auth/presentation/controllers/auth_controller.dart';
 import 'package:flutter/material.dart';
@@ -46,5 +47,71 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('SIGNUP OPEN'), findsOneWidget);
     await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('home keeps the same relative spacing across phone shapes',
+      (tester) async {
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    const devices = [
+      (
+        size: Size(956, 440),
+        padding: EdgeInsets.only(left: 62, right: 62, bottom: 21)
+      ),
+      (size: Size(736, 414), padding: EdgeInsets.zero),
+      (size: Size(667, 375), padding: EdgeInsets.zero),
+      (size: Size(800, 360), padding: EdgeInsets.zero),
+      (size: Size(915, 412), padding: EdgeInsets.only(left: 28)),
+    ];
+    List<Rect>? reference;
+    for (final device in devices) {
+      await tester.binding.setSurfaceSize(device.size);
+      await tester.pumpWidget(ProviderScope(
+        overrides: [
+          onlinePlayersProvider.overrideWith((ref) async => 42),
+          authControllerProvider.overrideWith(
+              (ref) => FakeAuth(const AuthState(isRestoring: false))),
+        ],
+        child: MaterialApp(
+          home: MediaQuery(
+            data: MediaQueryData(
+              size: device.size,
+              padding: device.padding,
+              viewPadding: device.padding,
+              textScaler: TextScaler.linear(1.3),
+            ),
+            child: const HomeScreen(),
+          ),
+        ),
+      ));
+      await tester.pumpAndSettle();
+      final canvas = tester.getRect(find.byKey(GameViewport.canvasKey));
+      final elements = [
+        find.byKey(const ValueKey('city-pages')),
+        find.text('LAHORE'),
+        find.byType(CircleAvatar),
+        find.byIcon(Icons.groups),
+        find.byIcon(Icons.settings),
+        find.text('42 players online'),
+        find.text('Rs 0'),
+      ];
+      final positions = elements.map((finder) {
+        final rect = tester.getRect(finder);
+        return Rect.fromLTWH(
+          (rect.left - canvas.left) / canvas.width,
+          (rect.top - canvas.top) / canvas.height,
+          rect.width / canvas.width,
+          rect.height / canvas.height,
+        );
+      }).toList();
+      reference ??= positions;
+      for (var i = 0; i < positions.length; i++) {
+        expect(positions[i].left, closeTo(reference[i].left, .0001));
+        expect(positions[i].top, closeTo(reference[i].top, .0001));
+        expect(positions[i].width, closeTo(reference[i].width, .0001));
+        expect(positions[i].height, closeTo(reference[i].height, .0001));
+      }
+      expect(tester.takeException(), isNull, reason: '${device.size}');
+      await tester.pumpWidget(const SizedBox());
+    }
   });
 }

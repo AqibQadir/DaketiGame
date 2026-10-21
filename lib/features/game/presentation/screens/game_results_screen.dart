@@ -1,3 +1,4 @@
+import '../widgets/match_player_identity.dart';
 import '../widgets/winner_note_rain.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -10,22 +11,6 @@ import '../../../../core/widgets/game_alert.dart';
 import '../../../../core/constants/app_assets.dart';
 import '../../../../core/widgets/game_icon_button.dart';
 import '../controllers/game_controller.dart';
-
-const _pakistaniBotNames = <String>[
-  'Hamza Malik',
-  'Ayesha Khan',
-  'Bilal Ahmed',
-  'Mahnoor Fatima',
-  'Saad Qureshi',
-];
-
-int _stableIdentitySeed(String value) {
-  var hash = 17;
-  for (final codeUnit in value.codeUnits) {
-    hash = (hash * 37 + codeUnit) & 0x7fffffff;
-  }
-  return hash;
-}
 
 class GameResultsScreen extends ConsumerStatefulWidget {
   const GameResultsScreen({super.key});
@@ -53,21 +38,10 @@ class _GameResultsScreenState extends ConsumerState<GameResultsScreen> {
   Widget build(BuildContext context) {
     final session = ref.watch(gameControllerProvider);
     final game = session.game;
-    final aiDisplayNames = <String, String>{};
-    if (game != null) {
-      final seed = _stableIdentitySeed(session.gameId ?? game.gameId);
-      final step = 1 + (seed ~/ _pakistaniBotNames.length) % 4;
-      final opponents = game.players
-          .where((player) => player.id != session.playerId)
-          .toList();
-      for (final indexedPlayer in opponents.indexed) {
-        final player = indexedPlayer.$2;
-        if (!player.isAi) continue;
-        final rosterIndex =
-            (seed + indexedPlayer.$1 * step) % _pakistaniBotNames.length;
-        aiDisplayNames[player.id] = _pakistaniBotNames[rosterIndex];
-      }
-    }
+    final identities = game == null
+        ? <String, MatchPlayerIdentity>{}
+        : matchPlayerIdentities(
+            game, session.playerId, session.gameId ?? game.gameId);
     final winnerText = session.winner == 'draw'
         ? 'DRAW'
         : session.playerId != null && session.winner == session.playerId
@@ -217,7 +191,9 @@ class _GameResultsScreenState extends ConsumerState<GameResultsScreen> {
                               final winner = id == session.winner ||
                                   (sharedFirst && rank == 1);
                               return _ResultRow(
-                                name: aiDisplayNames[id] ??
+                                avatarAsset: identities[id]?.avatarAsset ??
+                                    AppAssets.playerAvatar,
+                                name: identities[id]?.name ??
                                     score['name']?.toString() ??
                                     'Player',
                                 points: points,
@@ -357,6 +333,7 @@ class _ResultCard extends StatelessWidget {
 class _ResultRow extends StatelessWidget {
   const _ResultRow(
       {required this.name,
+      required this.avatarAsset,
       required this.points,
       required this.rank,
       required this.winner,
@@ -364,6 +341,7 @@ class _ResultRow extends StatelessWidget {
       required this.last,
       required this.compact});
   final String name;
+  final String avatarAsset;
   final int points, rank;
   final bool winner, local, last, compact;
   @override
@@ -394,10 +372,10 @@ class _ResultRow extends StatelessWidget {
                   clipBehavior: Clip.none,
                   alignment: Alignment.center,
                   children: [
-                    const CircleAvatar(
+                    CircleAvatar(
                         radius: 15,
                         backgroundColor: Color(0xFFB7B5A1),
-                        backgroundImage: AssetImage(AppAssets.playerAvatar)),
+                        backgroundImage: AssetImage(avatarAsset)),
                     Positioned(
                         right: -1,
                         bottom: -1,

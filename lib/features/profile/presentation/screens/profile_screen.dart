@@ -250,7 +250,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                                 setState(() => editMenuOpen = false);
                                 showDialog<void>(
                                   context: context,
-                                  barrierDismissible: false,
+                                  barrierDismissible: true,
                                   builder: (_) => const AccountOptionsDialog(),
                                 );
                               },
@@ -263,7 +263,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   Future<void> _editProfile(BuildContext context, WidgetRef ref) async {
     final saved = await showDialog<bool>(
       context: context,
-      barrierDismissible: false,
+      barrierDismissible: true,
       builder: (_) => const ProfileEditDialog(),
     );
     if (context.mounted && saved == true) {

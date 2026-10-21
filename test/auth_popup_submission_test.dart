@@ -1,3 +1,4 @@
+import 'package:daketi_phase1_modular/core/widgets/game_button.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'package:daketi_phase1_modular/core/routes/app_router.dart';
@@ -28,6 +29,81 @@ class _Storage extends AuthTokenStorage {
 }
 
 void main() {
+  testWidgets('failed login offers recovery and sends the entered email once',
+      (tester) async {
+    await tester.binding.setSurfaceSize(const Size(844, 390));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    var resetRequests = 0;
+    final response = Completer<http.Response>();
+    const result =
+        "If that email is registered, we've sent password reset instructions.";
+    final client = AuthRestClient(
+      baseUrl: 'https://game.daketi.pk',
+      client: MockClient((request) async {
+        if (request.url.path == '/api/auth/login') {
+          return http.Response(
+              jsonEncode(
+                  {'success': false, 'error': 'Invalid email or password'}),
+              401);
+        }
+        expect(request.url.path, '/api/auth/forgot-password');
+        expect(jsonDecode(request.body), {'email': 'tester@example.com'});
+        resetRequests++;
+        return response.future;
+      }),
+    );
+    addTearDown(client.dispose);
+    await tester.pumpWidget(ProviderScope(
+      overrides: [
+        authRestClientProvider.overrideWithValue(client),
+        authTokenStorageProvider.overrideWithValue(_Storage()),
+      ],
+      child: MaterialApp(
+          initialRoute: AppRoutes.login,
+          onGenerateRoute: AppRouter.onGenerateRoute),
+    ));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField).first, 'Tester@Example.com');
+    await tester.enterText(find.byType(TextField).last, 'wrong-password');
+    await tester.tap(find.text('LOGIN'));
+    await tester.pumpAndSettle();
+    expect(find.text('CONTINUE'), findsOneWidget);
+    await tester.tap(find.text('FORGOT PASSWORD'));
+    await tester.pumpAndSettle();
+    expect(find.text('tester@example.com'), findsOneWidget);
+    final sendButton = find.widgetWithText(GameButton, 'SEND RESET LINK');
+    final continueButton = find.widgetWithText(GameButton, 'CONTINUE');
+    expect(tester.getSize(sendButton), tester.getSize(continueButton));
+    await tester.tap(find.byTooltip('Close dialog'));
+    await tester.pumpAndSettle();
+    expect(find.text('SEND RESET LINK'), findsNothing);
+    Future<void> reopenRecovery() async {
+      await tester.tap(find.text('LOGIN'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('FORGOT PASSWORD'));
+      await tester.pumpAndSettle();
+    }
+
+    await reopenRecovery();
+    await tester.tapAt(const Offset(10, 10));
+    await tester.pumpAndSettle();
+    expect(find.text('SEND RESET LINK'), findsNothing);
+    await reopenRecovery();
+    await tester.tap(find.text('SEND RESET LINK'));
+    await tester.pump();
+    await tester.tap(find.text('SEND RESET LINK'));
+    await tester.pump();
+    expect(resetRequests, 1);
+    response.complete(
+        http.Response(jsonEncode({'success': true, 'message': result}), 200));
+    await tester.pumpAndSettle();
+    expect(find.text(result), findsOneWidget);
+    expect(find.text('SEND RESET LINK'), findsNothing);
+    await tester.tap(find.text('CONTINUE'));
+    await tester.pumpAndSettle();
+    expect(find.text('LOGIN'), findsOneWidget);
+  });
+
   for (final signup in [false, true]) {
     testWidgets(
         '${signup ? "signup" : "login"} shows progress and opens waiting list on success',

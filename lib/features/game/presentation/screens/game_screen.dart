@@ -1,3 +1,4 @@
+import '../widgets/match_player_identity.dart';
 import '../../../tables/domain/table_match_selection.dart';
 import '../../../tables/domain/table_room.dart';
 import '../../../../core/widgets/looping_video_background.dart';
@@ -35,54 +36,6 @@ const _cream = Color(0xFFE4C58D);
 const _panelBlack = Color(0xFF11130F);
 const _panelGreen = Color(0xFF1B291E);
 const _turnDurationSeconds = 20;
-
-class _PlayerIdentity {
-  const _PlayerIdentity(this.name, this.avatarAsset);
-
-  final String name;
-  final String avatarAsset;
-}
-
-const _pakistaniBotRoster = <_PlayerIdentity>[
-  _PlayerIdentity('Ahad', 'assets/images/players/ai/ahad.jpg'),
-  _PlayerIdentity('Aiza', 'assets/images/players/ai/aiza.jpg'),
-  _PlayerIdentity('Alishba', 'assets/images/players/ai/alishba.jpg'),
-  _PlayerIdentity('Anaya', 'assets/images/players/ai/anaya.jpg'),
-  _PlayerIdentity('Areeba', 'assets/images/players/ai/areeba.jpg'),
-  _PlayerIdentity('Arham', 'assets/images/players/ai/arham.jpg'),
-  _PlayerIdentity('Ayan', 'assets/images/players/ai/ayan.jpg'),
-  _PlayerIdentity('Ayesha', 'assets/images/players/ai/ayesha.jpg'),
-  _PlayerIdentity('Daniyal', 'assets/images/players/ai/daniyal.jpg'),
-  _PlayerIdentity('Dua', 'assets/images/players/ai/dua.jpg'),
-  _PlayerIdentity('Eshal', 'assets/images/players/ai/eshal.jpg'),
-  _PlayerIdentity('Hamza', 'assets/images/players/ai/hamza.jpg'),
-  _PlayerIdentity('Hania', 'assets/images/players/ai/hania.jpg'),
-  _PlayerIdentity('Huzaifa', 'assets/images/players/ai/huzaifa.jpg'),
-  _PlayerIdentity('Ibrahim', 'assets/images/players/ai/ibrahim.jpg'),
-  _PlayerIdentity('Inaya', 'assets/images/players/ai/inaya.jpg'),
-  _PlayerIdentity('Iqra', 'assets/images/players/ai/iqra.jpg'),
-  _PlayerIdentity('Kinza', 'assets/images/players/ai/kinza.jpg'),
-  _PlayerIdentity('Laiba', 'assets/images/players/ai/laiba.jpg'),
-  _PlayerIdentity('Mahnoor', 'assets/images/players/ai/mahnoor.jpg'),
-  _PlayerIdentity('Meher', 'assets/images/players/ai/meher.jpg'),
-  _PlayerIdentity('Mikaal', 'assets/images/players/ai/mikaal.jpg'),
-  _PlayerIdentity('Rayyan', 'assets/images/players/ai/rayyan.jpg'),
-  _PlayerIdentity('Saad', 'assets/images/players/ai/saad.jpg'),
-  _PlayerIdentity('Shahmeer', 'assets/images/players/ai/shahmeer.jpg'),
-  _PlayerIdentity('Shayan', 'assets/images/players/ai/shayan.jpg'),
-  _PlayerIdentity('Taha', 'assets/images/players/ai/taha.jpg'),
-  _PlayerIdentity('Zain', 'assets/images/players/ai/zain.jpg'),
-  _PlayerIdentity('Zayan', 'assets/images/players/ai/zayan.jpg'),
-  _PlayerIdentity('Zoya', 'assets/images/players/ai/zoya.jpg'),
-];
-
-int _stableIdentitySeed(String value) {
-  var hash = 17;
-  for (final codeUnit in value.codeUnits) {
-    hash = (hash * 37 + codeUnit) & 0x7fffffff;
-  }
-  return hash;
-}
 
 class _StealAnimation {
   const _StealAnimation({
@@ -567,7 +520,7 @@ class _GameScreenState extends ConsumerState<GameScreen> {
   Future<void> leaveMatch() async {
     final confirmed = await showDialog<bool>(
       context: context,
-      barrierDismissible: false,
+      barrierDismissible: true,
       builder: (dialogContext) => GameStyledDialog(
         backgroundColor: const Color(0xF2181411),
         shape: RoundedRectangleBorder(
@@ -920,18 +873,11 @@ class _Board extends StatelessWidget {
           .take(math.max(0, visibleLocalCards.length - unknownLocalDeals))
           .toList(growable: false);
     }
-    final identitySeed = _stableIdentitySeed(session.gameId ?? game.gameId);
-    final identityStep = 1 + (identitySeed ~/ 5) % 4;
-    _PlayerIdentity? identityFor(GamePlayer? opponent, int seatIndex) {
-      if (opponent == null || !opponent.isAi) return null;
-      final rosterIndex = (identitySeed + seatIndex * identityStep) %
-          _pakistaniBotRoster.length;
-      return _pakistaniBotRoster[rosterIndex];
-    }
-
-    final topIdentity = identityFor(topOpponent, 0);
-    final leftIdentity = identityFor(leftOpponent, 1);
-    final rightIdentity = identityFor(rightOpponent, 2);
+    final identities = matchPlayerIdentities(
+        game, session.playerId, session.gameId ?? game.gameId);
+    final topIdentity = identities[topOpponent?.id];
+    final leftIdentity = identities[leftOpponent?.id];
+    final rightIdentity = identities[rightOpponent?.id];
     GameAction? stealActionFor(GamePlayer? opponent) {
       if (opponent == null) return null;
       for (final action in actions) {
@@ -1584,7 +1530,7 @@ class _Seat extends StatelessWidget {
   });
   final GamePlayer player;
   final GameReaction? reaction;
-  final _PlayerIdentity? identity;
+  final MatchPlayerIdentity? identity;
   final int place;
   final bool isActive;
   final DaketiGame game;

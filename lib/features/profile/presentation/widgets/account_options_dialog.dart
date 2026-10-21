@@ -68,7 +68,7 @@ class _AccountOptionsDialogState extends ConsumerState<AccountOptionsDialog> {
     final user = ref.watch(authControllerProvider).user;
     final controller = ref.read(authControllerProvider.notifier);
     return PopScope(
-      canPop: !_busy,
+      canPop: true,
       child: GameStyledDialog(
         title: const GameDialogTitle('ACCOUNT OPTIONS'),
         content: Form(

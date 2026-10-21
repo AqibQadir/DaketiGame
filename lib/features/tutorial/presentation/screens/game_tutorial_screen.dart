@@ -57,7 +57,7 @@ class _GameTutorialScreenState extends State<GameTutorialScreen> {
   Future<void> _confirmSkip() async {
     final skip = await showDialog<bool>(
       context: context,
-      barrierDismissible: false,
+      barrierDismissible: true,
       builder: (dialogContext) => GameStyledDialog(
         backgroundColor: const Color(0xF2181411),
         shape: RoundedRectangleBorder(

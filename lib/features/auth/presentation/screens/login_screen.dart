@@ -1,3 +1,6 @@
+import '../widgets/forgot_password_dialog.dart';
+import '../../../../core/widgets/game_styled_dialog.dart';
+import '../../../../core/widgets/game_viewport.dart';
 import '../../../../core/widgets/game_navigation_footer.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -48,10 +51,34 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           (route) => route.settings.name == AppRoutes.welcome);
       return;
     }
-    showGameAlert(
-      context,
-      ref.read(authControllerProvider).error ?? 'Unable to log in.',
+    final recover = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => GameStyledDialog(
+        title: Text(
+            (ref.read(authControllerProvider).error ?? 'Unable to log in.')
+                .toUpperCase()),
+        actions: [
+          GameButton(
+            text: 'Forgot Password',
+            width: 120,
+            fontSize: 16,
+            backgroundTint: const Color(0xFFBC201B),
+            onTap: () => Navigator.pop(dialogContext, true),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Continue'),
+          ),
+        ],
+      ),
     );
+    if (recover == true && mounted) {
+      await showDialog<void>(
+        context: context,
+        barrierDismissible: true,
+        builder: (_) => ForgotPasswordDialog(initialEmail: email),
+      );
+    }
   }
 
   @override
@@ -60,83 +87,71 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     return Scaffold(
       resizeToAvoidBottomInset: false,
       body: GameBackground(
-        child: Center(
-            child: FittedBox(
-                fit: BoxFit.contain,
-                child: SizedBox(
-                    width: 844,
-                    height: 390,
-                    child: Stack(
-                      children: [
-                        if (widget.showClose)
-                          Positioned(
-                            right: 18,
-                            top: 18,
-                            child: GameCloseButton(
-                              onTap: Navigator.of(context).pop,
-                            ),
-                          ),
-                        Positioned(
-                          top: 74,
-                          left: 0,
-                          right: 0,
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const DaketiLogo(width: 280, height: 105),
-                              const SizedBox(height: 18),
-                              Column(children: [
-                                Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    _loginField(
-                                      hint: 'Email',
-                                      controller: usernameController,
-                                      keyboardType: TextInputType.emailAddress,
-                                      autofillHints: const [
-                                        AutofillHints.email
-                                      ],
-                                    ),
-                                    const SizedBox(width: 36),
-                                    _loginField(
-                                      hint: 'Password',
-                                      obscureText: true,
-                                      controller: passwordController,
-                                      autofillHints: const [
-                                        AutofillHints.password
-                                      ],
-                                    ),
-                                    const SizedBox(width: 24),
-                                    GameButton(
-                                      text: 'Login',
-                                      width: 108,
-                                      fontSize: 16,
-                                      isLoading: loading,
-                                      onTap: loading ? null : submit,
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 20),
-                                Row(mainAxisSize: MainAxisSize.min, children: [
-                                  GameButton(
-                                      text: 'Sign Up',
-                                      width: 150,
-                                      onTap: () => Navigator.pushNamed(
-                                          context, AppRoutes.signup)),
-                                  const SizedBox(width: 18),
-                                  GameButton(
-                                      text: 'Play as Guest',
-                                      width: 180,
-                                      onTap: () => Navigator.pushNamed(
-                                          context, AppRoutes.guestName)),
-                                ]),
-                              ]),
-                            ],
-                          ),
-                        ),
-                        const GameNavigationFooter(),
-                      ],
-                    )))),
+        child: GameViewport(
+          child: Stack(children: [
+            if (widget.showClose)
+              Positioned(
+                right: 18,
+                top: 18,
+                child: GameCloseButton(onTap: Navigator.of(context).pop),
+              ),
+            const Positioned(
+              top: 86,
+              left: 0,
+              right: 0,
+              child: Center(child: DaketiLogo(width: 280, height: 105)),
+            ),
+            Positioned(
+              top: 210,
+              left: 176,
+              right: 76,
+              child: Row(children: [
+                _loginField(
+                  hint: 'Email',
+                  controller: usernameController,
+                  keyboardType: TextInputType.emailAddress,
+                  autofillHints: const [AutofillHints.email],
+                ),
+                const SizedBox(width: 10),
+                _loginField(
+                  hint: 'Password',
+                  obscureText: true,
+                  controller: passwordController,
+                  autofillHints: const [AutofillHints.password],
+                ),
+                const SizedBox(width: 10),
+                GameButton(
+                  text: 'Login',
+                  width: 150,
+                  fontSize: 16,
+                  isLoading: loading,
+                  onTap: loading ? null : submit,
+                ),
+              ]),
+            ),
+            Positioned(
+              top: 274,
+              left: 0,
+              right: 0,
+              child:
+                  Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                GameButton(
+                  text: 'Sign Up',
+                  width: 150,
+                  onTap: () => Navigator.pushNamed(context, AppRoutes.signup),
+                ),
+                const SizedBox(width: 18),
+                GameButton(
+                  text: 'Play as Guest',
+                  width: 180,
+                  onTap: () =>
+                      Navigator.pushNamed(context, AppRoutes.guestName),
+                ),
+              ]),
+            ),
+            const GameNavigationFooter(),
+          ]),
+        ),
       ),
     );
   }
@@ -149,7 +164,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     Iterable<String>? autofillHints,
   }) =>
       SizedBox(
-        width: 198,
+        width: 211,
         height: 34,
         child: TextField(
           controller: controller,

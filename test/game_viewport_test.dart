@@ -4,7 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   testWidgets(
-      'game canvas fills available display without a second safe-area inset',
+      'game canvas preserves full-display reference sizing despite device padding',
       (tester) async {
     addTearDown(() => tester.binding.setSurfaceSize(null));
     const cases = <({String name, Size size, EdgeInsets safePadding})>[
@@ -41,6 +41,11 @@ void main() {
       ),
       (name: 'foldable', size: Size(842, 674), safePadding: EdgeInsets.zero),
       (name: 'tablet', size: Size(1024, 768), safePadding: EdgeInsets.zero),
+      (
+        name: 'approved iPhone 17 Pro Max reference',
+        size: Size(956, 440),
+        safePadding: EdgeInsets.only(left: 62, right: 62, bottom: 21),
+      ),
       (name: 'reference', size: Size(844, 390), safePadding: EdgeInsets.zero),
     ];
 
@@ -65,17 +70,17 @@ void main() {
 
       final canvas = tester.getRect(find.byKey(GameViewport.canvasKey));
       final screenBounds = Offset.zero & device.size;
-      expect(canvas.left, greaterThanOrEqualTo(-.001),
+      expect(canvas.left, greaterThanOrEqualTo(screenBounds.left - .001),
           reason: '${device.name}: left edge');
-      expect(canvas.top, greaterThanOrEqualTo(-.001),
+      expect(canvas.top, greaterThanOrEqualTo(screenBounds.top - .001),
           reason: '${device.name}: top edge');
       expect(canvas.right, lessThanOrEqualTo(screenBounds.right + .001),
           reason: '${device.name}: right edge');
       expect(canvas.bottom, lessThanOrEqualTo(screenBounds.bottom + .001),
           reason: '${device.name}: bottom edge');
       expect(
-        (canvas.width - device.size.width).abs() < .01 ||
-            (canvas.height - device.size.height).abs() < .01,
+        (canvas.width - screenBounds.width).abs() < .01 ||
+            (canvas.height - screenBounds.height).abs() < .01,
         isTrue,
         reason:
             '${device.name}: board must reach at least one full display axis',
@@ -83,5 +88,30 @@ void main() {
       expect(canvas.width / canvas.height, closeTo(844 / 390, .001),
           reason: '${device.name}: aspect ratio');
     }
+  });
+
+  testWidgets('canvas descendants receive stable design metrics',
+      (tester) async {
+    await tester.binding.setSurfaceSize(const Size(736, 414));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    late MediaQueryData canvasMedia;
+    await tester.pumpWidget(MaterialApp(
+      home: MediaQuery(
+        data: const MediaQueryData(
+          size: Size(736, 414),
+          padding: EdgeInsets.only(left: 28),
+          viewPadding: EdgeInsets.only(left: 28),
+          textScaler: TextScaler.linear(1.4),
+        ),
+        child: GameViewport(child: Builder(builder: (context) {
+          canvasMedia = MediaQuery.of(context);
+          return const SizedBox.expand();
+        })),
+      ),
+    ));
+    expect(canvasMedia.size, const Size(844, 390));
+    expect(canvasMedia.padding, EdgeInsets.zero);
+    expect(canvasMedia.viewPadding, EdgeInsets.zero);
+    expect(canvasMedia.textScaler.scale(10), 10);
   });
 }

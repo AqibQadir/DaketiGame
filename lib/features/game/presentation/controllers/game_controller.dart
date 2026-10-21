@@ -871,10 +871,9 @@ class GameController extends StateNotifier<GameSessionState> {
       return;
     }
     if (event.name == 'ai_action') {
-      final action = event.data['action']?.toString().replaceAll('_', ' ');
-      final card = event.data['cardId']?.toString();
+      // AI moves update gameplay silently; never show technical action banners.
       state = state.copyWith(
-        activity: 'AI ${action ?? 'moved'}${card == null ? '' : ' · $card'}',
+        activity: null,
         turnTimerRevision: state.turnTimerRevision + 1,
       );
     } else if (event.name == 'action_performed') {

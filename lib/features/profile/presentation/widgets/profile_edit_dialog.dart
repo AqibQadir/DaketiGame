@@ -111,7 +111,7 @@ class _ProfileEditDialogState extends ConsumerState<ProfileEditDialog> {
 
   @override
   Widget build(BuildContext context) => PopScope(
-        canPop: !_saving,
+        canPop: true,
         child: GameStyledDialog(
           title: const GameDialogTitle('EDIT PROFILE'),
           content: Form(

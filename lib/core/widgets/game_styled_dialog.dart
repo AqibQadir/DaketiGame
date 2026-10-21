@@ -10,6 +10,7 @@ class GameStyledDialog extends StatelessWidget {
       this.title,
       this.content,
       this.actions = const [],
+      this.onClose,
       Color? backgroundColor,
       ShapeBorder? shape,
       bool scrollable = false,
@@ -17,6 +18,7 @@ class GameStyledDialog extends StatelessWidget {
   final Widget? title;
   final Widget? content;
   final List<Widget> actions;
+  final VoidCallback? onClose;
 
   Widget _action(Widget action) {
     if (action is! ButtonStyleButton || action.child is! Text) return action;
@@ -65,36 +67,49 @@ class GameStyledDialog extends StatelessWidget {
                       Color(0xDE140803)
                     ]),
               ),
-              child: SingleChildScrollView(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 26, vertical: 34),
-                child: Column(mainAxisSize: MainAxisSize.min, children: [
-                  if (heading != null)
-                    DefaultTextStyle(
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                            fontFamily: 'Dirty Brush',
-                            fontSize: 23,
-                            color: Color(0xFFFF8500)),
-                        child: heading),
-                  if (content != null) ...[
-                    if (heading != null) const SizedBox(height: 16),
-                    DefaultTextStyle(
-                        style: const TextStyle(
-                            color: Colors.white70, fontSize: 14),
-                        textAlign: TextAlign.center,
-                        child: content!),
-                  ],
-                  if (actions.isNotEmpty) ...[
-                    const SizedBox(height: 30),
-                    Wrap(
-                        alignment: WrapAlignment.center,
-                        spacing: 18,
-                        runSpacing: 12,
-                        children: actions.map(_action).toList()),
-                  ],
-                ]),
-              ),
+              child: Stack(children: [
+                SingleChildScrollView(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 26, vertical: 34),
+                  child: Column(mainAxisSize: MainAxisSize.min, children: [
+                    if (heading != null)
+                      DefaultTextStyle(
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                              fontFamily: 'Dirty Brush',
+                              fontSize: 23,
+                              color: Color(0xFFFF8500)),
+                          child: heading),
+                    if (content != null) ...[
+                      if (heading != null) const SizedBox(height: 16),
+                      DefaultTextStyle(
+                          style: const TextStyle(
+                              color: Colors.white70, fontSize: 14),
+                          textAlign: TextAlign.center,
+                          child: content!),
+                    ],
+                    if (actions.isNotEmpty) ...[
+                      const SizedBox(height: 30),
+                      Wrap(
+                          alignment: WrapAlignment.center,
+                          spacing: 18,
+                          runSpacing: 12,
+                          children: actions.map(_action).toList()),
+                    ],
+                  ]),
+                ),
+                if (onClose != null)
+                  Positioned(
+                    top: 0,
+                    right: 0,
+                    child: IconButton(
+                      tooltip: 'Close dialog',
+                      onPressed: onClose,
+                      icon: const Icon(Icons.close_rounded,
+                          color: Color(0xFFFFD699), size: 20),
+                    ),
+                  ),
+              ]),
             ),
           ),
         ),

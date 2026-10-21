@@ -14,14 +14,12 @@ Future<void> showFriendsSignupAlert(BuildContext context) async {
           actions: [
             GameButton(
               text: 'Not now',
-              backgroundTint: const Color(0xFFFFC928),
               width: 120,
               fontSize: 16,
               onTap: () => Navigator.pop(dialogContext, false),
             ),
             GameButton(
               text: 'Sign up',
-              backgroundTint: const Color(0xFFFFC928),
               width: 120,
               fontSize: 16,
               onTap: () => Navigator.pop(dialogContext, true),
@@ -64,12 +62,10 @@ class _AccountRequiredScreenState extends State<AccountRequiredScreen> {
           const SizedBox(height: 16),
           GameButton(
               text: 'Sign up',
-              backgroundTint: const Color(0xFFFFC928),
               onTap: () => Navigator.pushNamed(context, AppRoutes.signup)),
           const SizedBox(height: 10),
           GameButton(
               text: 'Back',
-              backgroundTint: const Color(0xFFFFC928),
               onTap: () => Navigator.maybePop(context)),
         ])),
       ));
