@@ -22,7 +22,7 @@ import '../../domain/models/game_action.dart';
 import '../../domain/models/game_card.dart';
 import '../../domain/models/game_player.dart';
 import '../controllers/game_controller.dart';
-import '../widgets/bike_daketi_overlay.dart';
+import '../widgets/police_siren_overlay.dart';
 import '../widgets/fanned_card_hand.dart';
 import '../widgets/opening_deal_overlay.dart';
 import '../widgets/table_card_slots.dart';
@@ -38,19 +38,8 @@ const _panelGreen = Color(0xFF1B291E);
 const _turnDurationSeconds = 20;
 
 class _StealAnimation {
-  const _StealAnimation({
-    required this.id,
-    required this.targetPlayerId,
-    required this.actorPlayerId,
-    required this.cardCount,
-    required this.cards,
-  });
-
+  const _StealAnimation({required this.id});
   final int id;
-  final String targetPlayerId;
-  final String actorPlayerId;
-  final int cardCount;
-  final List<GameCard> cards;
 }
 
 class _DrawDeal {
@@ -180,15 +169,7 @@ class _GameScreenState extends ConsumerState<GameScreen> {
         if (victim.id == next.playerId) {
           HapticFeedback.vibrate();
         }
-        if (third || victim.id == next.playerId) {
-          stealAnimation = _StealAnimation(
-            id: ++stealAnimationId,
-            targetPlayerId: victim.id,
-            actorPlayerId: actorId,
-            cardCount: stolen,
-            cards: victim.stack,
-          );
-        }
+        stealAnimation = _StealAnimation(id: ++stealAnimationId);
       } else if (changed &&
           (deals.isEmpty ||
               oldGame.table.map((c) => c.id).join(',') !=
@@ -901,23 +882,6 @@ class _Board extends StatelessWidget {
     const leftPileOrigin = Offset(174, 204);
     const rightPileOrigin = Offset(844 - 69 - 57, 158);
     const localPileOrigin = Offset(294, 390 - 10 - 82);
-    const pileCardCenter = Offset(47 * .84 / 2, 67 * .84 / 2);
-    Offset? capturedStackCenterFor(String playerId) {
-      if (session.playerId == playerId) {
-        return localPileOrigin + pileCardCenter;
-      }
-      if (topOpponent?.id == playerId) {
-        return topPileOrigin + pileCardCenter;
-      }
-      if (leftOpponent?.id == playerId) {
-        return leftPileOrigin + pileCardCenter;
-      }
-      if (rightOpponent?.id == playerId) {
-        return rightPileOrigin + pileCardCenter;
-      }
-      return null;
-    }
-
     GameAction? actionOfType(GameActionType type) {
       for (final action in actions) {
         if (action.type == type) return action;
@@ -1251,7 +1215,8 @@ class _Board extends StatelessWidget {
             width: 190,
             child: _Activity(session.activity!)),
       Positioned(
-        left: 313,
+        // Attach reactions to the lower-right edge of the local avatar.
+        left: 410,
         bottom: 48,
         child: Semantics(
             button: true,
@@ -1282,21 +1247,14 @@ class _Board extends StatelessWidget {
                 behavior: HitTestBehavior.opaque,
                 onTap: onCloseReactions)),
         Positioned(
-            left: 270,
+            left: 390,
             bottom: 88,
             child: ReactionPicker(
                 onSelect: onReaction, onClose: onCloseReactions)),
       ],
       if (stealAnimation case final animation?)
-        BikeDaketiOverlay(
+        PoliceSirenOverlay(
           key: ValueKey(animation.id),
-          source: capturedStackCenterFor(animation.targetPlayerId) ??
-              localPileOrigin + pileCardCenter,
-          destination: capturedStackCenterFor(animation.actorPlayerId) ??
-              topPileOrigin + pileCardCenter,
-          cardCount: animation.cardCount,
-          cards: animation.cards,
-          isLocalVictim: animation.targetPlayerId == session.playerId,
           onComplete: onStealAnimationComplete,
         ),
       if (drawAnimation case final animation?)
@@ -1696,7 +1654,11 @@ class _MedallionState extends State<_Medallion> with WidgetsBindingObserver {
     if (!widget.isActive || !widget.isLocal || next <= 0) {
       return;
     }
-    if (next == 3 && lastAlert != 3) {
+    if (next <= 10 && next > 3 && lastAlert == null) {
+      lastAlert = 10;
+      GameSoundService.timerWarning();
+    }
+    if (next <= 3 && lastAlert != 3) {
       lastAlert = 3;
       HapticFeedback.lightImpact();
     }
@@ -1785,6 +1747,9 @@ class _MedallionState extends State<_Medallion> with WidgetsBindingObserver {
                       reaction: widget.reaction!,
                     )),
               SizedBox(
+                key: widget.isLocal
+                    ? const ValueKey('local-profile-image')
+                    : null,
                 width: 62,
                 height: 62,
                 child: Stack(alignment: Alignment.center, children: [

@@ -60,7 +60,7 @@ class ReactionPicker extends StatelessWidget {
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
                                     ReactionSticker(
-                                        reaction: reaction, size: 32),
+                                        reaction: reaction, size: 40),
                                     const SizedBox(height: 3),
                                     Text(reaction.caption,
                                         textAlign: TextAlign.center,
@@ -83,8 +83,8 @@ class PlayerReactionBubble extends StatelessWidget {
   @override
   Widget build(BuildContext context) => IgnorePointer(
           child: Container(
-        width: 154,
-        height: 38,
+        width: 174,
+        height: 54,
         padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
         decoration: BoxDecoration(
             color: const Color(0xFA17251C),
@@ -92,7 +92,7 @@ class PlayerReactionBubble extends StatelessWidget {
             borderRadius: BorderRadius.circular(10),
             boxShadow: const [BoxShadow(color: Colors.black54, blurRadius: 8)]),
         child: Row(children: [
-          ReactionSticker(reaction: reaction, size: 26),
+          ReactionSticker(reaction: reaction, size: 44),
           const SizedBox(width: 5),
           Expanded(
               child: Text(reaction.caption,

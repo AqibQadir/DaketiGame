@@ -1,7 +1,7 @@
 import 'package:daketi_phase1_modular/features/game/domain/models/daketi_game.dart';
 import 'package:daketi_phase1_modular/features/game/presentation/controllers/game_controller.dart';
 import 'package:daketi_phase1_modular/features/game/presentation/screens/game_screen.dart';
-import 'package:daketi_phase1_modular/features/game/presentation/widgets/bike_daketi_overlay.dart';
+import 'package:daketi_phase1_modular/features/game/presentation/widgets/police_siren_overlay.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -67,15 +67,15 @@ void main() {
 
     controller.move(actor: 'p0', stolen: true);
     await tester.pump(const Duration(milliseconds: 1));
-    expect(find.byType(BikeDaketiOverlay), findsOneWidget);
+    expect(find.byType(PoliceSirenOverlay), findsOneWidget);
     expect(ringProgress(tester), 0);
-    await tester.pump(const Duration(milliseconds: 1000));
+    await tester.pump(const Duration(milliseconds: 500));
     expect(ringProgress(tester), 0);
     expect(controller.timeoutCalls, 0);
 
-    await tester.pump(const Duration(milliseconds: 1300));
+    await tester.pump(const Duration(milliseconds: 500));
     await tester.pump(const Duration(milliseconds: 1));
-    expect(find.byType(BikeDaketiOverlay), findsNothing);
+    expect(find.byType(PoliceSirenOverlay), findsNothing);
     expect(ringProgress(tester), greaterThan(.95));
 
     controller.move(actor: 'p1', stolen: true);

@@ -39,7 +39,7 @@ void main() {
     await AudioSettings.setMusicVolume(2);
     expect(AudioSettings.effectiveMusicVolume, 1);
   });
-  testWidgets('settings replaces media with a music slider and retains toggles',
+  testWidgets('settings exposes sound effects independently of music volume',
       (tester) async {
     SharedPreferences.setMockInitialValues({});
     await AudioSettings.initialize();
@@ -49,7 +49,12 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('MEDIA'), findsNothing);
     expect(find.text('LANGUAGE'), findsNothing);
-    expect(find.byType(Switch), findsNWidgets(2));
+    expect(find.byType(Switch), findsNWidgets(3));
+    await tester.tap(find.byType(Switch).first);
+    await tester.pumpAndSettle();
+    expect(AudioSettings.media.value, isFalse);
+    await AudioSettings.initialize();
+    expect(AudioSettings.media.value, isFalse);
     final slider = find.byType(Slider);
     await tester.tapAt(tester.getCenter(slider));
     await tester.pumpAndSettle();

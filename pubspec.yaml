@@ -36,6 +36,7 @@ flutter:
     - assets/videos/
     - assets/audio/game/
     - assets/images/
+    - assets/images/stickers/
     - assets/images/cities/
     - assets/images/cities/plates/
     - assets/images/tables/lobbies/

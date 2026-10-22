@@ -11,6 +11,7 @@ import 'package:flutter/foundation.dart';
 class GameSoundService {
   GameSoundService._();
 
+  static final _uiPlayer = AudioPlayer(playerId: 'daketi_ui_sounds');
   static final _gamePlayer = AudioPlayer(playerId: 'daketi_game_sounds');
   static final _stealPlayer = AudioPlayer(playerId: 'daketi_steal_sounds');
   static final _alertPlayer = AudioPlayer(playerId: 'daketi_alert_sounds');
@@ -24,7 +25,12 @@ class GameSoundService {
     AudioSettings.media.addListener(() {
       if (!AudioSettings.media.value) {
         setCountdownWarning(false);
-        for (final player in [_gamePlayer, _stealPlayer, _alertPlayer]) {
+        for (final player in [
+          _uiPlayer,
+          _gamePlayer,
+          _stealPlayer,
+          _alertPlayer
+        ]) {
           unawaited(player.stop().catchError((Object _) {}));
         }
       }
@@ -35,15 +41,19 @@ class GameSoundService {
   static const _assetRoot = 'audio/game/';
   static const _masterVolumeBoost = 1.4;
 
-  static void uiClick() {}
-  static void cardSelected() {}
+  static void uiClick() => _play(_uiPlayer, 'CardMove.wav', volume: .4);
+  static void cardSelected() => _play(_uiPlayer, 'SwipeCard.wav', volume: .55);
   static void shuffle() => _play(_gamePlayer, 'cards.wav', volume: .72);
   static void cardMove() => _play(_gamePlayer, 'anycard.wav', volume: .78);
   static void aceDrawn() => _play(_gamePlayer, 'ifyougetA.wav', volume: .78);
   static void stealCard({required bool third}) =>
       _play(_stealPlayer, third ? 'steal3.wav' : 'steal1-2.mp3', volume: .82);
-  static void invalidMove() {}
+  static void invalidMove() =>
+      _play(_alertPlayer, 'invalidmove.wav', volume: .7);
   static void nextPlayerMove() => _play(_alertPlayer, 'turn.wav', volume: .75);
+  static void timerWarning() =>
+      _play(_alertPlayer, 'timerwarning10secondsleft.wav', volume: .72);
+
   static void timerEnd() {
     setCountdownWarning(false);
     _play(_alertPlayer, 'timerend.mp3', volume: .8);
@@ -73,13 +83,15 @@ class GameSoundService {
     });
   }
 
-  static void playerJoined() {}
+  static void playerJoined() =>
+      _play(_alertPlayer, 'TurnChange2.wav', volume: .6);
 
-  static void matchFound() {}
+  static void matchFound() =>
+      _play(_alertPlayer, 'Timer Start.wav', volume: .7);
 
   static void reaction() {}
 
-  static void roundWon() {}
+  static void roundWon() => _play(_alertPlayer, 'rOUNDwIN.wav', volume: .8);
 
   static void gameLost() {}
 

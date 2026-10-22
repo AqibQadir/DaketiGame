@@ -1,3 +1,6 @@
+import 'package:daketi_phase1_modular/features/game/domain/models/daketi_game.dart';
+import 'package:daketi_phase1_modular/features/game/domain/models/game_action.dart';
+import 'package:daketi_phase1_modular/features/game/presentation/widgets/fanned_card_hand.dart';
 import 'package:daketi_phase1_modular/core/widgets/game_viewport.dart';
 import 'package:daketi_phase1_modular/features/game/domain/models/game_reaction.dart';
 import 'package:daketi_phase1_modular/features/game/presentation/controllers/game_controller.dart';
@@ -39,6 +42,39 @@ class ReactionController extends FlowController {
   }
 }
 
+class StackReactionController extends ReactionController {
+  StackReactionController(int players) : super(count: players) {
+    state = state.copyWith(
+        game: DaketiGame.fromJson({
+      'gameId': '0093',
+      'status': 'playing',
+      'maxPlayers': players,
+      'currentPlayerId': 'p1',
+      'deckCount': 20,
+      'table': ['3H'],
+      'players': List.generate(
+          players,
+          (i) => {
+                'id': 'p$i',
+                'name': 'Human $i',
+                'hand': i == 1 ? ['9D'] : ['hidden'],
+                'handCount': 1,
+                'stack': i == 1 ? ['9H'] : [],
+                'topCard': i == 1 ? '9H' : null,
+                'stackCount': i == 1 ? 1 : 0,
+              }),
+    }));
+  }
+
+  @override
+  Future<void> loadAvailableActions() async {
+    state = state.copyWith(availableActions: [
+      const GameAction(type: GameActionType.extendStack, cardId: '9D'),
+      const GameAction(type: GameActionType.discard, cardId: '9D'),
+    ]);
+  }
+}
+
 Future<void> mountGame(
     WidgetTester tester, ReactionController controller) async {
   await tester.binding.setSurfaceSize(const Size(844, 390));
@@ -51,6 +87,39 @@ Future<void> mountGame(
 }
 
 void main() {
+  for (final count in [2, 3, 4]) {
+    testWidgets(
+        'nine reaches own stack without opening reactions ($count players)',
+        (tester) async {
+      final controller = StackReactionController(count);
+      await mountGame(tester, controller);
+      await tester.tap(find.byType(FannedCardHand));
+      await tester.pump();
+      final pile = find.byWidgetPredicate((widget) =>
+          widget is Image &&
+          widget.image is AssetImage &&
+          (widget.image as AssetImage).assetName.endsWith('/Hearts/9.png'));
+      expect(pile, findsOneWidget);
+      final smiley =
+          tester.getRect(find.byKey(const ValueKey('reaction-button')));
+      expect(smiley.overlaps(tester.getRect(pile)), isFalse);
+      final avatar =
+          tester.getRect(find.byKey(const ValueKey('local-profile-image')));
+      expect(smiley.center.dx, greaterThan(avatar.center.dx));
+      expect(smiley.center.dy, greaterThan(avatar.center.dy));
+      expect(smiley.overlaps(avatar), isTrue);
+      // This is the part of the pile that used to sit underneath the smiley.
+      final canvas =
+          tester.renderObject<RenderBox>(find.byKey(GameViewport.canvasKey));
+      await tester.tapAt(canvas.localToGlobal(const Offset(321, 326)));
+      await tester.pump();
+      expect(controller.performed?.type, GameActionType.extendStack);
+      expect(controller.performed?.cardId, '9D');
+      expect(find.byType(ReactionPicker), findsNothing);
+      await tester.pumpWidget(const SizedBox());
+    });
+  }
+
   testWidgets('match menu has themed settings and leave actions only',
       (tester) async {
     await mountGame(tester, ReactionController());

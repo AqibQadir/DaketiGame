@@ -15,6 +15,7 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   double musicVolume = AudioSettings.effectiveMusicVolume;
+  bool soundEffects = AudioSettings.media.value;
   bool vibration = false;
   bool notification = true;
 
@@ -102,6 +103,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         Expanded(
                           child: Column(
                             children: [
+                              toggleRow(
+                                label: 'Sound effects',
+                                value: soundEffects,
+                                onChanged: (value) {
+                                  setState(() => soundEffects = value);
+                                  AudioSettings.setMedia(value);
+                                },
+                              ),
                               toggleRow(
                                 label: 'Vibration',
                                 value: vibration,
